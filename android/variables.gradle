@@ -1,0 +1,12 @@
+ext {
+    minSdkVersion = 22
+    compileSdkVersion = 35 // UPDATED: Must be 35 to see "Vanilla Ice Cream"
+    targetSdkVersion = 35  // UPDATED: Best practice to match compile version
+    androidxAppCompatVersion = '1.6.1'
+    androidxCoreKTXVersion = '1.12.0'
+    androidxEspressoCoreVersion = '3.5.1'
+    androidxJunitVersion = '1.1.5'
+    androidxCoordinatorLayoutVersion = '1.2.0'
+    junitVersion = '4.13.2'
+    coreSplashScreenVersion = '1.0.1'
+}
