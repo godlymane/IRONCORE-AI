@@ -37,5 +37,8 @@ export const LEVELS = [
     { name: "Silver", min: 2500, color: "text-slate-300", border: 'border-slate-300', bg: 'bg-slate-300/10' },
     { name: "Gold", min: 5000, color: "text-yellow-400", border: 'border-yellow-400', bg: 'bg-yellow-400/10' },
     { name: "Platinum", min: 10000, color: "text-cyan-400", border: 'border-cyan-400', bg: 'bg-cyan-400/10' },
-    { name: "Diamond", min: 25000, color: "text-indigo-400", border: 'border-indigo-400', bg: 'bg-indigo-400/10' }
+    { name: "Diamond", min: 25000, color: "text-red-400", border: 'border-red-400', bg: 'bg-red-400/10' }
 ];
+
+
+

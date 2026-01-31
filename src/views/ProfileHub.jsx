@@ -1,114 +1,233 @@
 import React, { useState, useRef } from 'react';
-import { User, Calendar, Activity, Image as ImageIcon, Camera, Trash2, LogOut } from 'lucide-react';
+import { User, Calendar, Activity, Image as ImageIcon, Camera, Trash2, LogOut, Trophy, Target, Zap, TrendingUp } from 'lucide-react';
 import { TrackView } from './TrackView';
 import { StatsView } from './StatsView';
 import { ChronicleView } from './ChronicleView';
+import ProgressPhotos from '../components/Progress/ProgressPhotos';
 
-export const ProfileHub = ({ 
-    profile = {}, 
-    progress = [], 
-    photos = [], 
+// Glass Card Component
+const GlassCard = ({ children, className = "", onClick }) => (
+    <div
+        onClick={onClick}
+        className={`relative overflow-hidden rounded-3xl p-5 ${className}`}
+        style={{
+            background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)',
+            backdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            boxShadow: '0 10px 40px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+        }}
+    >
+        <div
+            className="absolute top-0 left-0 right-0 h-[40%] rounded-t-3xl pointer-events-none"
+            style={{
+                background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%)',
+            }}
+        />
+        <div className="relative z-10">{children}</div>
+    </div>
+);
+
+export const ProfileHub = ({
+    profile = {},
+    progress = [],
+    photos = [], // Legacy prop, might be unused now
     meals = [],
     workouts = [],
     burned = [],
     leaderboard = [],
     deleteEntry,
     uploadProfilePic,
-    uploadProgressPhoto,
     onLogout,
     isStorageReady
 }) => {
-    const [subTab, setSubTab] = useState('overview'); 
+    const [subTab, setSubTab] = useState('overview');
+    const xp = profile?.xp || 0;
+    const level = Math.floor(xp / 500) + 1;
+    const xpProgress = (xp % 500) / 500 * 100;
 
     return (
-        <div className="space-y-4 pb-24 animate-in fade-in">
+        <div className="space-y-5 pb-24 animate-in fade-in">
             {/* Header with Logout */}
-            <div className="flex justify-between items-center px-1">
-                <h2 className="text-xl font-black italic text-white uppercase tracking-tighter">My Hub</h2>
-                <button 
-                    onClick={onLogout} 
-                    className="flex items-center gap-1 text-xs font-bold text-red-500 bg-red-900/10 px-3 py-1.5 rounded-full border border-red-900/50 hover:bg-red-900/30 transition-colors"
+            <div className="flex justify-between items-center">
+                <div>
+                    <h2 className="text-2xl font-black italic text-white uppercase tracking-tighter">Profile</h2>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Your Fitness Hub</p>
+                </div>
+                <button
+                    onClick={onLogout}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105 active:scale-95"
+                    style={{
+                        background: 'linear-gradient(145deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.05) 100%)',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        color: '#f87171',
+                    }}
                 >
-                    <LogOut size={12}/> Sign Out
+                    <LogOut size={14} /> Sign Out
                 </button>
             </div>
 
+            {/* Level Card */}
+            <GlassCard className="!p-6">
+                <div className="flex items-center gap-4">
+                    {/* Level Badge */}
+                    <div
+                        className="w-20 h-20 rounded-2xl flex items-center justify-center relative"
+                        style={{
+                            background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.3) 0%, rgba(185, 28, 28, 0.2) 100%)',
+                            border: '2px solid rgba(239, 68, 68, 0.4)',
+                            boxShadow: '0 8px 30px rgba(220, 38, 38, 0.3)',
+                        }}
+                    >
+                        <span className="text-3xl font-black text-white">{level}</span>
+                        <Trophy size={14} className="absolute -top-1 -right-1 text-yellow-400" />
+                    </div>
+
+                    {/* XP Progress */}
+                    <div className="flex-1">
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm font-bold text-white">Level {level}</span>
+                            <span className="text-xs text-gray-400">{xp % 500} / 500 XP</span>
+                        </div>
+                        <div
+                            className="h-3 rounded-full overflow-hidden"
+                            style={{ background: 'rgba(255,255,255,0.1)' }}
+                        >
+                            <div
+                                className="h-full rounded-full transition-all duration-1000"
+                                style={{
+                                    width: `${xpProgress}%`,
+                                    background: 'linear-gradient(90deg, #dc2626 0%, #ef4444 50%, #f87171 100%)',
+                                    boxShadow: '0 0 15px rgba(239, 68, 68, 0.5)',
+                                }}
+                            />
+                        </div>
+                        <p className="text-[10px] text-gray-500 mt-1">{500 - (xp % 500)} XP to Level {level + 1}</p>
+                    </div>
+                </div>
+
+                {/* Quick Stats */}
+                <div className="grid grid-cols-3 gap-3 mt-5">
+                    <StatMini icon={<Zap size={14} className="text-yellow-400" />} label="Total XP" value={xp} />
+                    <StatMini icon={<Target size={14} className="text-orange-400" />} label="Workouts" value={workouts.length} />
+                    <StatMini icon={<TrendingUp size={14} className="text-green-400" />} label="Meals Logged" value={meals.length} />
+                </div>
+
+                {/* Profile Completion Indicator */}
+                <ProfileCompletion profile={profile} workouts={workouts} meals={meals} progress={progress} />
+            </GlassCard>
+
             {/* Navigation */}
-            <div className="flex p-1 bg-gray-900 rounded-2xl border border-gray-800 mx-1 overflow-x-auto scrollbar-hide">
-                <button onClick={() => setSubTab('overview')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${subTab === 'overview' ? 'bg-gray-800 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}><User size={14}/> Profile</button>
-                <button onClick={() => setSubTab('history')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${subTab === 'history' ? 'bg-gray-800 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}><Calendar size={14}/> History</button>
-                <button onClick={() => setSubTab('stats')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${subTab === 'stats' ? 'bg-gray-800 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}><Activity size={14}/> Stats</button>
-                <button onClick={() => setSubTab('gallery')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${subTab === 'gallery' ? 'bg-gray-800 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}><ImageIcon size={14}/> Gallery</button>
+            <div
+                className="flex p-1 rounded-2xl overflow-x-auto scrollbar-hide"
+                style={{
+                    background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                }}
+            >
+                {[
+                    { id: 'overview', icon: <User size={14} />, label: 'Profile' },
+                    { id: 'history', icon: <Calendar size={14} />, label: 'History' },
+                    { id: 'stats', icon: <Activity size={14} />, label: 'Stats' },
+                    { id: 'gallery', icon: <ImageIcon size={14} />, label: 'Gallery' },
+                ].map(tab => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setSubTab(tab.id)}
+                        className={`flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${subTab === tab.id ? 'text-white' : 'text-gray-500 hover:text-gray-300'
+                            }`}
+                        style={subTab === tab.id ? {
+                            background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.6) 0%, rgba(185, 28, 28, 0.6) 100%)',
+                            boxShadow: '0 4px 20px rgba(220, 38, 38, 0.3)',
+                        } : {}}
+                    >
+                        {tab.icon}
+                        {tab.label}
+                    </button>
+                ))}
             </div>
 
             {/* Content */}
-            <div className="min-h-[60vh]">
+            <div className="min-h-[50vh]">
                 {subTab === 'overview' && <TrackView profile={profile} progress={progress} />}
                 {subTab === 'history' && <ChronicleView meals={meals} burned={burned} workouts={workouts} progress={progress} user={{}} deleteEntry={deleteEntry} profile={profile} />}
                 {subTab === 'stats' && <StatsView leaderboard={leaderboard} profile={profile} progress={progress} meals={meals} workouts={workouts} />}
-                {subTab === 'gallery' && <GalleryView photos={photos} uploadProgressPhoto={uploadProgressPhoto} deleteEntry={deleteEntry} isStorageReady={isStorageReady} />}
+                {subTab === 'gallery' && <ProgressPhotos userId={profile.id || 'demo_user_001'} />}
             </div>
         </div>
     );
 };
 
-const GalleryView = ({ photos, uploadProgressPhoto, deleteEntry, isStorageReady }) => {
-    const fileRef = useRef(null);
-    const [uploading, setUploading] = useState(false);
+// Mini Stat Component
+const StatMini = ({ icon, label, value }) => (
+    <div
+        className="text-center p-3 rounded-xl"
+        style={{
+            background: 'linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
+            border: '1px solid rgba(255,255,255,0.06)',
+        }}
+    >
+        <div className="flex justify-center mb-1">{icon}</div>
+        <p className="text-lg font-black text-white">{value}</p>
+        <p className="text-[9px] text-gray-500 uppercase font-bold">{label}</p>
+    </div>
+);
 
-    const handleUpload = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        setUploading(true);
-        try {
-            await uploadProgressPhoto(file, "Progress Update");
-        } catch (e) {
-            console.error("Gallery Upload Error:", e);
-        } finally {
-            setUploading(false);
-        }
-    };
+// Profile Completion Indicator Component
+const ProfileCompletion = ({ profile, workouts, meals, progress }) => {
+    // Calculate completion based on various factors
+    const checks = [
+        { label: 'Basic Info', complete: !!(profile?.weight && profile?.height && profile?.age) },
+        { label: 'Goal Set', complete: !!profile?.goal },
+        { label: 'Calories Calculated', complete: !!profile?.dailyCalories },
+        { label: 'First Workout', complete: workouts?.length > 0 },
+        { label: 'First Meal', complete: meals?.length > 0 },
+        { label: 'Progress Tracked', complete: progress?.length > 0 },
+    ];
+
+    const completedCount = checks.filter(c => c.complete).length;
+    const completionPercent = Math.round((completedCount / checks.length) * 100);
+
+    if (completionPercent === 100) return null; // Hide when complete
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <h3 className="text-lg font-black italic text-white uppercase">Transformation Log</h3>
-                
-                {isStorageReady && (
-                    <button onClick={() => !uploading && fileRef.current?.click()} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-indigo-500/20">
-                        <Camera size={16}/> {uploading ? 'Uploading...' : 'Add Photo'}
-                    </button>
-                )}
-                <input type="file" ref={fileRef} className="hidden" accept="image/*" onChange={handleUpload} disabled={uploading}/>
+        <div
+            className="mt-5 p-3 rounded-xl"
+            style={{
+                background: 'linear-gradient(145deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%)',
+                border: '1px solid rgba(245, 158, 11, 0.2)',
+            }}
+        >
+            <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-bold text-yellow-400 uppercase">Profile Completion</span>
+                <span className="text-xs font-black text-yellow-400">{completionPercent}%</span>
             </div>
-            
-            {!isStorageReady && <p className="text-xs text-red-400 bg-red-900/10 p-2 rounded border border-red-900/30">Storage not enabled. Cannot upload photos.</p>}
-
-            <div className="grid grid-cols-2 gap-3">
-                {photos.length === 0 ? (
-                    <div className="col-span-2 text-center py-10 border-2 border-dashed border-gray-800 rounded-3xl">
-                        <ImageIcon size={32} className="mx-auto text-gray-600 mb-2"/>
-                        <p className="text-gray-500 text-xs">No progress photos yet.</p>
-                        <p className="text-gray-600 text-[10px]">Upload one to track your gains.</p>
-                    </div>
-                ) : (
-                    photos.map(photo => (
-                        <div key={photo.id} className="relative group bg-gray-900 rounded-2xl overflow-hidden border border-gray-800 aspect-[3/4]">
-                            <img src={photo.url} alt="Progress" className="w-full h-full object-cover"/>
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-3">
-                                <p className="text-xs font-bold text-white">{new Date(photo.date).toLocaleDateString()}</p>
-                                <p className="text-[10px] text-gray-400 truncate">{photo.note}</p>
-                            </div>
-                            <button 
-                                onClick={() => deleteEntry('photos', photo.id)}
-                                className="absolute top-2 right-2 bg-red-500/80 p-1.5 rounded-full text-white"
-                            >
-                                <Trash2 size={12}/>
-                            </button>
-                        </div>
-                    ))
-                )}
+            <div
+                className="h-2 rounded-full overflow-hidden"
+                style={{ background: 'rgba(255,255,255,0.1)' }}
+            >
+                <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                        width: `${completionPercent}%`,
+                        background: 'linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%)',
+                        boxShadow: '0 0 10px rgba(245, 158, 11, 0.5)',
+                    }}
+                />
+            </div>
+            <div className="flex flex-wrap gap-1 mt-2">
+                {checks.filter(c => !c.complete).slice(0, 2).map((check, i) => (
+                    <span
+                        key={i}
+                        className="text-[9px] px-2 py-0.5 rounded bg-yellow-400/10 text-yellow-400 font-medium"
+                    >
+                        Missing: {check.label}
+                    </span>
+                ))}
             </div>
         </div>
     );
 };
+
+
+
+

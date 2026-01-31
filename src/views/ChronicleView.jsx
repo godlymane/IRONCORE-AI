@@ -69,7 +69,7 @@ export const ChronicleView = ({ meals, burned, workouts, progress, user, deleteE
     ].sort((a,b) => b.time - a.time);
 
     const macroGraphData = [
-        { name: 'Protein', val: totals.p, color: '#818cf8' },
+        { name: 'Protein', val: totals.p, color: '#dc2626' },
         { name: 'Carbs', val: totals.c, color: '#facc15' },
         { name: 'Fats', val: totals.f, color: '#f87171' }
     ];
@@ -92,7 +92,7 @@ export const ChronicleView = ({ meals, burned, workouts, progress, user, deleteE
                     const { day, num } = getDayLabel(date);
                     const isSelected = selectedDate === date;
                     return (
-                        <button key={date} onClick={() => setSelectedDate(date)} className={`flex-shrink-0 flex flex-col items-center justify-center w-14 h-20 rounded-2xl transition-all ${isSelected ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50 scale-105' : 'bg-gray-900 text-gray-500 border border-gray-800'}`}>
+                        <button key={date} onClick={() => setSelectedDate(date)} className={`flex-shrink-0 flex flex-col items-center justify-center w-14 h-20 rounded-2xl transition-all ${isSelected ? 'bg-red-600 text-white shadow-lg shadow-red-900/50 scale-105' : 'bg-gray-900 text-gray-500 border border-gray-800'}`}>
                             <span className="text-[10px] font-bold uppercase">{day}</span><span className="text-xl font-black">{num}</span>
                         </button>
                     );
@@ -101,21 +101,24 @@ export const ChronicleView = ({ meals, burned, workouts, progress, user, deleteE
 
             <div className="grid grid-cols-2 gap-3">
                 <div className="bg-gray-900 border border-gray-800 p-3 rounded-2xl flex flex-col justify-center items-center"><p className="text-[9px] uppercase font-bold text-gray-500 mb-1">Cals / Target</p><p className="text-xl font-black italic text-white">{totals.cals} <span className="text-xs text-gray-600">/ {dailyTarget}</span></p></div>
-                <div className="bg-gray-900 border border-gray-800 p-3 rounded-2xl flex flex-col justify-center items-center"><p className="text-[9px] uppercase font-bold text-gray-500 mb-1">Prot / Target</p><p className="text-xl font-black italic text-indigo-400">{totals.p} <span className="text-xs text-gray-600">/ {dailyProtein}</span></p></div>
+                <div className="bg-gray-900 border border-gray-800 p-3 rounded-2xl flex flex-col justify-center items-center"><p className="text-[9px] uppercase font-bold text-gray-500 mb-1">Prot / Target</p><p className="text-xl font-black italic text-red-400">{totals.p} <span className="text-xs text-gray-600">/ {dailyProtein}</span></p></div>
                 
                 <div className="col-span-2 bg-gradient-to-r from-gray-900 to-gray-800 border border-gray-700 p-4 rounded-2xl flex justify-between items-center relative overflow-hidden">
-                    <div className="absolute right-0 top-0 bottom-0 w-32 bg-indigo-500/10 -skew-x-12 transform translate-x-10"></div>
+                    <div className="absolute right-0 top-0 bottom-0 w-32 bg-red-500/10 -skew-x-12 transform translate-x-10"></div>
                     <div><p className="text-[10px] uppercase font-bold text-gray-400 mb-1 flex items-center gap-1"><Scale size={12}/> Net Balance</p><p className="text-4xl font-black italic text-white">{netCals}</p></div>
                     <div className="text-right z-10"><p className="text-[9px] text-gray-400 font-mono mb-1">Calculation</p><p className="text-xs font-bold text-gray-300">{totals.cals} - {totalBurned}</p></div>
                 </div>
 
-                <div className="bg-gray-900 border border-gray-800 p-3 rounded-2xl flex flex-col justify-center items-center"><p className="text-[9px] uppercase font-bold text-gray-500 mb-1">Water</p><p className="text-2xl font-black italic text-blue-400">{waterIntake}</p><p className="text-[8px] text-gray-600 font-bold">ML</p></div>
+                <div className="bg-gray-900 border border-gray-800 p-3 rounded-2xl flex flex-col justify-center items-center"><p className="text-[9px] uppercase font-bold text-gray-500 mb-1">Water</p><p className="text-2xl font-black italic text-amber-400">{waterIntake}</p><p className="text-[8px] text-gray-600 font-bold">ML</p></div>
                 <div className="bg-gray-900 border border-gray-800 p-3 rounded-2xl flex flex-col justify-center items-center"><p className="text-[9px] uppercase font-bold text-gray-500 mb-1">Weigh-In</p><p className="text-2xl font-black italic text-white">{dayWeight}</p><p className="text-[8px] text-gray-600 font-bold">KG</p></div>
             </div>
 
             <Card className="h-64 flex flex-col"><p className="text-xs font-black uppercase text-gray-500 mb-4">Macro Analysis</p><ResponsiveContainer width="100%" height="100%"><BarChart data={macroGraphData} margin={{top: 10, right: 10, left: -20, bottom: 0}}><XAxis dataKey="name" tick={{fontSize: 10, fill: '#6b7280'}} axisLine={false} tickLine={false} /><Tooltip cursor={{fill: 'transparent'}} contentStyle={{backgroundColor: '#111827', borderRadius: '8px', border: '1px solid #374151', color: 'white'}} /><Bar dataKey="val" radius={[6, 6, 0, 0]}>{macroGraphData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} />))}</Bar></BarChart></ResponsiveContainer></Card>
 
-            <div className="space-y-3"><h3 className="text-xs font-black uppercase text-gray-500 tracking-widest pl-2">Timeline</h3>{timeline.length === 0 ? (<p className="text-xs text-gray-600 pl-2 italic py-4 text-center">No records found for this date.</p>) : timeline.map((item, idx) => (<div key={idx} className="bg-gray-900 border border-gray-800 p-4 rounded-2xl flex items-center justify-between gap-4 group"><div className="flex items-center gap-4 flex-grow"><div className={`p-3 rounded-full ${item.type === 'meal' ? (item.mealName === 'Water' ? 'bg-blue-900/20 text-blue-400' : 'bg-indigo-900/20 text-indigo-400') : item.type === 'cardio' ? 'bg-orange-900/20 text-orange-400' : 'bg-green-900/20 text-green-400'}`}>{item.type === 'meal' ? (item.mealName === 'Water' ? <Droplets size={16}/> : <Utensils size={16}/>) : item.type === 'cardio' ? <Flame size={16}/> : <Dumbbell size={16}/>}</div><div><p className="text-sm font-bold text-white">{item.type === 'meal' ? item.mealName : item.type === 'cardio' ? item.activityType : item.name}</p><p className="text-[10px] text-gray-500 font-mono">{item.type === 'meal' ? (item.mealName === 'Water' ? '250ml' : `${item.calories} kcal • ${item.protein}P ${item.carbs}C ${item.fat}F`) : item.type === 'cardio' ? `${item.calories} kcal • ${item.details || ''}` : `Workout Session`}</p></div></div><div className="flex flex-col items-end gap-1"><span className="text-[9px] text-gray-600 font-mono">{new Date(item.time * 1000 || item.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span><button onClick={() => handleDelete(item)} className="text-gray-600 hover:text-red-500 transition-colors p-1" aria-label="Delete entry"><Trash2 size={14}/></button></div></div>))}</div>
+            <div className="space-y-3"><h3 className="text-xs font-black uppercase text-gray-500 tracking-widest pl-2">Timeline</h3>{timeline.length === 0 ? (<p className="text-xs text-gray-600 pl-2 italic py-4 text-center">No records found for this date.</p>) : timeline.map((item, idx) => (<div key={idx} className="bg-gray-900 border border-gray-800 p-4 rounded-2xl flex items-center justify-between gap-4 group"><div className="flex items-center gap-4 flex-grow"><div className={`p-3 rounded-full ${item.type === 'meal' ? (item.mealName === 'Water' ? 'bg-amber-900/20 text-amber-400' : 'bg-red-900/20 text-red-400') : item.type === 'cardio' ? 'bg-orange-900/20 text-orange-400' : 'bg-green-900/20 text-green-400'}`}>{item.type === 'meal' ? (item.mealName === 'Water' ? <Droplets size={16}/> : <Utensils size={16}/>) : item.type === 'cardio' ? <Flame size={16}/> : <Dumbbell size={16}/>}</div><div><p className="text-sm font-bold text-white">{item.type === 'meal' ? item.mealName : item.type === 'cardio' ? item.activityType : item.name}</p><p className="text-[10px] text-gray-500 font-mono">{item.type === 'meal' ? (item.mealName === 'Water' ? '250ml' : `${item.calories} kcal • ${item.protein}P ${item.carbs}C ${item.fat}F`) : item.type === 'cardio' ? `${item.calories} kcal • ${item.details || ''}` : `Workout Session`}</p></div></div><div className="flex flex-col items-end gap-1"><span className="text-[9px] text-gray-600 font-mono">{new Date(item.time * 1000 || item.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span><button onClick={() => handleDelete(item)} className="text-gray-600 hover:text-red-500 transition-colors p-1" aria-label="Delete entry"><Trash2 size={14}/></button></div></div>))}</div>
         </div>
     );
 };
+
+
+

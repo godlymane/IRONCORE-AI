@@ -43,7 +43,7 @@ export const TrackView = ({ progress, profile }) => {
         <div className="space-y-6 animate-in fade-in pb-20">
             {/* HERO PROFILE HEADER */}
             <div className="flex items-center gap-4 bg-gray-900/50 p-4 rounded-3xl border border-gray-800">
-                <div className="w-20 h-20 rounded-full border-2 border-indigo-500 p-1 flex-shrink-0">
+                <div className="w-20 h-20 rounded-full border-2 border-red-500 p-1 flex-shrink-0">
                     <div className="w-full h-full rounded-full bg-gray-800 overflow-hidden relative">
                         {photoURL ? (
                             <img src={photoURL} alt="Profile" className="w-full h-full object-cover"/>
@@ -55,7 +55,7 @@ export const TrackView = ({ progress, profile }) => {
                 <div className="flex-grow">
                     <div className="flex justify-between items-start">
                         <h2 className="text-xl font-black text-white uppercase italic tracking-tighter">My Stats</h2>
-                        <div className="bg-indigo-900/30 text-indigo-400 px-2 py-1 rounded text-[10px] font-bold border border-indigo-500/30">PRO</div>
+                        <div className="bg-red-900/30 text-red-400 px-2 py-1 rounded text-[10px] font-bold border border-red-500/30">PRO</div>
                     </div>
                     <div className="flex gap-2 mt-2">
                         <span className="text-[10px] bg-black border border-gray-700 px-3 py-1 rounded-full text-gray-300 font-bold uppercase">{profile.gender || 'Athlete'}</span>
@@ -64,15 +64,15 @@ export const TrackView = ({ progress, profile }) => {
                 </div>
             </div>
 
-            <div className="bg-gray-900/50 border border-indigo-500/20 p-3 rounded-xl flex items-center gap-3 text-xs text-gray-400">
-                <div className="bg-indigo-500/10 p-1.5 rounded-lg"><Lock size={12} className="text-indigo-400"/></div>
-                <p>Stats are managed in <span className="text-indigo-400 font-bold">Goal Architect</span> (Home)</p>
+            <div className="bg-gray-900/50 border border-red-500/20 p-3 rounded-xl flex items-center gap-3 text-xs text-gray-400">
+                <div className="bg-red-500/10 p-1.5 rounded-lg"><Lock size={12} className="text-red-400"/></div>
+                <p>Stats are managed in <span className="text-red-400 font-bold">Goal Architect</span> (Home)</p>
             </div>
 
             {/* MAIN GOAL TRACKER */}
             <div className="grid grid-cols-2 gap-3">
                 <div className="bg-gradient-to-br from-gray-900 to-gray-950 border border-gray-800 rounded-3xl p-4 flex flex-col justify-between relative overflow-hidden group">
-                     <div className="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                     <div className="absolute inset-0 bg-red-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                      <p className="text-xs font-bold uppercase text-gray-500 z-10 flex items-center gap-1"><Scale size={12}/> Weight</p>
                      <div className="z-10 mt-2">
                         <span className="text-4xl font-black text-white italic tracking-tighter">{currentWeight}</span>
@@ -81,11 +81,11 @@ export const TrackView = ({ progress, profile }) => {
                      {targetWeight > 0 && (
                          <div className="mt-2 relative z-10">
                              <div className="flex justify-between items-end mb-1">
-                                <p className="text-[10px] text-indigo-400 font-bold uppercase">Target: {targetWeight}kg</p>
+                                <p className="text-[10px] text-red-400 font-bold uppercase">Target: {targetWeight}kg</p>
                                 <p className="text-[10px] text-gray-600">{Math.round(goalPercent)}%</p>
                              </div>
                              <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
-                                 <div className="bg-indigo-500 h-full rounded-full transition-all duration-1000" style={{width: `${goalPercent}%`}}></div>
+                                 <div className="bg-red-500 h-full rounded-full transition-all duration-1000" style={{width: `${goalPercent}%`}}></div>
                              </div>
                          </div>
                      )}
@@ -143,3 +143,6 @@ export const TrackView = ({ progress, profile }) => {
         </div>
     );
 };
+
+
+

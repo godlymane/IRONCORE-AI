@@ -37,7 +37,7 @@ export const BodyHeatmap = ({ muscleScores }) => {
         <div className="relative w-full h-full flex items-center justify-center p-4 group">
             <button 
                 onClick={() => setView(v => v === 'front' ? 'back' : 'front')}
-                className="absolute top-4 right-4 bg-gray-800 p-2 rounded-full text-white hover:bg-indigo-600 transition-colors z-20 shadow-lg border border-gray-700"
+                className="absolute top-4 right-4 bg-gray-800 p-2 rounded-full text-white hover:bg-red-600 transition-colors z-20 shadow-lg border border-gray-700"
             >
                 <RotateCw size={16} />
             </button>
@@ -91,3 +91,6 @@ export const BodyHeatmap = ({ muscleScores }) => {
         </div>
     );
 };
+
+
+

@@ -1,73 +1,182 @@
 import React, { useState } from 'react';
-import { Lock, HeartPulse, Gauge, Footprints, Mountain } from 'lucide-react';
-import { Card, Button } from '../components/UIComponents';
+import { Lock, HeartPulse, Gauge, Footprints, Mountain, Zap, Flame, Bike, Check, Settings } from 'lucide-react';
+import { Button } from '../components/UIComponents';
+
+// Glass Card Component
+const GlassCard = ({ children, className = "", onClick, highlight = false }) => (
+    <div
+        onClick={onClick}
+        className={`relative overflow-hidden rounded-3xl p-5 transition-all duration-300 ${onClick ? 'cursor-pointer hover:scale-[1.01]' : ''} ${className}`}
+        style={{
+            background: highlight
+                ? 'linear-gradient(145deg, rgba(220, 38, 38, 0.15) 0%, rgba(185, 28, 28, 0.08) 100%)'
+                : 'linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)',
+            backdropFilter: 'blur(20px)',
+            border: highlight ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(255, 255, 255, 0.08)',
+            boxShadow: '0 10px 40px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+        }}
+    >
+        <div
+            className="absolute top-0 left-0 right-0 h-[40%] rounded-t-3xl pointer-events-none"
+            style={{ background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%)' }}
+        />
+        <div className="relative z-10">{children}</div>
+    </div>
+);
+
+// Activity Card Component
+const ActivityCard = ({ id, label, icon, active, onClick, color }) => (
+    <button
+        onClick={onClick}
+        className={`flex-1 p-4 rounded-2xl transition-all duration-300 flex flex-col items-center gap-2 ${active ? 'scale-105' : 'hover:scale-102 opacity-60 hover:opacity-80'}`}
+        style={{
+            background: active
+                ? `linear-gradient(145deg, rgba(220, 38, 38, 0.25) 0%, rgba(185, 28, 28, 0.15) 100%)`
+                : 'linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)',
+            border: active ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
+            boxShadow: active ? '0 8px 25px rgba(220, 38, 38, 0.25)' : 'none',
+        }}
+    >
+        <div className={active ? 'text-red-400' : 'text-gray-500'}>{icon}</div>
+        <span className={`text-[10px] font-bold uppercase tracking-wider ${active ? 'text-white' : 'text-gray-500'}`}>{label}</span>
+    </button>
+);
+
+// Glass Input Component
+const GlassInput = ({ label, value, onChange, placeholder, unit, icon }) => (
+    <div
+        className="p-4 rounded-2xl transition-all"
+        style={{
+            background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+        }}
+    >
+        <label className="text-[10px] uppercase font-bold text-gray-500 block mb-2 flex items-center gap-1">
+            {icon} {label}
+        </label>
+        <div className="flex items-center gap-2">
+            <input
+                type="number"
+                value={value}
+                onChange={e => onChange(e.target.value)}
+                placeholder={placeholder}
+                className="flex-1 bg-transparent text-xl font-black text-white outline-none placeholder:text-gray-700"
+            />
+            {unit && <span className="text-xs text-gray-500 font-bold">{unit}</span>}
+        </div>
+    </div>
+);
 
 export const CardioView = ({ progress, profile, updateData, setActiveTab }) => {
     const [burn, setBurn] = useState(null);
     const [activity, setActivity] = useState("treadmill");
-    
+
     // Form States
-    const [tmSpeed, setTmSpeed] = useState(8); 
-    const [tmIncline, setTmIncline] = useState(1); 
-    const [tmDuration, setTmDuration] = useState(30); 
-    
+    const [tmSpeed, setTmSpeed] = useState(8);
+    const [tmIncline, setTmIncline] = useState(1);
+    const [tmDuration, setTmDuration] = useState(30);
+
     const [walkSteps, setWalkSteps] = useState(5000);
-    const [walkIntensity, setWalkIntensity] = useState("moderate"); 
+    const [walkIntensity, setWalkIntensity] = useState("moderate");
 
     const [cycDuration, setCycDuration] = useState(45);
     const [cycIntensity, setCycIntensity] = useState("moderate");
 
-    // --- ROBUST STATS FETCHING ---
-    // 1. Try Profile (Goal Architect) first - it's the most up-to-date
-    // 2. Fallback to Progress History
-    // 3. Handle key variations (height vs heightCm)
-    const weight = profile.weight || progress.sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).find(p => p.weight)?.weight;
+    // Robust Stats Fetching
+    const weight = profile.weight || progress.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).find(p => p.weight)?.weight;
     const height = profile.height || profile.heightCm;
 
-    // --- LOCKED STATE ---
+    // Locked State - Premium Version
     if (!weight || !height) {
         return (
             <div className="h-[80vh] flex flex-col items-center justify-center text-center px-6 animate-in fade-in">
-                <div className="bg-gray-900 p-8 rounded-full border border-gray-800 shadow-2xl mb-6">
-                    <Lock size={48} className="text-gray-500"/>
-                </div>
-                <h2 className="text-2xl font-black italic text-white uppercase tracking-tighter mb-2">Pulse Locked</h2>
-                <p className="text-sm text-gray-500 mb-6 max-w-xs">
-                    We need your weight to calculate energy expenditure physics.
-                </p>
-                <div className="flex gap-2 text-xs text-gray-600 mb-6">
-                    <span className={weight ? "text-green-500" : "text-red-500"}>Weight: {weight ? 'OK' : 'Missing'}</span>
-                    <span>•</span>
-                    <span className={height ? "text-green-500" : "text-red-500"}>Height: {height ? 'OK' : 'Missing'}</span>
-                </div>
-                <Button onClick={() => setActiveTab('dashboard')} className="w-full max-w-xs">Go to Dashboard Setup</Button>
+                {/* Animated background orb */}
+                <div
+                    className="absolute inset-0 opacity-20 pointer-events-none"
+                    style={{
+                        background: 'radial-gradient(circle at center, rgba(239, 68, 68, 0.3) 0%, transparent 50%)',
+                    }}
+                />
+
+                <GlassCard className="!p-8 max-w-sm mx-auto">
+                    <div
+                        className="w-20 h-20 mx-auto rounded-3xl flex items-center justify-center mb-6"
+                        style={{
+                            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.1) 100%)',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            boxShadow: '0 8px 30px rgba(239, 68, 68, 0.2)',
+                        }}
+                    >
+                        <Lock size={32} className="text-red-400" />
+                    </div>
+
+                    <h2 className="text-2xl font-black italic text-white uppercase tracking-tighter mb-2">Pulse Locked</h2>
+                    <p className="text-sm text-gray-400 mb-6 leading-relaxed">
+                        We need your biometrics to calculate accurate energy expenditure.
+                    </p>
+
+                    {/* Status Indicators */}
+                    <div className="flex justify-center gap-4 mb-6">
+                        <div
+                            className="px-3 py-2 rounded-xl flex items-center gap-2 text-xs font-bold"
+                            style={{
+                                background: weight ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                                border: weight ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
+                                color: weight ? '#4ade80' : '#f87171',
+                            }}
+                        >
+                            {weight ? <Check size={12} /> : <Lock size={12} />}
+                            Weight
+                        </div>
+                        <div
+                            className="px-3 py-2 rounded-xl flex items-center gap-2 text-xs font-bold"
+                            style={{
+                                background: height ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                                border: height ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
+                                color: height ? '#4ade80' : '#f87171',
+                            }}
+                        >
+                            {height ? <Check size={12} /> : <Lock size={12} />}
+                            Height
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={() => setActiveTab('dashboard')}
+                        className="w-full py-4 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
+                        style={{
+                            background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.9) 0%, rgba(185, 28, 28, 0.9) 100%)',
+                            boxShadow: '0 10px 40px rgba(220, 38, 38, 0.4)',
+                        }}
+                    >
+                        <Settings size={16} />
+                        Open Goal Architect
+                    </button>
+                </GlassCard>
             </div>
         );
     }
 
-    // --- CALCULATORS ---
+    // Calculators
     const calculate = () => {
         let cals = 0;
 
         if (activity === 'treadmill') {
-            // ACSM Running Formula
             const speedMmin = tmSpeed * 16.6667;
             const grade = tmIncline / 100;
             const vo2 = (0.2 * speedMmin) + (0.9 * speedMmin * grade) + 3.5;
             cals = (vo2 * weight / 200) * tmDuration;
-        } 
-        else if (activity === 'walking') {
-            let met = 2.5; 
+        } else if (activity === 'walking') {
+            let met = 2.5;
             if (walkIntensity === 'moderate') met = 3.5;
-            if (walkIntensity === 'aggressive') met = 5.0; 
-            const approxMins = walkSteps / 100; 
+            if (walkIntensity === 'aggressive') met = 5.0;
+            const approxMins = walkSteps / 100;
             cals = (met * 3.5 * weight / 200) * approxMins;
-        }
-        else if (activity === 'cycling') {
-            let met = 6.0; 
+        } else if (activity === 'cycling') {
+            let met = 6.0;
             if (cycIntensity === 'low') met = 4.0;
-            if (cycIntensity === 'high') met = 8.5; 
-            if (cycIntensity === 'extreme') met = 12.0; 
+            if (cycIntensity === 'high') met = 8.5;
+            if (cycIntensity === 'extreme') met = 12.0;
             cals = (met * 3.5 * weight / 200) * cycDuration;
         }
 
@@ -75,72 +184,122 @@ export const CardioView = ({ progress, profile, updateData, setActiveTab }) => {
     };
 
     const logSession = async () => {
-        if(!burn) return;
+        if (!burn) return;
         let details = "";
-        if(activity === 'treadmill') details = `${tmSpeed}km/h @ ${tmIncline}% inc`;
-        if(activity === 'walking') details = `${walkSteps} steps (${walkIntensity})`;
-        if(activity === 'cycling') details = `${cycDuration}m (${cycIntensity})`;
-        
-        // FIX: Changed collection from 'calories' to 'burned' to match useFitnessData listener
-        await updateData('add', 'burned', { 
-            activityType: activity.charAt(0).toUpperCase() + activity.slice(1), 
+        if (activity === 'treadmill') details = `${tmSpeed}km/h @ ${tmIncline}% inc`;
+        if (activity === 'walking') details = `${walkSteps} steps (${walkIntensity})`;
+        if (activity === 'cycling') details = `${cycDuration}m (${cycIntensity})`;
+
+        await updateData('add', 'burned', {
+            activityType: activity.charAt(0).toUpperCase() + activity.slice(1),
             calories: burn,
             details: details,
-            duration: activity === 'walking' ? Math.round(walkSteps/100) : (activity === 'treadmill' ? tmDuration : cycDuration)
+            duration: activity === 'walking' ? Math.round(walkSteps / 100) : (activity === 'treadmill' ? tmDuration : cycDuration)
         });
         setBurn(null);
     };
 
     return (
-        <div className="space-y-6 animate-in fade-in pb-20">
-            <h2 className="text-2xl font-black uppercase tracking-tighter italic text-white flex items-center gap-2">
-                <HeartPulse className="text-red-500"/> Pulse Lab
-            </h2>
-            
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                {['treadmill', 'walking', 'cycling'].map(type => (
-                    <button 
-                        key={type} 
-                        onClick={() => { setActivity(type); setBurn(null); }}
-                        className={`flex-shrink-0 px-4 py-3 rounded-xl border text-xs font-bold transition-all uppercase tracking-wider ${activity === type ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-gray-900 border-gray-800 text-gray-500'}`}
-                    >
-                        {type}
-                    </button>
-                ))}
+        <div className="space-y-5 animate-in fade-in pb-20 relative">
+            {/* Header */}
+            <div className="flex items-center gap-3">
+                <div
+                    className="p-3 rounded-2xl"
+                    style={{
+                        background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(249, 115, 22, 0.1) 100%)',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                    }}
+                >
+                    <HeartPulse size={24} className="text-red-400" />
+                </div>
+                <div>
+                    <h2 className="text-xl font-black uppercase tracking-tighter italic text-white">Pulse Lab</h2>
+                    <p className="text-[10px] text-gray-500 uppercase">Cardio Energy Tracking</p>
+                </div>
             </div>
 
-            <Card className="space-y-6">
-                
+            {/* Activity Selector */}
+            <div className="flex gap-3">
+                <ActivityCard
+                    id="treadmill"
+                    label="Treadmill"
+                    icon={<Zap size={20} />}
+                    active={activity === 'treadmill'}
+                    onClick={() => { setActivity('treadmill'); setBurn(null); }}
+                />
+                <ActivityCard
+                    id="walking"
+                    label="Walking"
+                    icon={<Footprints size={20} />}
+                    active={activity === 'walking'}
+                    onClick={() => { setActivity('walking'); setBurn(null); }}
+                />
+                <ActivityCard
+                    id="cycling"
+                    label="Cycling"
+                    icon={<Bike size={20} />}
+                    active={activity === 'cycling'}
+                    onClick={() => { setActivity('cycling'); setBurn(null); }}
+                />
+            </div>
+
+            {/* Activity Form */}
+            <GlassCard className="space-y-4">
                 {activity === 'treadmill' && (
                     <div className="space-y-4 animate-in slide-in-from-right-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="text-[10px] uppercase font-bold text-gray-500 mb-1 flex items-center gap-1"><Gauge size={10}/> Speed (km/h)</label>
-                                <input type="number" value={tmSpeed} onChange={e=>setTmSpeed(e.target.value)} className="w-full bg-gray-950 p-3 rounded-xl text-white font-bold outline-none border border-gray-800 focus:border-indigo-500"/>
-                            </div>
-                            <div>
-                                <label className="text-[10px] uppercase font-bold text-gray-500 mb-1 flex items-center gap-1"><Mountain size={10}/> Incline (%)</label>
-                                <input type="number" value={tmIncline} onChange={e=>setTmIncline(e.target.value)} className="w-full bg-gray-950 p-3 rounded-xl text-white font-bold outline-none border border-gray-800 focus:border-indigo-500"/>
-                            </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <GlassInput
+                                label="Speed"
+                                value={tmSpeed}
+                                onChange={setTmSpeed}
+                                placeholder="8"
+                                unit="km/h"
+                                icon={<Gauge size={10} />}
+                            />
+                            <GlassInput
+                                label="Incline"
+                                value={tmIncline}
+                                onChange={setTmIncline}
+                                placeholder="1"
+                                unit="%"
+                                icon={<Mountain size={10} />}
+                            />
                         </div>
-                        <div>
-                            <label className="text-[10px] uppercase font-bold text-gray-500 mb-1">Duration (Mins)</label>
-                            <input type="number" value={tmDuration} onChange={e=>setTmDuration(e.target.value)} className="w-full bg-gray-950 p-3 rounded-xl text-white font-bold outline-none border border-gray-800 focus:border-indigo-500"/>
-                        </div>
+                        <GlassInput
+                            label="Duration"
+                            value={tmDuration}
+                            onChange={setTmDuration}
+                            placeholder="30"
+                            unit="mins"
+                        />
                     </div>
                 )}
 
                 {activity === 'walking' && (
                     <div className="space-y-4 animate-in slide-in-from-right-4">
+                        <GlassInput
+                            label="Total Steps"
+                            value={walkSteps}
+                            onChange={setWalkSteps}
+                            placeholder="5000"
+                            icon={<Footprints size={10} />}
+                        />
                         <div>
-                            <label className="text-[10px] uppercase font-bold text-gray-500 mb-1 flex items-center gap-1"><Footprints size={10}/> Total Steps</label>
-                            <input type="number" value={walkSteps} onChange={e=>setWalkSteps(e.target.value)} className="w-full bg-gray-950 p-3 rounded-xl text-white font-bold outline-none border border-gray-800 focus:border-indigo-500"/>
-                        </div>
-                        <div>
-                            <label className="text-[10px] uppercase font-bold text-gray-500 mb-1">Intensity</label>
+                            <label className="text-[10px] uppercase font-bold text-gray-500 mb-2 block">Intensity</label>
                             <div className="grid grid-cols-3 gap-2">
                                 {['low', 'moderate', 'aggressive'].map(lvl => (
-                                    <button key={lvl} onClick={()=>setWalkIntensity(lvl)} className={`p-2 rounded-lg text-[10px] uppercase font-bold border ${walkIntensity === lvl ? 'bg-indigo-900/50 border-indigo-500 text-indigo-400' : 'bg-gray-900 border-gray-800 text-gray-600'}`}>
+                                    <button
+                                        key={lvl}
+                                        onClick={() => setWalkIntensity(lvl)}
+                                        className="p-3 rounded-xl text-[10px] uppercase font-bold transition-all"
+                                        style={{
+                                            background: walkIntensity === lvl
+                                                ? 'linear-gradient(145deg, rgba(220, 38, 38, 0.3) 0%, rgba(220, 38, 38, 0.1) 100%)'
+                                                : 'linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)',
+                                            border: walkIntensity === lvl ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
+                                            color: walkIntensity === lvl ? '#dc2626' : '#6b7280',
+                                        }}
+                                    >
                                         {lvl}
                                     </button>
                                 ))}
@@ -151,40 +310,95 @@ export const CardioView = ({ progress, profile, updateData, setActiveTab }) => {
 
                 {activity === 'cycling' && (
                     <div className="space-y-4 animate-in slide-in-from-right-4">
+                        <GlassInput
+                            label="Duration"
+                            value={cycDuration}
+                            onChange={setCycDuration}
+                            placeholder="45"
+                            unit="mins"
+                        />
                         <div>
-                            <label className="text-[10px] uppercase font-bold text-gray-500 mb-1">Duration (Mins)</label>
-                            <input type="number" value={cycDuration} onChange={e=>setCycDuration(e.target.value)} className="w-full bg-gray-950 p-3 rounded-xl text-white font-bold outline-none border border-gray-800 focus:border-indigo-500"/>
-                        </div>
-                        <div>
-                            <label className="text-[10px] uppercase font-bold text-gray-500 mb-1">Intensity</label>
-                            <select value={cycIntensity} onChange={e=>setCycIntensity(e.target.value)} className="w-full bg-gray-950 p-3 rounded-xl text-white font-bold outline-none border border-gray-800">
-                                <option value="low">Casual (Leisure)</option>
-                                <option value="moderate">Moderate (Commute)</option>
-                                <option value="high">High (Spin Class)</option>
-                                <option value="extreme">Extreme (Race)</option>
+                            <label className="text-[10px] uppercase font-bold text-gray-500 mb-2 block">Intensity</label>
+                            <select
+                                value={cycIntensity}
+                                onChange={e => setCycIntensity(e.target.value)}
+                                className="w-full p-4 rounded-2xl text-white font-bold outline-none"
+                                style={{
+                                    background: 'linear-gradient(145deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.2) 100%)',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                }}
+                            >
+                                <option value="low" className="bg-gray-900">Casual (Leisure)</option>
+                                <option value="moderate" className="bg-gray-900">Moderate (Commute)</option>
+                                <option value="high" className="bg-gray-900">High (Spin Class)</option>
+                                <option value="extreme" className="bg-gray-900">Extreme (Race)</option>
                             </select>
                         </div>
                     </div>
                 )}
 
+                {/* Result Section */}
                 {burn === null ? (
-                     <Button onClick={calculate} variant="secondary" className="w-full">Calculate Burn</Button>
+                    <button
+                        onClick={calculate}
+                        className="w-full py-4 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.02] active:scale-95"
+                        style={{
+                            background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%)',
+                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                        }}
+                    >
+                        Calculate Burn
+                    </button>
                 ) : (
-                    <div className="bg-gray-950 border border-indigo-500/30 p-6 rounded-2xl text-center animate-in zoom-in-95">
-                        <p className="text-xs font-bold uppercase text-indigo-500 mb-1">Energy Output</p>
-                        <p className="text-4xl font-black italic text-white mb-4">{burn} <span className="text-sm text-gray-600 not-italic">kcal</span></p>
-                        <Button onClick={logSession} variant="primary" className="w-full bg-indigo-600 hover:bg-indigo-500">Log Session</Button>
-                        <button onClick={()=>setBurn(null)} className="mt-3 text-xs text-gray-500 hover:text-white">Recalculate</button>
+                    <div
+                        className="p-6 rounded-2xl text-center animate-in zoom-in-95"
+                        style={{
+                            background: 'linear-gradient(145deg, rgba(220, 38, 38, 0.15) 0%, rgba(185, 28, 28, 0.08) 100%)',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            boxShadow: '0 10px 40px rgba(220, 38, 38, 0.2)',
+                        }}
+                    >
+                        <p className="text-xs font-bold uppercase text-red-400 mb-1">Energy Output</p>
+                        <p className="text-5xl font-black italic text-white mb-4">
+                            {burn} <span className="text-lg text-gray-500 not-italic">kcal</span>
+                        </p>
+                        <button
+                            onClick={logSession}
+                            className="w-full py-4 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.02] active:scale-95 mb-2"
+                            style={{
+                                background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.9) 0%, rgba(185, 28, 28, 0.9) 100%)',
+                                boxShadow: '0 10px 30px rgba(220, 38, 38, 0.4)',
+                            }}
+                        >
+                            Log Session
+                        </button>
+                        <button
+                            onClick={() => setBurn(null)}
+                            className="text-xs text-gray-500 hover:text-white transition-colors"
+                        >
+                            Recalculate
+                        </button>
                     </div>
                 )}
-            </Card>
+            </GlassCard>
 
-            <div className="bg-gray-900/50 p-4 rounded-xl border border-gray-800">
+            {/* Info Footer */}
+            <div
+                className="p-4 rounded-2xl"
+                style={{
+                    background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%)',
+                    border: '1px solid rgba(255, 255, 255, 0.05)',
+                }}
+            >
                 <p className="text-[10px] text-gray-500 text-center leading-relaxed">
                     Calculations use Metabolic Equivalent (MET) formulas based on your weight of <span className="text-white font-bold">{weight}kg</span>.
-                    <br/>Treadmill logic accounts for gravity on incline.
+                    <br />Treadmill logic accounts for gravity on incline.
                 </p>
             </div>
         </div>
     );
 };
+
+
+
+

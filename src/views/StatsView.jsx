@@ -14,7 +14,7 @@ const LEAGUES = [
     { name: 'Silver', min: 2500, color: 'text-slate-300', border: 'border-slate-300', bg: 'bg-slate-300/10' },
     { name: 'Gold', min: 5000, color: 'text-yellow-400', border: 'border-yellow-400', bg: 'bg-yellow-400/10' },
     { name: 'Platinum', min: 10000, color: 'text-cyan-400', border: 'border-cyan-400', bg: 'bg-cyan-400/10' },
-    { name: 'Diamond', min: 25000, color: 'text-indigo-400', border: 'border-indigo-400', bg: 'bg-indigo-400/10' }
+    { name: 'Diamond', min: 25000, color: 'text-red-400', border: 'border-red-400', bg: 'bg-red-400/10' }
 ];
 
 export const StatsView = ({ leaderboard, profile, progress, meals, workouts }) => {
@@ -129,8 +129,8 @@ export const StatsView = ({ leaderboard, profile, progress, meals, workouts }) =
 
   const getRarityColor = (r) => {
       if(r === 'legendary') return 'border-yellow-500 bg-yellow-500/10 text-yellow-500';
-      if(r === 'epic') return 'border-purple-500 bg-purple-500/10 text-purple-500';
-      if(r === 'rare') return 'border-blue-500 bg-blue-500/10 text-blue-500';
+      if(r === 'epic') return 'border-purple-500 bg-red-500/10 text-red-500';
+      if(r === 'rare') return 'border-red-500 bg-amber-500/10 text-amber-500';
       return 'border-gray-700 bg-gray-800 text-gray-400';
   }
 
@@ -174,7 +174,7 @@ export const StatsView = ({ leaderboard, profile, progress, meals, workouts }) =
                         <PolarGrid stroke="#374151" />
                         <PolarAngleAxis dataKey="subject" tick={{ fill: '#9ca3af', fontSize: 10, fontWeight: 'bold' }} />
                         <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false}/>
-                        <Radar name="Stats" dataKey="A" stroke="#6366f1" strokeWidth={2} fill="#6366f1" fillOpacity={0.4} />
+                        <Radar name="Stats" dataKey="A" stroke="#dc2626" strokeWidth={2} fill="#dc2626" fillOpacity={0.4} />
                         <Tooltip contentStyle={{backgroundColor: '#111827', border: 'none', borderRadius: '8px', fontSize: '12px'}} itemStyle={{color: '#fff'}} />
                     </RadarChart>
                 </ResponsiveContainer>
@@ -211,7 +211,7 @@ export const StatsView = ({ leaderboard, profile, progress, meals, workouts }) =
 
         {/* TRENDS CHART */}
         <div className="bg-gray-900 border border-gray-800 p-4 rounded-3xl h-64">
-            <div className="flex justify-between items-center mb-4"><h3 className="text-xs font-black uppercase text-gray-500 flex items-center gap-2"><TrendingUp size={14} className="text-indigo-500"/> Correlation</h3></div>
+            <div className="flex justify-between items-center mb-4"><h3 className="text-xs font-black uppercase text-gray-500 flex items-center gap-2"><TrendingUp size={14} className="text-red-500"/> Correlation</h3></div>
             <ResponsiveContainer width="100%" height="80%">
                 <ComposedChart data={trendData}>
                      <defs><linearGradient id="volGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#22c55e" stopOpacity={0.5}/><stop offset="95%" stopColor="#22c55e" stopOpacity={0}/></linearGradient></defs>
@@ -247,3 +247,6 @@ export const StatsView = ({ leaderboard, profile, progress, meals, workouts }) =
     </div>
   );
 };
+
+
+
