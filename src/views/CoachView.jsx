@@ -101,7 +101,7 @@ export const CoachView = ({ weight, meals, workouts, profile }) => {
     const SPLITS = ['Push', 'Pull', 'Legs', 'Arnold Split', 'Upper', 'Lower', 'Full Body', 'Bro Split', 'Custom'];
 
     return (
-        <div className="h-[calc(100vh-180px)] flex flex-col animate-in fade-in">
+        <div className="h-[calc(100vh-180px)] flex flex-col animate-in fade-in overflow-x-hidden">
 
             {/* Header */}
             <div className="flex items-center justify-between mb-5">
@@ -375,7 +375,7 @@ export const CoachView = ({ weight, meals, workouts, profile }) => {
                         {messages.map((msg, i) => (
                             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                 <div
-                                    className={`max-w-[85%] p-4 text-sm leading-relaxed ${msg.role === 'user'
+                                    className={`max-w-[85%] p-4 text-sm leading-relaxed break-words overflow-hidden ${msg.role === 'user'
                                         ? 'rounded-2xl rounded-br-sm'
                                         : 'rounded-2xl rounded-bl-sm'
                                         }`}

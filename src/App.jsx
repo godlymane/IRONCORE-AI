@@ -77,20 +77,41 @@ const MainContent = () => {
     SFX.pageTransition();
   };
 
-  // Swipe navigation between tabs
-  const handleSwipe = useCallback((event, info) => {
-    const SWIPE_THRESHOLD = 50;
-    const VELOCITY_THRESHOLD = 300;
-    if (Math.abs(info.offset.x) > SWIPE_THRESHOLD || Math.abs(info.velocity.x) > VELOCITY_THRESHOLD) {
-      const currentIdx = TAB_ORDER[activeTab];
-      if (info.offset.x < 0 && currentIdx < TAB_KEYS.length - 1) {
-        handleTabChange(TAB_KEYS[currentIdx + 1]);
-      } else if (info.offset.x > 0 && currentIdx > 0) {
-        handleTabChange(TAB_KEYS[currentIdx - 1]);
-      } else {
-        Haptics.light();
+  // Lightweight touch-based swipe navigation (no Framer drag overhead)
+  const touchRef = useRef({ startX: 0, startY: 0, startTime: 0 });
+  const viewportRef = useRef(null);
+
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+
+    const onTouchStart = (e) => {
+      touchRef.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, startTime: Date.now() };
+    };
+
+    const onTouchEnd = (e) => {
+      const dx = e.changedTouches[0].clientX - touchRef.current.startX;
+      const dy = e.changedTouches[0].clientY - touchRef.current.startY;
+      const dt = Date.now() - touchRef.current.startTime;
+      // Only trigger if horizontal swipe > vertical and meets threshold
+      if (Math.abs(dx) > Math.abs(dy) * 1.5 && (Math.abs(dx) > 60 || (Math.abs(dx) > 30 && dt < 300))) {
+        const currentIdx = TAB_ORDER[activeTab];
+        if (dx < 0 && currentIdx < TAB_KEYS.length - 1) {
+          handleTabChange(TAB_KEYS[currentIdx + 1]);
+        } else if (dx > 0 && currentIdx > 0) {
+          handleTabChange(TAB_KEYS[currentIdx - 1]);
+        } else {
+          Haptics.light();
+        }
       }
-    }
+    };
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchend', onTouchEnd);
+    };
   }, [activeTab]);
 
   // Configure status bar on native platforms
@@ -186,14 +207,10 @@ const MainContent = () => {
             await new Promise(r => setTimeout(r, 800));
             addToast('Data synced', 'info');
           }}>
-          <motion.div
-            drag="x"
-            dragConstraints={{ left: 0, right: 0 }}
-            dragElastic={0.1}
-            dragDirectionLock
-            onDragEnd={handleSwipe}
+          <div
+            ref={viewportRef}
             onScroll={handleScroll}
-            className="p-5 overflow-y-auto scrollbar-hide"
+            className="p-5 overflow-y-auto overflow-x-hidden scrollbar-hide"
             style={{ height: '100dvh', paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}
           >
             <AnimatePresence mode="wait">
@@ -249,7 +266,7 @@ const MainContent = () => {
                 </PageTransition>
               )}
             </AnimatePresence>
-          </motion.div>
+          </div>
           </PullToRefresh>
 
 

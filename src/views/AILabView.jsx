@@ -230,7 +230,7 @@ export const AILabView = ({ workouts = [], meals = [], profile = {}, updateData,
     };
 
     return (
-        <div className="space-y-6 animate-in fade-in h-full flex flex-col">
+        <div className="space-y-6 animate-in fade-in h-full flex flex-col overflow-x-hidden">
             {/* Header & Tab Switcher */}
             <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-3">
