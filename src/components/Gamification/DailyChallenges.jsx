@@ -112,10 +112,10 @@ export const DailyChallenges = ({ onClaim, todayWorkouts = [], todayMeals = [], 
                                 </div>
 
                                 <div className="flex items-center justify-between mt-1">
-                                    <span className="text-[10px] text-gray-500">
+                                    <span className="text-[11px] text-gray-500">
                                         {challenge.progress}/{challenge.target}
                                     </span>
-                                    <span className="text-[10px] text-yellow-400 font-bold">
+                                    <span className="text-[11px] text-yellow-400 font-bold">
                                         +{challenge.xp} XP
                                     </span>
                                 </div>

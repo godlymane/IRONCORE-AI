@@ -135,13 +135,13 @@ export const SkeletonCard = () => (
   </div>
 );
 
-// --- PAGE TRANSITION WRAPPER ---
-export const PageTransition = ({ children, className = '' }) => (
+// --- PAGE TRANSITION WRAPPER (Direction-aware) ---
+export const PageTransition = ({ children, className = '', direction = 0 }) => (
   <motion.div
-    initial={{ opacity: 0, y: 10 }}
-    animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0, y: -10 }}
-    transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+    initial={{ opacity: 0, x: direction * 30 }}
+    animate={{ opacity: 1, x: 0 }}
+    exit={{ opacity: 0, x: direction * -30 }}
+    transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
     className={className}
   >
     {children}
@@ -279,7 +279,7 @@ export const Button = ({ children, onClick, className = "", variant = "primary",
       onClick={handleClick}
       disabled={disabled || loading}
       whileHover={{ scale: disabled ? 1 : 1.02 }}
-      whileTap={{ scale: disabled ? 1 : 0.98 }}
+      whileTap={{ scale: disabled ? 1 : 0.97, filter: 'brightness(1.2)' }}
       className={`relative overflow-hidden px-5 py-3 rounded-2xl font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2 transition-all duration-300 ${textColors[variant]} ${className}`}
       style={getButtonStyles()}
     >
@@ -308,9 +308,52 @@ export const Card = ({ children, className = "", onClick }) => (
   </motion.div>
 );
 
+// --- CONSOLIDATED GLASS CARD ---
+// Single source of truth for all glass card styling across the app
+export const GlassCard = ({ children, className = "", onClick, highlight = false, animated = false }) => {
+  const content = (
+    <div
+      onClick={onClick}
+      className={`relative overflow-hidden rounded-3xl p-5 transition-all duration-500 ${onClick ? 'cursor-pointer hover:scale-[1.01]' : ''} ${className}`}
+      style={{
+        background: highlight
+          ? 'linear-gradient(145deg, rgba(220, 38, 38, 0.15) 0%, rgba(153, 27, 27, 0.08) 50%, rgba(220, 38, 38, 0.12) 100%)'
+          : 'linear-gradient(145deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 50%, rgba(255, 255, 255, 0.02) 100%)',
+        backdropFilter: 'blur(20px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+        border: highlight ? '1px solid rgba(220, 38, 38, 0.3)' : '1px solid rgba(220, 38, 38, 0.1)',
+        boxShadow: highlight
+          ? '0 10px 40px rgba(220, 38, 38, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08)'
+          : '0 10px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06)',
+      }}
+    >
+      {/* Subtle top shine */}
+      <div
+        className="absolute top-0 left-0 right-0 h-[40%] rounded-t-3xl pointer-events-none"
+        style={{ background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%)' }}
+      />
+      <div className="relative z-10">{children}</div>
+    </div>
+  );
+
+  if (animated) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+      >
+        {content}
+      </motion.div>
+    );
+  }
+
+  return content;
+};
+
 export const MacroBadge = ({ label, value, color }) => (
   <div className={`bg-gray-900/80 border border-${color}-500/20 p-2 rounded-xl text-center min-w-[70px] backdrop-blur-xl`}>
-    <p className={`text-[9px] uppercase font-bold text-${color}-400`}>{label}</p>
+    <p className={`text-[11px] uppercase font-bold text-${color}-400`}>{label}</p>
     <p className="text-sm font-black text-white">{value}g</p>
   </div>
 );
@@ -318,7 +361,6 @@ export const MacroBadge = ({ label, value, color }) => (
 // --- ULTRA-PREMIUM LIQUID GLASS NAV BTN ---
 export const NavBtn = ({ active, onClick, icon, label }) => {
   const [isPressed, setIsPressed] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
 
   const handleClick = () => {
     if (navigator.vibrate) navigator.vibrate(5);
@@ -330,57 +372,26 @@ export const NavBtn = ({ active, onClick, icon, label }) => {
   return (
     <motion.button
       onClick={handleClick}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      whileTap={{ scale: 0.95 }}
-      className="relative flex flex-col items-center justify-center gap-0.5 py-2 px-1 group"
+      whileTap={{ scale: 0.92 }}
+      className="relative flex flex-col items-center justify-center gap-0.5 min-h-[48px] w-full py-1.5 px-0 touch-target"
     >
-      {/* Active Background Glow */}
-      <motion.div
-        animate={{
-          opacity: active ? 1 : isHovered ? 0.5 : 0,
-          scale: active ? 1 : isHovered ? 0.95 : 0.9,
-        }}
-        transition={{ duration: 0.3 }}
-        className="absolute inset-x-1 inset-y-0 rounded-2xl"
-        style={{
-          background: active
-            ? 'linear-gradient(135deg, rgba(220, 38, 38, 0.3) 0%, rgba(185, 28, 28, 0.2) 50%, rgba(153, 27, 27, 0.25) 100%)'
-            : 'linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%)',
-          boxShadow: active ? '0 0 25px rgba(220, 38, 38, 0.5), 0 0 50px rgba(220, 38, 38, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15)' : 'none',
-          border: active ? '1px solid rgba(220, 38, 38, 0.4)' : '1px solid transparent',
-        }}
-      />
-
-      {/* Floating Orb Indicator */}
-      <AnimatePresence>
-        {active && (
-          <motion.div
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            className="absolute -top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
-            style={{
-              background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
-              boxShadow: '0 0 8px rgba(220, 38, 38, 0.9), 0 0 20px rgba(220, 38, 38, 0.6)',
-            }}
-          />
-        )}
-      </AnimatePresence>
-
       {/* Icon Container */}
       <motion.div
-        animate={{ scale: isPressed ? 0.9 : active ? 1.05 : isHovered ? 1.05 : 1 }}
-        className="relative z-10 p-2 rounded-xl"
+        animate={{
+          scale: isPressed ? 0.85 : active ? 1.1 : 1,
+          y: active ? -2 : 0,
+        }}
+        transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+        className="relative z-10 p-1.5 rounded-xl"
       >
-        <div className={`transition-all duration-300 ${active ? 'text-red-400 drop-shadow-[0_0_8px_rgba(220,38,38,0.7)]' : isHovered ? 'text-gray-300' : 'text-gray-500'}`}>
+        <div className={`transition-all duration-300 ${active ? 'text-red-400 drop-shadow-[0_0_8px_rgba(220,38,38,0.7)]' : 'text-gray-500'}`}>
           {icon}
         </div>
       </motion.div>
 
       {/* Label */}
       <span
-        className={`relative z-10 text-[9px] font-bold uppercase tracking-[0.15em] transition-all duration-300 ${active ? 'text-red-400' : isHovered ? 'text-gray-300' : 'text-gray-600'}`}
+        className={`relative z-10 text-[10px] font-bold uppercase tracking-[0.02em] transition-all duration-300 leading-none ${active ? 'text-red-400' : 'text-gray-600'}`}
         style={{ textShadow: active ? '0 0 10px rgba(220, 38, 38, 0.6)' : 'none' }}
       >
         {label}
@@ -394,7 +405,7 @@ export const FloatingActionButton = ({ actions = [], mainIcon }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="fixed bottom-24 right-4 z-50">
+    <div className="fixed right-4 z-50" style={{ bottom: 'calc(80px + env(safe-area-inset-bottom, 0px) + 16px)' }}>
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -422,7 +433,7 @@ export const FloatingActionButton = ({ actions = [], mainIcon }) => {
       </AnimatePresence>
 
       <motion.button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => { setIsOpen(!isOpen); if (SFX?.click) SFX.click(); }}
         animate={{ rotate: isOpen ? 45 : 0 }}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}

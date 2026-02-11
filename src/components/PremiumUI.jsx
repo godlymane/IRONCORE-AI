@@ -1,5 +1,5 @@
 // ========================================
-// IRONCORE ELITE - PREMIUM UI COMPONENTS
+// IRONCORE — PREMIUM UI COMPONENTS
 // Particles, Animations, Micro-Interactions
 // ========================================
 
@@ -405,7 +405,7 @@ export const SplashScreen = ({ onComplete }) => {
                     animate={{ opacity: phase >= 2 ? 1 : 0 }}
                     transition={{ duration: 0.4, delay: 0.2 }}
                 >
-                    Only for the 1%
+                    Your Fitness. Your Way.
                 </motion.p>
             </div>
         </motion.div>

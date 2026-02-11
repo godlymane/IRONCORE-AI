@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Timer, Play, Pause, RotateCcw, Zap, Heart, TrendingUp } from 'lucide-react';
+import { Play, Pause, RotateCcw, TrendingUp } from 'lucide-react';
 import { Button } from './UIComponents';
+import { PremiumIcon } from './PremiumIcon';
+import { SmartTimerIconShape, ProteinBoltIcon, PulseHeartIcon } from './IronCoreIcons';
 
 /**
  * Smart Rest Timer with Adaptive Calculations
@@ -140,11 +142,11 @@ export const SmartRestTimer = ({
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                    <Timer className="w-5 h-5 text-red-400" />
+                    <PremiumIcon src={SmartTimerIconShape} size="sm" className="!w-6 !h-6" fallback={null} />
                     <span className="font-bold text-white">Smart Rest</span>
                 </div>
                 <div className={`flex items-center gap-1 text-xs font-medium ${getIntensityColor()}`}>
-                    <Zap className="w-3 h-3" />
+                    <ProteinBoltIcon className="w-3 h-3" />
                     {intensity.charAt(0).toUpperCase() + intensity.slice(1)}
                 </div>
             </div>
@@ -198,13 +200,13 @@ export const SmartRestTimer = ({
 
             {/* Adjustment Info */}
             <div className="text-center mb-4">
-                <p className="text-[10px] text-white/40 uppercase tracking-wider flex items-center justify-center gap-1">
+                <p className="text-[11px] text-white/40 uppercase tracking-wider flex items-center justify-center gap-1">
                     <TrendingUp className="w-3 h-3" />
                     {adjustmentReason}
                 </p>
                 {heartRate && (
                     <p className="text-xs text-red-400 flex items-center justify-center gap-1 mt-1">
-                        <Heart className="w-3 h-3" />
+                        <PulseHeartIcon className="w-3 h-3" />
                         {heartRate} BPM
                     </p>
                 )}

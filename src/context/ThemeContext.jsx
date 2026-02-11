@@ -6,59 +6,37 @@ export const themes = {
     dark: {
         name: 'dark',
         colors: {
-            background: '#030712',
-            backgroundSecondary: '#0f172a',
-            surface: 'rgba(255, 255, 255, 0.03)',
-            surfaceHover: 'rgba(255, 255, 255, 0.06)',
-            border: 'rgba(255, 255, 255, 0.08)',
-            borderHover: 'rgba(255, 255, 255, 0.15)',
+            background: '#000000',
+            backgroundSecondary: '#080808',
+            surface: 'rgba(220, 38, 38, 0.03)',
+            surfaceHover: 'rgba(220, 38, 38, 0.08)',
+            border: 'rgba(220, 38, 38, 0.12)',
+            borderHover: 'rgba(220, 38, 38, 0.4)',
             text: '#ffffff',
-            textSecondary: 'rgba(255, 255, 255, 0.7)',
+            textSecondary: 'rgba(255, 255, 255, 0.8)',
             textMuted: 'rgba(255, 255, 255, 0.5)',
             accent: '#dc2626',
+            accentLight: '#ef4444',
+            accentDark: '#b91c1c',
+            accentDeep: '#991b1b',
             accentSecondary: '#ef4444',
             accentGlow: 'rgba(220, 38, 38, 0.4)',
             success: '#22c55e',
             warning: '#f59e0b',
             error: '#ef4444',
             info: '#dc2626',
+        },
+        fonts: {
+            body: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+            heading: "'Oswald', 'Inter', sans-serif",
+            mono: "'JetBrains Mono', 'SF Mono', 'Fira Code', monospace",
         }
     },
-    light: {
-        name: 'light',
-        colors: {
-            background: '#f8fafc',
-            backgroundSecondary: '#ffffff',
-            surface: 'rgba(0, 0, 0, 0.02)',
-            surfaceHover: 'rgba(0, 0, 0, 0.05)',
-            border: 'rgba(0, 0, 0, 0.08)',
-            borderHover: 'rgba(220, 38, 38, 0.2)',
-            text: '#0f172a',
-            textSecondary: 'rgba(15, 23, 42, 0.7)',
-            textMuted: 'rgba(15, 23, 42, 0.5)',
-            accent: '#dc2626',
-            accentSecondary: '#b91c1c',
-            accentGlow: 'rgba(220, 38, 38, 0.3)',
-            success: '#16a34a',
-            warning: '#d97706',
-            error: '#dc2626',
-            info: '#dc2626',
-        }
-    }
+    // light theme removed
 };
 
 export function ThemeProvider({ children }) {
-    const [theme, setTheme] = useState(() => {
-        // Check localStorage first
-        const saved = localStorage.getItem('ironcore-theme');
-        if (saved && themes[saved]) return saved;
-
-        // Check system preference
-        if (window.matchMedia?.('(prefers-color-scheme: light)').matches) {
-            return 'light';
-        }
-        return 'dark';
-    });
+    const [theme, setTheme] = useState('dark');
 
     useEffect(() => {
         localStorage.setItem('ironcore-theme', theme);
@@ -75,7 +53,8 @@ export function ThemeProvider({ children }) {
     }, [theme]);
 
     const toggleTheme = () => {
-        setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+        // Theme switching disabled - Enforcing Dark Mode
+        setTheme('dark');
     };
 
     const value = {

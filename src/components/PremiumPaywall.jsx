@@ -164,7 +164,7 @@ export const PremiumPaywall = () => {
                                     }`}
                             >
                                 {/* Best Value Badge */}
-                                <div className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-green-500 rounded-full text-[10px] font-bold text-black uppercase">
+                                <div className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-green-500 rounded-full text-[11px] font-bold text-black uppercase">
                                     Save 33%
                                 </div>
                                 <p className="text-xs text-white/60 uppercase tracking-wider mb-1">Yearly</p>
@@ -188,7 +188,7 @@ export const PremiumPaywall = () => {
                             disabled={loading}
                             className="w-full py-4 rounded-2xl font-black text-lg text-white transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                             style={{
-                                background: 'linear-gradient(135deg, #DC2626 0%, #EA580C 100%)',
+                                background: 'linear-gradient(135deg, #dc2626 0%, #ea580c 100%)',
                                 boxShadow: '0 10px 40px rgba(220, 38, 38, 0.4)'
                             }}
                         >

@@ -215,7 +215,7 @@ export const FastingTimer = ({
                             <span className={`text-xl font-black ${isComplete ? 'text-green-400' : 'text-white'}`}>
                                 {isComplete ? '✓ Done' : formatTime(timeRemaining)}
                             </span>
-                            <span className="text-[10px] text-white/40">remaining</span>
+                            <span className="text-[11px] text-white/40">remaining</span>
                         </>
                     ) : (
                         <span className="text-sm text-white/50">Not fasting</span>
@@ -289,7 +289,7 @@ export const SupplementTracker = ({ supplements = [], onToggle, onAddReminder })
                                 <p className={`text-sm font-medium ${supp.taken ? 'text-green-400' : 'text-white'}`}>
                                     {supp.name}
                                 </p>
-                                <p className="text-[10px] text-white/40 flex items-center gap-1">
+                                <p className="text-[11px] text-white/40 flex items-center gap-1">
                                     <Clock className="w-3 h-3" />
                                     {supp.time}
                                 </p>
@@ -339,7 +339,7 @@ export const CalorieBurnCard = ({ burned = 0, goal = 500, activities = [] }) => 
                         className="h-full bg-gradient-to-r from-orange-500 to-red-500 rounded-full"
                     />
                 </div>
-                <div className="flex justify-between mt-1 text-[10px] text-white/40">
+                <div className="flex justify-between mt-1 text-[11px] text-white/40">
                     <span>0</span>
                     <span>Goal: {goal} cal</span>
                 </div>

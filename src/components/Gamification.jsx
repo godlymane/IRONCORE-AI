@@ -59,10 +59,10 @@ export const AchievementBadge = ({ achievement, unlocked = false, showDetails = 
                 <p className="text-sm font-bold text-white truncate">{achievement.name}</p>
                 {showDetails && (
                     <>
-                        <p className="text-[10px] text-white/50 mt-1 line-clamp-2">{achievement.description}</p>
+                        <p className="text-[11px] text-white/50 mt-1 line-clamp-2">{achievement.description}</p>
                         <div className="flex items-center justify-center gap-1 mt-2">
                             <Star className={`w-3 h-3 bg-gradient-to-r ${rarity.gradient} bg-clip-text text-transparent`} />
-                            <span className={`text-[10px] font-bold bg-gradient-to-r ${rarity.gradient} bg-clip-text text-transparent uppercase`}>
+                            <span className={`text-[11px] font-bold bg-gradient-to-r ${rarity.gradient} bg-clip-text text-transparent uppercase`}>
                                 {achievement.rarity}
                             </span>
                         </div>
@@ -166,7 +166,7 @@ export const ChallengeCard = ({ challenge, progress = 0, onClaim, variant = 'dai
                     )}
                     <div>
                         <p className="font-bold text-white">{challenge.name}</p>
-                        <p className="text-[10px] text-white/50 uppercase tracking-wider">{isDaily ? 'Daily' : 'Weekly'} Challenge</p>
+                        <p className="text-[11px] text-white/50 uppercase tracking-wider">{isDaily ? 'Daily' : 'Weekly'} Challenge</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-1 text-xs text-white/40">
@@ -187,7 +187,7 @@ export const ChallengeCard = ({ challenge, progress = 0, onClaim, variant = 'dai
                     />
                 </div>
                 <div className="flex justify-between mt-1">
-                    <span className="text-[10px] text-white/40">{progress.toFixed(0)}%</span>
+                    <span className="text-[11px] text-white/40">{progress.toFixed(0)}%</span>
                     <span className="text-xs font-bold text-yellow-400">+{challenge.xp} XP</span>
                 </div>
             </div>
@@ -320,7 +320,7 @@ export const StreakFlame = ({ streak = 0, hasFreezeActive = false }) => {
             {hasFreezeActive && (
                 <div className="absolute -top-2 -right-2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-500/30">
                     <Shield className="w-3 h-3 text-cyan-400" />
-                    <span className="text-[10px] text-cyan-400 font-bold">FREEZE</span>
+                    <span className="text-[11px] text-cyan-400 font-bold">FREEZE</span>
                 </div>
             )}
         </motion.div>

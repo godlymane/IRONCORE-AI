@@ -149,7 +149,7 @@ export const LoginView = ({ onLogin }) => {
             }}
           >
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">
+            <span className="text-[11px] text-gray-500 uppercase tracking-widest font-bold">
               v2.0 • Cloud Ready
             </span>
           </div>

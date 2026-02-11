@@ -15,7 +15,7 @@ const GlassInput = ({ label, value, onChange, placeholder, type = 'number', high
             border: highlight ? '1px solid rgba(249, 115, 22, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
         }}
     >
-        <label className={`text-[10px] uppercase font-bold block mb-1 ${highlight ? 'text-orange-400' : 'text-gray-500'}`}>{label}</label>
+        <label className={`text-[11px] uppercase font-bold block mb-1 ${highlight ? 'text-orange-400' : 'text-gray-500'}`}>{label}</label>
         <input
             type={type}
             value={value}
@@ -299,7 +299,7 @@ export const OnboardingView = ({ onComplete, user }) => {
                                     border: '1px solid rgba(255, 255, 255, 0.08)',
                                 }}
                             >
-                                <label className="text-[10px] uppercase font-bold text-gray-500 block mb-1">Gender</label>
+                                <label className="text-[11px] uppercase font-bold text-gray-500 block mb-1">Gender</label>
                                 <select
                                     value={data.gender}
                                     onChange={e => select('gender', e.target.value)}

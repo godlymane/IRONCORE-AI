@@ -1,31 +1,13 @@
 import React, { useState, useRef } from 'react';
-import { User, Calendar, Activity, Image as ImageIcon, Camera, Trash2, LogOut, Trophy, Target, Zap, TrendingUp } from 'lucide-react';
+import { User, Calendar, Activity, Image as ImageIcon, Camera, Trash2, LogOut } from 'lucide-react';
 import { TrackView } from './TrackView';
 import { StatsView } from './StatsView';
 import { ChronicleView } from './ChronicleView';
 import ProgressPhotos from '../components/Progress/ProgressPhotos';
-
-// Glass Card Component
-const GlassCard = ({ children, className = "", onClick }) => (
-    <div
-        onClick={onClick}
-        className={`relative overflow-hidden rounded-3xl p-5 ${className}`}
-        style={{
-            background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)',
-            backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            boxShadow: '0 10px 40px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-        }}
-    >
-        <div
-            className="absolute top-0 left-0 right-0 h-[40%] rounded-t-3xl pointer-events-none"
-            style={{
-                background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%)',
-            }}
-        />
-        <div className="relative z-10">{children}</div>
-    </div>
-);
+import { PremiumIcon } from '../components/PremiumIcon';
+import { GlassCard } from '../components/UIComponents';
+import { ProfileSkeleton } from '../components/ViewSkeletons';
+import { TrophyIconShape, ProteinBoltIcon, DumbbellIcon, UtensilsIcon } from '../components/IronCoreIcons';
 
 export const ProfileHub = ({
     profile = {},
@@ -45,13 +27,16 @@ export const ProfileHub = ({
     const level = Math.floor(xp / 500) + 1;
     const xpProgress = (xp % 500) / 500 * 100;
 
+    // Show skeleton while profile data loads from Firestore
+    if (!profile || Object.keys(profile).length === 0) return <ProfileSkeleton />;
+
     return (
-        <div className="space-y-5 pb-24 animate-in fade-in">
+        <div className="space-y-5 pb-4 animate-in fade-in">
             {/* Header with Logout */}
             <div className="flex justify-between items-center">
                 <div>
                     <h2 className="text-2xl font-black italic text-white uppercase tracking-tighter">Profile</h2>
-                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Your Fitness Hub</p>
+                    <p className="text-[11px] text-gray-500 font-bold uppercase tracking-widest">Your Fitness Hub</p>
                 </div>
                 <button
                     onClick={onLogout}
@@ -79,7 +64,7 @@ export const ProfileHub = ({
                         }}
                     >
                         <span className="text-3xl font-black text-white">{level}</span>
-                        <Trophy size={14} className="absolute -top-1 -right-1 text-yellow-400" />
+                        <TrophyIconShape className="absolute -top-1 -right-1 w-6 h-6" />
                     </div>
 
                     {/* XP Progress */}
@@ -101,15 +86,15 @@ export const ProfileHub = ({
                                 }}
                             />
                         </div>
-                        <p className="text-[10px] text-gray-500 mt-1">{500 - (xp % 500)} XP to Level {level + 1}</p>
+                        <p className="text-[11px] text-gray-500 mt-1">{500 - (xp % 500)} XP to Level {level + 1}</p>
                     </div>
                 </div>
 
                 {/* Quick Stats */}
                 <div className="grid grid-cols-3 gap-3 mt-5">
-                    <StatMini icon={<Zap size={14} className="text-yellow-400" />} label="Total XP" value={xp} />
-                    <StatMini icon={<Target size={14} className="text-orange-400" />} label="Workouts" value={workouts.length} />
-                    <StatMini icon={<TrendingUp size={14} className="text-green-400" />} label="Meals Logged" value={meals.length} />
+                    <StatMini icon={<PremiumIcon src={ProteinBoltIcon} size="sm" className="!w-6 !h-6" fallback={null} />} label="Total XP" value={xp} />
+                    <StatMini icon={<PremiumIcon src={DumbbellIcon} size="sm" className="!w-6 !h-6" fallback={null} />} label="Workouts" value={workouts.length} />
+                    <StatMini icon={<PremiumIcon src={UtensilsIcon} size="sm" className="!w-6 !h-6" fallback={null} />} label="Meals Logged" value={meals.length} />
                 </div>
 
                 {/* Profile Completion Indicator */}
@@ -168,7 +153,7 @@ const StatMini = ({ icon, label, value }) => (
     >
         <div className="flex justify-center mb-1">{icon}</div>
         <p className="text-lg font-black text-white">{value}</p>
-        <p className="text-[9px] text-gray-500 uppercase font-bold">{label}</p>
+        <p className="text-[11px] text-gray-500 uppercase font-bold">{label}</p>
     </div>
 );
 
@@ -198,7 +183,7 @@ const ProfileCompletion = ({ profile, workouts, meals, progress }) => {
             }}
         >
             <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-bold text-yellow-400 uppercase">Profile Completion</span>
+                <span className="text-[11px] font-bold text-yellow-400 uppercase">Profile Completion</span>
                 <span className="text-xs font-black text-yellow-400">{completionPercent}%</span>
             </div>
             <div
@@ -218,7 +203,7 @@ const ProfileCompletion = ({ profile, workouts, meals, progress }) => {
                 {checks.filter(c => !c.complete).slice(0, 2).map((check, i) => (
                     <span
                         key={i}
-                        className="text-[9px] px-2 py-0.5 rounded bg-yellow-400/10 text-yellow-400 font-medium"
+                        className="text-[11px] px-2 py-0.5 rounded bg-yellow-400/10 text-yellow-400 font-medium"
                     >
                         Missing: {check.label}
                     </span>

@@ -42,14 +42,14 @@ export const BattleCard = ({ opponent, userStats, onBattle }) => {
                         <div className="relative w-16 h-16 mx-auto mb-2">
                             <div className="absolute inset-0 bg-red-500 rounded-full blur opacity-50" />
                             <img src={user.avatar} className="relative w-full h-full rounded-full border-2 border-red-400 object-cover" alt="User" />
-                            <div className="absolute -bottom-1 -right-1 bg-black/60 px-1.5 rounded-md border border-white/10 text-[10px] text-white font-bold">
+                            <div className="absolute -bottom-1 -right-1 bg-black/60 px-1.5 rounded-md border border-white/10 text-[11px] text-white font-bold">
                                 Lv.{user.level}
                             </div>
                         </div>
                         <p className="text-sm font-bold text-white truncate">{user.name}</p>
-                        <p className="text-[10px] text-red-400">{user.rank}</p>
+                        <p className="text-[11px] text-red-400">{user.rank}</p>
 
-                        <div className="mt-2 flex items-center justify-center gap-1 text-[10px]">
+                        <div className="mt-2 flex items-center justify-center gap-1 text-[11px]">
                             <TrendingUp size={10} className="text-green-400" />
                             <span className="text-green-400">{user.winRate}%</span>
                         </div>
@@ -58,7 +58,7 @@ export const BattleCard = ({ opponent, userStats, onBattle }) => {
                         <div className="mt-2 h-1.5 bg-black/50 rounded-full overflow-hidden">
                             <div className="h-full bg-gradient-to-r from-red-500 to-purple-500" style={{ width: `${(user.power / 5000) * 100}%` }} />
                         </div>
-                        <p className="text-[9px] text-gray-500 mt-1">{user.power} PWR</p>
+                        <p className="text-[11px] text-gray-500 mt-1">{user.power} PWR</p>
                     </div>
 
                     {/* Spacer for VS */}
@@ -69,14 +69,14 @@ export const BattleCard = ({ opponent, userStats, onBattle }) => {
                         <div className="relative w-16 h-16 mx-auto mb-2">
                             <div className="absolute inset-0 bg-red-500 rounded-full blur opacity-50" />
                             <img src={opp.avatar} className="relative w-full h-full rounded-full border-2 border-red-400 object-cover" alt="Opponent" />
-                            <div className="absolute -bottom-1 -right-1 bg-black/60 px-1.5 rounded-md border border-white/10 text-[10px] text-white font-bold">
+                            <div className="absolute -bottom-1 -right-1 bg-black/60 px-1.5 rounded-md border border-white/10 text-[11px] text-white font-bold">
                                 Lv.{opp.level}
                             </div>
                         </div>
                         <p className="text-sm font-bold text-white truncate">{opp.name}</p>
-                        <p className="text-[10px] text-red-400">{opp.rank}</p>
+                        <p className="text-[11px] text-red-400">{opp.rank}</p>
 
-                        <div className="mt-2 flex items-center justify-center gap-1 text-[10px]">
+                        <div className="mt-2 flex items-center justify-center gap-1 text-[11px]">
                             <Trophy size={10} className="text-yellow-400" />
                             <span className="text-yellow-400">{opp.streak || 0} Streak</span>
                         </div>
@@ -85,7 +85,7 @@ export const BattleCard = ({ opponent, userStats, onBattle }) => {
                         <div className="mt-2 h-1.5 bg-black/50 rounded-full overflow-hidden">
                             <div className="h-full bg-gradient-to-r from-red-500 to-orange-500" style={{ width: `${(opp.power / 5000) * 100}%` }} />
                         </div>
-                        <p className="text-[9px] text-gray-500 mt-1">{opp.power} PWR</p>
+                        <p className="text-[11px] text-gray-500 mt-1">{opp.power} PWR</p>
                     </div>
                 </div>
 

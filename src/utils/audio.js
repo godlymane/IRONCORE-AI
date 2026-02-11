@@ -1,7 +1,9 @@
 // ========================================
-// IRONCORE ELITE - PREMIUM SOUND SYSTEM
+// IRONCORE — PREMIUM SOUND SYSTEM
 // Synthesized sounds with haptic patterns
 // ========================================
+
+import { Capacitor } from '@capacitor/core';
 
 const AudioContext = window.AudioContext || window.webkitAudioContext;
 let ctx = null;
@@ -32,15 +34,21 @@ const playTone = (freq, type, duration, vol = 0.1) => {
     osc.stop(audioCtx.currentTime + duration);
 };
 
-// Haptic patterns for different actions
+// Capacitor native haptics (lazy-loaded on native platforms)
+let NativeHaptics = null;
+if (Capacitor.isNativePlatform()) {
+    import('@capacitor/haptics').then(m => { NativeHaptics = m.Haptics; }).catch(() => {});
+}
+
+// Haptic patterns — native Capacitor on iOS/Android, Web Vibration API fallback
 export const Haptics = {
-    light: () => navigator.vibrate?.(10),
-    medium: () => navigator.vibrate?.(25),
-    heavy: () => navigator.vibrate?.(50),
-    success: () => navigator.vibrate?.([10, 50, 10]),
-    error: () => navigator.vibrate?.([50, 30, 50, 30, 50]),
-    double: () => navigator.vibrate?.([15, 50, 15]),
-    celebration: () => navigator.vibrate?.([10, 30, 10, 30, 10, 30, 50]),
+    light: () => NativeHaptics ? NativeHaptics.impact({ style: 'light' }) : navigator.vibrate?.(10),
+    medium: () => NativeHaptics ? NativeHaptics.impact({ style: 'medium' }) : navigator.vibrate?.(25),
+    heavy: () => NativeHaptics ? NativeHaptics.impact({ style: 'heavy' }) : navigator.vibrate?.(50),
+    success: () => NativeHaptics ? NativeHaptics.notification({ type: 'success' }) : navigator.vibrate?.([10, 50, 10]),
+    error: () => NativeHaptics ? NativeHaptics.notification({ type: 'error' }) : navigator.vibrate?.([50, 30, 50, 30, 50]),
+    double: () => NativeHaptics ? NativeHaptics.impact({ style: 'medium' }) : navigator.vibrate?.([15, 50, 15]),
+    celebration: () => NativeHaptics ? NativeHaptics.notification({ type: 'success' }) : navigator.vibrate?.([10, 30, 10, 30, 10, 30, 50]),
 };
 
 export const SFX = {

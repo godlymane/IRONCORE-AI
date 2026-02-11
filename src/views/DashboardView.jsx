@@ -3,41 +3,20 @@ import {
   Flame, Search, Plus, Droplets, Zap, Settings, Target,
   X, Check, Scroll, Sword, Camera, Upload, Pill, ChevronRight, ChevronLeft,
   AlertCircle, ScanLine, AlertTriangle, ShoppingBag, Snowflake, ArrowUpCircle,
+
   ChefHat, Utensils, TrendingUp, Trophy, Sparkles
 } from 'lucide-react';
-import { Card, MacroBadge, Button, useToast, Skeleton } from '../components/UIComponents';
+import { motion } from 'framer-motion';
+import { Card, MacroBadge, Button, useToast, Skeleton, GlassCard, staggerContainer, slideUp } from '../components/UIComponents';
+import { DashboardSkeleton } from '../components/ViewSkeletons';
+import { PremiumIcon } from '../components/PremiumIcon';
+
+// Import Quick Log Icons
+import { WaterDropIcon, ProteinBoltIcon, EggIcon, ChickenIcon } from '../components/IronCoreIcons';
+
 import { callGemini, cleanAIResponse } from '../utils/helpers';
 import { SFX } from '../utils/audio';
-
-// Glass Card Component for Dashboard
-const GlassCard = ({ children, className = "", onClick, highlight = false }) => (
-  <div
-    onClick={onClick}
-    className={`relative overflow-hidden rounded-3xl p-5 transition-all duration-500 ${onClick ? 'cursor-pointer hover:scale-[1.01]' : ''} ${className}`}
-    style={{
-      background: highlight
-        ? 'linear-gradient(145deg, rgba(220, 38, 38, 0.15) 0%, rgba(153, 27, 27, 0.08) 50%, rgba(220, 38, 38, 0.12) 100%)'
-        : 'linear-gradient(145deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 50%, rgba(255, 255, 255, 0.02) 100%)',
-      backdropFilter: 'blur(20px) saturate(180%)',
-      WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-      border: highlight ? '1px solid rgba(220, 38, 38, 0.3)' : '1px solid rgba(220, 38, 38, 0.1)',
-      boxShadow: highlight
-        ? '0 10px 40px rgba(220, 38, 38, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08)'
-        : '0 10px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06)',
-    }}
-  >
-    {/* Subtle top shine */}
-    <div
-      className="absolute top-0 left-0 right-0 h-[40%] rounded-t-3xl pointer-events-none"
-      style={{
-        background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%)',
-      }}
-    />
-    <div className="relative z-10">
-      {children}
-    </div>
-  </div>
-);
+import { NutritionView } from './NutritionView';
 
 // Circular Progress Ring
 const ProgressRing = ({ progress, size = 120, strokeWidth = 8, color = "#dc2626" }) => {
@@ -77,7 +56,7 @@ const ProgressRing = ({ progress, size = 120, strokeWidth = 8, color = "#dc2626"
 export const DashboardView = ({
   meals, burned, workouts, updateData, deleteEntry,
   profile, uploadProfilePic, user,
-  completeDailyDrop, buyItem, isStorageReady
+  completeDailyDrop, buyItem, isStorageReady, dataLoaded = true
 }) => {
   const { addToast } = useToast();
   const [mealText, setMealText] = useState("");
@@ -86,6 +65,7 @@ export const DashboardView = ({
   const [showManual, setShowManual] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showShop, setShowShop] = useState(false);
+  const [showNutrition, setShowNutrition] = useState(false);
   const [manualMeal, setManualMeal] = useState({ name: '', cals: '', p: '', c: '', f: '' });
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
@@ -191,11 +171,14 @@ export const DashboardView = ({
     }
   };
 
+  // Show skeleton while waiting for first Firestore data
+  if (!dataLoaded) return <DashboardSkeleton />;
+
   return (
-    <div className="space-y-5 animate-in fade-in pb-20 relative">
+    <motion.div variants={staggerContainer} initial="initial" animate="animate" className="space-y-5 pb-4 relative">
 
       {/* Header Section */}
-      <div className="flex justify-between items-center">
+      <motion.div variants={slideUp} className="flex justify-between items-center">
         <div className="flex items-center gap-3">
           <button onClick={() => setShowSettings(true)} className="relative group">
             <div
@@ -219,7 +202,7 @@ export const DashboardView = ({
             </div>
             {/* Level Badge */}
             <div
-              className="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-lg text-[10px] font-black"
+              className="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-lg text-[11px] font-black"
               style={{
                 background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
                 boxShadow: '0 2px 8px rgba(220, 38, 38, 0.6)',
@@ -230,7 +213,7 @@ export const DashboardView = ({
           </button>
           <div>
             <h1 className="text-xl font-black italic text-white uppercase tracking-tighter">Dashboard</h1>
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-1">
+            <p className="text-[11px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-1">
               {profile?.goal ? (
                 <>
                   <span className="text-red-400">{profile.goal}</span> Protocol
@@ -268,10 +251,10 @@ export const DashboardView = ({
             <span className="text-xs font-black text-orange-400">{streak}</span>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Main Stats Card - Calories & Protein Rings */}
-      <GlassCard highlight className="!p-6">
+      <GlassCard highlight className="!p-6" onClick={() => setShowNutrition(true)}>
         <div className="flex items-center justify-between">
           {/* Calorie Ring */}
           <div className="flex flex-col items-center">
@@ -279,10 +262,10 @@ export const DashboardView = ({
               <ProgressRing progress={calorieProgress} size={100} strokeWidth={8} color="#dc2626" />
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span className="text-2xl font-black text-white">{displayNetCals}</span>
-                <span className="text-[9px] text-gray-400 uppercase">kcal</span>
+                <span className="text-[11px] text-gray-400 uppercase">kcal</span>
               </div>
             </div>
-            <p className="text-[10px] text-gray-500 font-bold mt-2 uppercase">Net Calories</p>
+            <p className="text-[11px] text-gray-500 font-bold mt-2 uppercase">Net Calories</p>
             <p className="text-xs text-red-400 font-bold">{Math.max(0, dailyTarget - netCals)} left</p>
           </div>
 
@@ -295,10 +278,10 @@ export const DashboardView = ({
               <ProgressRing progress={proteinProgress} size={100} strokeWidth={8} color="#f59e0b" />
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span className="text-2xl font-black text-white">{macros.p}g</span>
-                <span className="text-[9px] text-gray-400 uppercase">protein</span>
+                <span className="text-[11px] text-gray-400 uppercase">protein</span>
               </div>
             </div>
-            <p className="text-[10px] text-gray-500 font-bold mt-2 uppercase">Protein</p>
+            <p className="text-[11px] text-gray-500 font-bold mt-2 uppercase">Protein</p>
             <p className="text-xs text-amber-400 font-bold">{Math.max(0, dailyProteinTarget - macros.p)}g left</p>
           </div>
 
@@ -326,7 +309,7 @@ export const DashboardView = ({
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span
-                className="text-[9px] font-bold px-2 py-0.5 rounded uppercase"
+                className="text-[11px] font-bold px-2 py-0.5 rounded uppercase"
                 style={{
                   background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
                 }}
@@ -371,9 +354,9 @@ export const DashboardView = ({
           </h3>
           <button
             onClick={() => setShowManual(!showManual)}
-            className="text-xs text-red-400 font-bold hover:text-red-300 transition-colors"
+            className="px-3 py-1.5 rounded-lg text-xs font-bold text-red-400 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 transition-all active:scale-95 touch-target flex items-center justify-center"
           >
-            {showManual ? "Close Manual" : "Manual Entry"}
+            {showManual ? "Close" : "Manual Entry"}
           </button>
         </div>
 
@@ -385,7 +368,7 @@ export const DashboardView = ({
               onChange={e => setManualMeal({ ...manualMeal, name: e.target.value })}
               className="w-full bg-gray-900/80 p-3 rounded-xl text-white text-sm outline-none border border-gray-800 focus:border-red-600 transition-colors"
             />
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
                 { key: 'cals', label: 'Cals' },
                 { key: 'p', label: 'P' },
@@ -395,6 +378,8 @@ export const DashboardView = ({
                 <input
                   key={field.key}
                   type="number"
+                  inputMode="numeric"
+                  enterKeyHint="done"
                   placeholder={field.label}
                   value={manualMeal[field.key]}
                   onChange={e => setManualMeal({ ...manualMeal, [field.key]: e.target.value })}
@@ -462,7 +447,7 @@ export const DashboardView = ({
         {aiStatus && (
           <div className="flex items-center justify-center gap-2">
             <div className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
-            <p className="text-[10px] font-bold uppercase text-red-400">{aiStatus}</p>
+            <p className="text-[11px] font-bold uppercase text-red-400">{aiStatus}</p>
           </div>
         )}
       </GlassCard>
@@ -470,7 +455,7 @@ export const DashboardView = ({
       {/* Quick Actions Row */}
       <div className="grid grid-cols-4 gap-2">
         <QuickActionBtn
-          icon={<Droplets size={18} className="text-cyan-400" />}
+          icon={<PremiumIcon src={WaterDropIcon} alt="Water" size="sm" fallback={Droplets} className="!w-6 !h-6" />}
           label="Water"
           color="cyan"
           onClick={async () => {
@@ -479,7 +464,7 @@ export const DashboardView = ({
           }}
         />
         <QuickActionBtn
-          icon={<Zap size={18} className="text-yellow-400" />}
+          icon={<PremiumIcon src={ProteinBoltIcon} alt="Protein" size="sm" fallback={Zap} className="!w-6 !h-6" />}
           label="Protein"
           color="yellow"
           onClick={async () => {
@@ -488,7 +473,7 @@ export const DashboardView = ({
           }}
         />
         <QuickActionBtn
-          icon={<ChefHat size={18} className="text-orange-400" />}
+          icon={<PremiumIcon src={EggIcon} alt="Eggs" size="sm" fallback={ChefHat} className="!w-6 !h-6" />}
           label="Eggs"
           color="orange"
           onClick={async () => {
@@ -497,7 +482,7 @@ export const DashboardView = ({
           }}
         />
         <QuickActionBtn
-          icon={<Utensils size={18} className="text-green-400" />}
+          icon={<PremiumIcon src={ChickenIcon} alt="Chicken" size="sm" fallback={Utensils} className="!w-6 !h-6" />}
           label="Chicken"
           color="green"
           onClick={async () => {
@@ -528,8 +513,8 @@ export const DashboardView = ({
               >
                 <ShoppingBag size={28} className="text-yellow-500" />
               </div>
-              <h3 className="text-2xl font-black italic text-white uppercase">Black Market</h3>
-              <p className="text-xs text-gray-500 mt-1">Spend XP. Gain Advantages.</p>
+              <h3 className="text-2xl font-black italic text-white uppercase">Reward Shop</h3>
+              <p className="text-xs text-gray-500 mt-1">Spend XP. Unlock Rewards.</p>
             </div>
 
             <div className="space-y-3">
@@ -563,7 +548,22 @@ export const DashboardView = ({
           onClose={() => setShowSettings(false)}
         />
       )}
-    </div>
+
+      {/* Nutrition View Overlay */}
+      {showNutrition && (
+        <div className="fixed inset-0 z-50 bg-black animate-in fade-in overflow-y-auto">
+          <div className="p-4">
+            <NutritionView
+              meals={meals}
+              burned={burned}
+              profile={profile}
+              updateData={updateData}
+              onBack={() => setShowNutrition(false)}
+            />
+          </div>
+        </div>
+      )}
+    </motion.div>
   );
 };
 
@@ -574,7 +574,7 @@ const MacroMini = ({ label, value, color }) => (
       className={`w-2 h-2 rounded-full bg-${color}-500`}
       style={{ boxShadow: `0 0 6px var(--tw-shadow-color)` }}
     />
-    <span className="text-[10px] text-gray-500 font-bold uppercase w-12">{label}</span>
+    <span className="text-[11px] text-gray-500 font-bold uppercase w-12">{label}</span>
     <span className="text-xs text-white font-bold">{value}{label !== 'Burned' ? 'g' : ''}</span>
   </div>
 );
@@ -600,7 +600,7 @@ const ShopItem = ({ icon, title, desc, cost, color, onBuy }) => (
       </div>
       <div className="text-left">
         <p className="text-sm font-bold text-white">{title}</p>
-        <p className="text-[10px] text-gray-500">{desc}</p>
+        <p className="text-[11px] text-gray-500">{desc}</p>
       </div>
     </div>
     <span
@@ -633,7 +633,7 @@ const QuickActionBtn = ({ icon, label, color, onClick }) => (
     >
       {icon}
     </div>
-    <span className="text-[9px] text-gray-400 font-bold uppercase">{label}</span>
+    <span className="text-[11px] text-gray-400 font-bold uppercase">{label}</span>
   </button>
 );
 
@@ -681,11 +681,11 @@ const MotivationCard = () => {
             <Sparkles size={16} className="text-red-400" />
           </div>
           <div className="flex-1">
-            <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Daily Motivation</p>
+            <p className="text-[11px] text-gray-500 font-bold uppercase mb-1">Daily Motivation</p>
             <p className="text-sm text-white font-medium italic leading-relaxed">
               "{quote.text}"
             </p>
-            <p className="text-[10px] text-red-400 font-bold mt-2">— {quote.author}</p>
+            <p className="text-[11px] text-red-400 font-bold mt-2">— {quote.author}</p>
           </div>
         </div>
       </div>
@@ -863,7 +863,7 @@ const GoalArchitectModal = ({ profile, updateData, addToast, onClose }) => {
               <Zap size={24} className="text-red-300" />
             </div>
             <h3 className="text-xl font-black italic text-white uppercase tracking-tight">Goal Architect</h3>
-            <p className="text-[10px] text-gray-400 mt-1">AI-Powered Calorie Calculator</p>
+            <p className="text-[11px] text-gray-400 mt-1">AI-Powered Calorie Calculator</p>
           </div>
 
           {/* Step Indicator */}
@@ -910,55 +910,63 @@ const GoalArchitectModal = ({ profile, updateData, addToast, onClose }) => {
               {/* Weight, Height, Age, Body Fat */}
               <div className="grid grid-cols-4 gap-2">
                 <div className="p-3 rounded-xl" style={inputStyle}>
-                  <label className="text-[9px] uppercase font-bold text-gray-500 block mb-1">Weight</label>
+                  <label className="text-[11px] uppercase font-bold text-gray-500 block mb-1">Weight</label>
                   <div className="flex items-baseline gap-1">
                     <input
                       type="number"
+                      inputMode="decimal"
+                      enterKeyHint="done"
                       value={formData.weight}
                       onChange={e => setFormData(prev => ({ ...prev, weight: e.target.value }))}
                       placeholder="70"
                       className="w-full bg-transparent text-lg font-black text-white outline-none placeholder:text-gray-700"
                     />
-                    <span className="text-[10px] text-gray-500">kg</span>
+                    <span className="text-[11px] text-gray-500">kg</span>
                   </div>
                 </div>
                 <div className="p-3 rounded-xl" style={inputStyle}>
-                  <label className="text-[9px] uppercase font-bold text-gray-500 block mb-1">Height</label>
+                  <label className="text-[11px] uppercase font-bold text-gray-500 block mb-1">Height</label>
                   <div className="flex items-baseline gap-1">
                     <input
                       type="number"
+                      inputMode="decimal"
+                      enterKeyHint="done"
                       value={formData.height}
                       onChange={e => setFormData(prev => ({ ...prev, height: e.target.value }))}
                       placeholder="175"
                       className="w-full bg-transparent text-lg font-black text-white outline-none placeholder:text-gray-700"
                     />
-                    <span className="text-[10px] text-gray-500">cm</span>
+                    <span className="text-[11px] text-gray-500">cm</span>
                   </div>
                 </div>
                 <div className="p-3 rounded-xl" style={inputStyle}>
-                  <label className="text-[9px] uppercase font-bold text-gray-500 block mb-1">Age</label>
+                  <label className="text-[11px] uppercase font-bold text-gray-500 block mb-1">Age</label>
                   <div className="flex items-baseline gap-1">
                     <input
                       type="number"
+                      inputMode="numeric"
+                      enterKeyHint="done"
                       value={formData.age}
                       onChange={e => setFormData(prev => ({ ...prev, age: e.target.value }))}
                       placeholder="25"
                       className="w-full bg-transparent text-lg font-black text-white outline-none placeholder:text-gray-700"
                     />
-                    <span className="text-[10px] text-gray-500">yrs</span>
+                    <span className="text-[11px] text-gray-500">yrs</span>
                   </div>
                 </div>
                 <div className="p-3 rounded-xl" style={inputStyle}>
-                  <label className="text-[9px] uppercase font-bold text-gray-500 block mb-1">Body Fat</label>
+                  <label className="text-[11px] uppercase font-bold text-gray-500 block mb-1">Body Fat</label>
                   <div className="flex items-baseline gap-1">
                     <input
                       type="number"
+                      inputMode="decimal"
+                      enterKeyHint="done"
                       value={formData.bodyFat}
                       onChange={e => setFormData(prev => ({ ...prev, bodyFat: e.target.value }))}
                       placeholder="15"
                       className="w-full bg-transparent text-lg font-black text-white outline-none placeholder:text-gray-700"
                     />
-                    <span className="text-[10px] text-gray-500">%</span>
+                    <span className="text-[11px] text-gray-500">%</span>
                   </div>
                 </div>
               </div>
@@ -988,7 +996,7 @@ const GoalArchitectModal = ({ profile, updateData, addToast, onClose }) => {
 
               {/* Activity Level */}
               <div>
-                <label className="text-[10px] uppercase font-bold text-gray-500 block mb-2">Activity Level</label>
+                <label className="text-[11px] uppercase font-bold text-gray-500 block mb-2">Activity Level</label>
                 <div className="space-y-2">
                   {activityLevels.map(level => (
                     <button
@@ -1005,7 +1013,7 @@ const GoalArchitectModal = ({ profile, updateData, addToast, onClose }) => {
                       <span className="text-lg">{level.icon}</span>
                       <div className="text-left flex-1">
                         <p className={`text-xs font-bold ${formData.activityLevel === level.value ? 'text-white' : 'text-gray-400'}`}>{level.label}</p>
-                        <p className="text-[10px] text-gray-500">{level.desc}</p>
+                        <p className="text-[11px] text-gray-500">{level.desc}</p>
                       </div>
                       {formData.activityLevel === level.value && <Check size={14} className="text-red-400" />}
                     </button>
@@ -1015,7 +1023,7 @@ const GoalArchitectModal = ({ profile, updateData, addToast, onClose }) => {
 
               {/* Goal Selection */}
               <div>
-                <label className="text-[10px] uppercase font-bold text-gray-500 block mb-2">Your Goal</label>
+                <label className="text-[11px] uppercase font-bold text-gray-500 block mb-2">Your Goal</label>
                 <div className="grid grid-cols-3 gap-2">
                   {Object.entries(goalConfigs).map(([key, config]) => (
                     <button
@@ -1030,7 +1038,7 @@ const GoalArchitectModal = ({ profile, updateData, addToast, onClose }) => {
                       }}
                     >
                       <span className="text-lg">{config.emoji}</span>
-                      <span className={`text-[10px] font-bold uppercase ${formData.goal === key ? 'text-white' : 'text-gray-500'}`}>{config.label}</span>
+                      <span className={`text-[11px] font-bold uppercase ${formData.goal === key ? 'text-white' : 'text-gray-500'}`}>{config.label}</span>
                     </button>
                   ))}
                 </div>
@@ -1062,7 +1070,7 @@ const GoalArchitectModal = ({ profile, updateData, addToast, onClose }) => {
               {/* Intensity Slider */}
               {formData.goal !== 'maintain' && (
                 <div>
-                  <label className="text-[10px] uppercase font-bold text-gray-500 block mb-2">Intensity</label>
+                  <label className="text-[11px] uppercase font-bold text-gray-500 block mb-2">Intensity</label>
                   <div className="grid grid-cols-3 gap-2">
                     {Object.entries(intensityConfigs).map(([key, config]) => (
                       <button
@@ -1077,7 +1085,7 @@ const GoalArchitectModal = ({ profile, updateData, addToast, onClose }) => {
                         }}
                       >
                         <span className={`text-xs font-bold ${formData.intensity === key ? 'text-white' : 'text-gray-500'}`}>{config.label}</span>
-                        <span className="text-[9px] text-gray-500">{config.desc}</span>
+                        <span className="text-[11px] text-gray-500">{config.desc}</span>
                       </button>
                     ))}
                   </div>
@@ -1092,27 +1100,27 @@ const GoalArchitectModal = ({ profile, updateData, addToast, onClose }) => {
                   border: '1px solid rgba(239, 68, 68, 0.3)',
                 }}
               >
-                <p className="text-[10px] text-gray-400 uppercase mb-1">Your Daily Target</p>
+                <p className="text-[11px] text-gray-400 uppercase mb-1">Your Daily Target</p>
                 <p className="text-4xl font-black italic text-white mb-1">{targetCalories}</p>
                 <p className="text-xs text-red-400 font-bold">CALORIES</p>
                 <div className="flex justify-center gap-4 mt-3">
                   <div className="text-center">
                     <p className="text-lg font-black text-amber-400">{macros.protein}g</p>
-                    <p className="text-[9px] text-gray-500 uppercase">Protein</p>
+                    <p className="text-[11px] text-gray-500 uppercase">Protein</p>
                   </div>
                   <div className="text-center">
                     <p className="text-lg font-black text-yellow-400">{macros.carbs}g</p>
-                    <p className="text-[9px] text-gray-500 uppercase">Carbs</p>
+                    <p className="text-[11px] text-gray-500 uppercase">Carbs</p>
                   </div>
                   <div className="text-center">
                     <p className="text-lg font-black text-pink-400">{macros.fat}g</p>
-                    <p className="text-[9px] text-gray-500 uppercase">Fat</p>
+                    <p className="text-[11px] text-gray-500 uppercase">Fat</p>
                   </div>
                 </div>
               </div>
 
               {/* TDEE Info */}
-              <div className="text-center text-[10px] text-gray-500">
+              <div className="text-center text-[11px] text-gray-500">
                 Base TDEE: {tdee} kcal • {formData.goal === 'lose' ? 'Deficit' : formData.goal === 'gain' ? 'Surplus' : 'Maintenance'} Protocol
               </div>
 

@@ -1,28 +1,8 @@
 import React, { useState } from 'react';
-import { Lock, HeartPulse, Gauge, Footprints, Mountain, Zap, Flame, Bike, Check, Settings } from 'lucide-react';
-import { Button } from '../components/UIComponents';
-
-// Glass Card Component
-const GlassCard = ({ children, className = "", onClick, highlight = false }) => (
-    <div
-        onClick={onClick}
-        className={`relative overflow-hidden rounded-3xl p-5 transition-all duration-300 ${onClick ? 'cursor-pointer hover:scale-[1.01]' : ''} ${className}`}
-        style={{
-            background: highlight
-                ? 'linear-gradient(145deg, rgba(220, 38, 38, 0.15) 0%, rgba(185, 28, 28, 0.08) 100%)'
-                : 'linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)',
-            backdropFilter: 'blur(20px)',
-            border: highlight ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(255, 255, 255, 0.08)',
-            boxShadow: '0 10px 40px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-        }}
-    >
-        <div
-            className="absolute top-0 left-0 right-0 h-[40%] rounded-t-3xl pointer-events-none"
-            style={{ background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%)' }}
-        />
-        <div className="relative z-10">{children}</div>
-    </div>
-);
+import { Lock, Gauge, Mountain, Flame, Check, Settings } from 'lucide-react';
+import { PulseHeartIcon, TreadmillIcon, WalkingIcon, CyclingIcon } from '../components/IronCoreIcons';
+import { PremiumIcon } from '../components/PremiumIcon';
+import { GlassCard } from '../components/UIComponents';
 
 // Activity Card Component
 const ActivityCard = ({ id, label, icon, active, onClick, color }) => (
@@ -38,12 +18,12 @@ const ActivityCard = ({ id, label, icon, active, onClick, color }) => (
         }}
     >
         <div className={active ? 'text-red-400' : 'text-gray-500'}>{icon}</div>
-        <span className={`text-[10px] font-bold uppercase tracking-wider ${active ? 'text-white' : 'text-gray-500'}`}>{label}</span>
+        <span className={`text-[11px] font-bold uppercase tracking-wider ${active ? 'text-white' : 'text-gray-500'}`}>{label}</span>
     </button>
 );
 
 // Glass Input Component
-const GlassInput = ({ label, value, onChange, placeholder, unit, icon }) => (
+const GlassInput = ({ label, value, onChange, placeholder, unit, icon, inputMode = "decimal" }) => (
     <div
         className="p-4 rounded-2xl transition-all"
         style={{
@@ -51,12 +31,14 @@ const GlassInput = ({ label, value, onChange, placeholder, unit, icon }) => (
             border: '1px solid rgba(255, 255, 255, 0.08)',
         }}
     >
-        <label className="text-[10px] uppercase font-bold text-gray-500 block mb-2 flex items-center gap-1">
+        <label className="text-[11px] uppercase font-bold text-gray-500 block mb-2 flex items-center gap-1">
             {icon} {label}
         </label>
         <div className="flex items-center gap-2">
             <input
                 type="number"
+                inputMode={inputMode}
+                enterKeyHint="done"
                 value={value}
                 onChange={e => onChange(e.target.value)}
                 placeholder={placeholder}
@@ -200,21 +182,21 @@ export const CardioView = ({ progress, profile, updateData, setActiveTab }) => {
     };
 
     return (
-        <div className="space-y-5 animate-in fade-in pb-20 relative">
+        <div className="space-y-5 animate-in fade-in pb-4 relative">
             {/* Header */}
             <div className="flex items-center gap-3">
                 <div
-                    className="p-3 rounded-2xl"
+                    className="p-2 rounded-2xl"
                     style={{
                         background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(249, 115, 22, 0.1) 100%)',
                         border: '1px solid rgba(239, 68, 68, 0.3)',
                     }}
                 >
-                    <HeartPulse size={24} className="text-red-400" />
+                    <PremiumIcon src={PulseHeartIcon} size="md" className="!w-6 !h-6" />
                 </div>
                 <div>
                     <h2 className="text-xl font-black uppercase tracking-tighter italic text-white">Pulse Lab</h2>
-                    <p className="text-[10px] text-gray-500 uppercase">Cardio Energy Tracking</p>
+                    <p className="text-[11px] text-gray-500 uppercase">Cardio Energy Tracking</p>
                 </div>
             </div>
 
@@ -223,21 +205,21 @@ export const CardioView = ({ progress, profile, updateData, setActiveTab }) => {
                 <ActivityCard
                     id="treadmill"
                     label="Treadmill"
-                    icon={<Zap size={20} />}
+                    icon={<PremiumIcon src={TreadmillIcon} size="md" className="!w-8 !h-8" />}
                     active={activity === 'treadmill'}
                     onClick={() => { setActivity('treadmill'); setBurn(null); }}
                 />
                 <ActivityCard
                     id="walking"
                     label="Walking"
-                    icon={<Footprints size={20} />}
+                    icon={<PremiumIcon src={WalkingIcon} size="md" className="!w-8 !h-8" />}
                     active={activity === 'walking'}
                     onClick={() => { setActivity('walking'); setBurn(null); }}
                 />
                 <ActivityCard
                     id="cycling"
                     label="Cycling"
-                    icon={<Bike size={20} />}
+                    icon={<PremiumIcon src={CyclingIcon} size="md" className="!w-8 !h-8" />}
                     active={activity === 'cycling'}
                     onClick={() => { setActivity('cycling'); setBurn(null); }}
                 />
@@ -271,6 +253,7 @@ export const CardioView = ({ progress, profile, updateData, setActiveTab }) => {
                             onChange={setTmDuration}
                             placeholder="30"
                             unit="mins"
+                            inputMode="numeric"
                         />
                     </div>
                 )}
@@ -283,15 +266,16 @@ export const CardioView = ({ progress, profile, updateData, setActiveTab }) => {
                             onChange={setWalkSteps}
                             placeholder="5000"
                             icon={<Footprints size={10} />}
+                            inputMode="numeric"
                         />
                         <div>
-                            <label className="text-[10px] uppercase font-bold text-gray-500 mb-2 block">Intensity</label>
+                            <label className="text-[11px] uppercase font-bold text-gray-500 mb-2 block">Intensity</label>
                             <div className="grid grid-cols-3 gap-2">
                                 {['low', 'moderate', 'aggressive'].map(lvl => (
                                     <button
                                         key={lvl}
                                         onClick={() => setWalkIntensity(lvl)}
-                                        className="p-3 rounded-xl text-[10px] uppercase font-bold transition-all"
+                                        className="p-3 rounded-xl text-[11px] uppercase font-bold transition-all"
                                         style={{
                                             background: walkIntensity === lvl
                                                 ? 'linear-gradient(145deg, rgba(220, 38, 38, 0.3) 0%, rgba(220, 38, 38, 0.1) 100%)'
@@ -316,9 +300,10 @@ export const CardioView = ({ progress, profile, updateData, setActiveTab }) => {
                             onChange={setCycDuration}
                             placeholder="45"
                             unit="mins"
+                            inputMode="numeric"
                         />
                         <div>
-                            <label className="text-[10px] uppercase font-bold text-gray-500 mb-2 block">Intensity</label>
+                            <label className="text-[11px] uppercase font-bold text-gray-500 mb-2 block">Intensity</label>
                             <select
                                 value={cycIntensity}
                                 onChange={e => setCycIntensity(e.target.value)}
@@ -390,7 +375,7 @@ export const CardioView = ({ progress, profile, updateData, setActiveTab }) => {
                     border: '1px solid rgba(255, 255, 255, 0.05)',
                 }}
             >
-                <p className="text-[10px] text-gray-500 text-center leading-relaxed">
+                <p className="text-[11px] text-gray-500 text-center leading-relaxed">
                     Calculations use Metabolic Equivalent (MET) formulas based on your weight of <span className="text-white font-bold">{weight}kg</span>.
                     <br />Treadmill logic accounts for gravity on incline.
                 </p>

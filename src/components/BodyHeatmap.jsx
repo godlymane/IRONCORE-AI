@@ -84,7 +84,7 @@ export const BodyHeatmap = ({ muscleScores }) => {
                 )}
             </svg>
             <div className="absolute bottom-2 left-0 right-0 flex justify-center">
-                 <span className="text-[10px] font-black uppercase text-gray-500 tracking-widest bg-black/50 px-3 py-1 rounded-full border border-gray-800">
+                 <span className="text-[11px] font-black uppercase text-gray-500 tracking-widest bg-black/50 px-3 py-1 rounded-full border border-gray-800">
                      {view === 'front' ? 'Anterior' : 'Posterior'} View
                  </span>
             </div>

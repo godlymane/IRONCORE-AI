@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Moon, Sun, Zap, TrendingUp, TrendingDown, Calendar, Clock, Battery } from 'lucide-react';
+import { TrendingUp, TrendingDown, Calendar } from 'lucide-react';
 import { Button } from './UIComponents';
+import { PremiumIcon } from './PremiumIcon';
+import { MoonIconShape, SunIcon, ProteinBoltIcon, SmartTimerIconShape, BatteryIcon } from './IronCoreIcons';
 
 /**
  * Sleep & Recovery Tracking Component
@@ -46,17 +48,17 @@ export const SleepRecoveryTracker = ({ profile = {}, onUpdate }) => {
         // Generate recommendations
         const recs = [];
         if (sleepData.hours < 7) {
-            recs.push({ icon: Moon, text: 'Aim for 7-9 hours of sleep', priority: 'high' });
+            recs.push({ icon: MoonIconShape, text: 'Aim for 7-9 hours of sleep', priority: 'high' });
         }
         if (sleepData.quality === 'poor' || sleepData.quality === 'fair') {
-            recs.push({ icon: Zap, text: 'Reduce caffeine after 2pm', priority: 'medium' });
-            recs.push({ icon: Sun, text: 'Get morning sunlight exposure', priority: 'medium' });
+            recs.push({ icon: ProteinBoltIcon, text: 'Reduce caffeine after 2pm', priority: 'medium' });
+            recs.push({ icon: SunIcon, text: 'Get morning sunlight exposure', priority: 'medium' });
         }
         if (parseInt(sleepData.bedtime.split(':')[0]) >= 24 || parseInt(sleepData.bedtime.split(':')[0]) < 22) {
-            recs.push({ icon: Clock, text: 'Try to sleep by 11pm', priority: 'high' });
+            recs.push({ icon: SmartTimerIconShape, text: 'Try to sleep by 11pm', priority: 'high' });
         }
         if (score < 60) {
-            recs.push({ icon: Battery, text: 'Consider a rest day or light workout', priority: 'high' });
+            recs.push({ icon: BatteryIcon, text: 'Consider a rest day or light workout', priority: 'high' });
         }
 
         setRecommendations(recs.slice(0, 3));
@@ -98,7 +100,7 @@ export const SleepRecoveryTracker = ({ profile = {}, onUpdate }) => {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <Moon className="w-5 h-5 text-red-400" />
+                    <PremiumIcon src={MoonIconShape} size="sm" className="!w-8 !h-8" fallback={null} />
                     <h3 className="text-lg font-bold text-white">Sleep & Recovery</h3>
                 </div>
                 <div className={`text-2xl font-black ${getScoreColor()}`}>
@@ -150,7 +152,7 @@ export const SleepRecoveryTracker = ({ profile = {}, onUpdate }) => {
             [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-red-500 
             [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-red-500/50"
                 />
-                <div className="flex justify-between text-[10px] text-white/30 mt-1">
+                <div className="flex justify-between text-[11px] text-white/30 mt-1">
                     <span>3h</span>
                     <span className="text-green-400">7-9h optimal</span>
                     <span>12h</span>
@@ -166,8 +168,8 @@ export const SleepRecoveryTracker = ({ profile = {}, onUpdate }) => {
                             key={opt.value}
                             onClick={() => setSleepData(prev => ({ ...prev, quality: opt.value }))}
                             className={`p-2 rounded-xl text-center text-xs font-medium border transition-all ${sleepData.quality === opt.value
-                                    ? opt.color + ' text-white'
-                                    : 'bg-white/5 border-white/10 text-white/50'
+                                ? opt.color + ' text-white'
+                                : 'bg-white/5 border-white/10 text-white/50'
                                 }`}
                         >
                             {opt.label}
@@ -179,7 +181,7 @@ export const SleepRecoveryTracker = ({ profile = {}, onUpdate }) => {
             {/* Schedule */}
             <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 rounded-xl backdrop-blur-xl border border-white/10 bg-white/[0.02]">
-                    <label className="text-[10px] uppercase text-white/40 block mb-1">Bedtime</label>
+                    <label className="text-[11px] uppercase text-white/40 block mb-1">Bedtime</label>
                     <input
                         type="time"
                         value={sleepData.bedtime}
@@ -188,7 +190,7 @@ export const SleepRecoveryTracker = ({ profile = {}, onUpdate }) => {
                     />
                 </div>
                 <div className="p-3 rounded-xl backdrop-blur-xl border border-white/10 bg-white/[0.02]">
-                    <label className="text-[10px] uppercase text-white/40 block mb-1">Wake Time</label>
+                    <label className="text-[11px] uppercase text-white/40 block mb-1">Wake Time</label>
                     <input
                         type="time"
                         value={sleepData.wakeTime}

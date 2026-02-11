@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Target, TrendingUp, Trophy, Flame, Dumbbell, Scale, Calendar } from 'lucide-react';
+import { TrendingUp, Scale, Calendar } from 'lucide-react';
+import { PremiumIcon } from '../PremiumIcon';
+import { DumbbellIcon, FlameIcon, EggIcon, TrophyIconShape } from '../IronCoreIcons';
 
 // Goal tracking component with visual progress
 export const GoalTracker = ({ goals = [], workouts = [], meals = [], currentWeight = null }) => {
@@ -28,9 +30,9 @@ export const GoalTracker = ({ goals = [], workouts = [], meals = [], currentWeig
 
     // Default goals if none provided
     const displayGoals = goals.length > 0 ? goals : [
-        { id: 1, type: 'workouts_per_week', target: 4, label: 'Workouts/Week', icon: '💪' },
-        { id: 2, type: 'calories_per_day', target: 2000, label: 'Daily Calories', icon: '🔥' },
-        { id: 3, type: 'protein_per_day', target: 120, label: 'Daily Protein', icon: '🥩' },
+        { id: 1, type: 'workouts_per_week', target: 4, label: 'Workouts/Week', icon: <PremiumIcon src={DumbbellIcon} size="sm" className="!w-10 !h-10" /> },
+        { id: 2, type: 'calories_per_day', target: 2000, label: 'Daily Calories', icon: <PremiumIcon src={FlameIcon} size="sm" className="!w-10 !h-10" /> },
+        { id: 3, type: 'protein_per_day', target: 120, label: 'Daily Protein', icon: <PremiumIcon src={EggIcon} size="sm" className="!w-10 !h-10" /> },
     ];
 
     const getProgressPercent = (goal) => {
@@ -49,7 +51,7 @@ export const GoalTracker = ({ goals = [], workouts = [], meals = [], currentWeig
         <div className="space-y-4">
             <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Target size={20} className="text-red-400" />
+                    <PremiumIcon src={TrophyIconShape} size="sm" className="!w-6 !h-6" fallback={null} />
                     Goal Progress
                 </h3>
                 <span className="text-xs text-white/50">This Week</span>
@@ -65,15 +67,15 @@ export const GoalTracker = ({ goals = [], workouts = [], meals = [], currentWeig
                         <motion.div
                             key={goal.id}
                             className={`p-4 rounded-2xl border transition-all cursor-pointer ${isComplete
-                                    ? 'bg-green-900/20 border-green-500/30'
-                                    : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                ? 'bg-green-900/20 border-green-500/30'
+                                : 'bg-white/5 border-white/10 hover:bg-white/10'
                                 }`}
                             whileHover={{ scale: 1.01 }}
                             onClick={() => setSelectedGoal(selectedGoal === goal.id ? null : goal.id)}
                         >
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-3">
-                                    <span className="text-2xl">{goal.icon}</span>
+                                    <div className="flex-shrink-0">{goal.icon}</div>
                                     <div>
                                         <p className="font-bold text-white">{goal.label}</p>
                                         <p className="text-xs text-white/50">
@@ -127,7 +129,7 @@ export const GoalTracker = ({ goals = [], workouts = [], meals = [], currentWeig
             <div className="p-4 bg-gradient-to-r from-red-900/30 to-purple-900/30 rounded-2xl border border-red-500/20">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <Trophy size={24} className="text-yellow-400" />
+                        <PremiumIcon src={TrophyIconShape} size="md" className="!w-8 !h-8" fallback={null} />
                         <div>
                             <p className="font-bold text-white">Weekly Summary</p>
                             <p className="text-xs text-white/50">

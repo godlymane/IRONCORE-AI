@@ -184,7 +184,7 @@ export const PredictiveAnalytics = ({ workouts = [], profile = {}, meals = [], p
                     <div className={`text-3xl font-black ${getRiskColor(injuryRisk)}`}>
                         {injuryRisk < 30 ? 'Low' : injuryRisk < 60 ? 'Mod' : 'High'}
                     </div>
-                    <p className="text-[10px] text-white/40 mt-1">
+                    <p className="text-[11px] text-white/40 mt-1">
                         {injuryRisk < 30 ? 'Safe to train hard' : injuryRisk < 60 ? 'Consider active recovery' : 'Rest recommended'}
                     </p>
                 </motion.div>
@@ -235,7 +235,7 @@ export const PredictiveAnalytics = ({ workouts = [], profile = {}, meals = [], p
                         <div key={i} className="flex items-center justify-between p-2 rounded-xl bg-white/5">
                             <div>
                                 <p className="text-sm font-medium text-white">{window.time}</p>
-                                <p className="text-[10px] text-white/40">{window.benefit}</p>
+                                <p className="text-[11px] text-white/40">{window.benefit}</p>
                             </div>
                             <div className={`text-sm font-bold ${window.score > 80 ? 'text-green-400' : window.score > 60 ? 'text-yellow-400' : 'text-gray-400'}`}>
                                 {window.score}%

@@ -42,7 +42,7 @@ export const LeaderboardCard = ({ user, rank, isUser = false }) => {
                                         isUser ? 'border-red-400' : 'border-white/20'
                             }`}
                     />
-                    <div className="absolute -bottom-1 -right-1 bg-black/80 px-1.5 py-0.5 rounded text-[9px] font-bold text-white border border-white/10">
+                    <div className="absolute -bottom-1 -right-1 bg-black/80 px-1.5 py-0.5 rounded text-[11px] font-bold text-white border border-white/10">
                         {user.level}
                     </div>
                 </div>
@@ -53,7 +53,7 @@ export const LeaderboardCard = ({ user, rank, isUser = false }) => {
                         <p className="font-bold text-white truncate">{user.name}</p>
                         {getTrendIcon()}
                         {user.trend && (
-                            <span className={`text-[10px] ${user.trend > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            <span className={`text-[11px] ${user.trend > 0 ? 'text-green-400' : 'text-red-400'}`}>
                                 {user.trend > 0 ? '+' : ''}{user.trend}
                             </span>
                         )}

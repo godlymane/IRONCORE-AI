@@ -2,12 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Image as ImageIcon, Trash2, ArrowLeftRight, Calendar, Upload, X, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { uploadPhoto, getPhotos, deletePhoto } from '../../services/photoService';
-
-const GlassCard = ({ children, className = "" }) => (
-    <div className={`bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 ${className}`}>
-        {children}
-    </div>
-);
+import { GlassCard } from '../UIComponents';
 
 const ViewToggle = ({ active, onChange }) => (
     <div className="flex bg-black/20 p-1 rounded-xl">
@@ -47,7 +42,7 @@ const PhotoGrid = ({ photos, onDelete, onSelect, selectionMode, selectedIds }) =
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity p-3 flex flex-col justify-end">
                         <div className="flex justify-between items-end">
                             <div>
-                                <p className="text-[10px] font-bold text-red-300 uppercase">{photo.type || 'Front'}</p>
+                                <p className="text-[11px] font-bold text-red-300 uppercase">{photo.type || 'Front'}</p>
                                 <p className="text-xs font-bold text-white">{new Date(photo.date).toLocaleDateString()}</p>
                             </div>
                             {!selectionMode && (
@@ -93,7 +88,7 @@ const ComparisonView = ({ photos }) => {
         <div className="space-y-4">
             <div className="flex gap-4">
                 <div className="flex-1">
-                    <label className="text-[10px] uppercase font-bold text-gray-500 mb-2 block">Before (Left)</label>
+                    <label className="text-[11px] uppercase font-bold text-gray-500 mb-2 block">Before (Left)</label>
                     <select
                         className="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-xs text-white"
                         onChange={(e) => setLeftPhoto(photos.find(p => p.id === e.target.value))}
@@ -106,7 +101,7 @@ const ComparisonView = ({ photos }) => {
                     </select>
                 </div>
                 <div className="flex-1">
-                    <label className="text-[10px] uppercase font-bold text-gray-500 mb-2 block">After (Right)</label>
+                    <label className="text-[11px] uppercase font-bold text-gray-500 mb-2 block">After (Right)</label>
                     <select
                         className="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-xs text-white"
                         onChange={(e) => setRightPhoto(photos.find(p => p.id === e.target.value))}
@@ -167,10 +162,10 @@ const ComparisonView = ({ photos }) => {
                         </div>
 
                         {/* Labels */}
-                        <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold text-white pointer-events-none">
+                        <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-bold text-white pointer-events-none">
                             {new Date(leftPhoto.date).toLocaleDateString()}
                         </div>
-                        <div className="absolute top-4 right-4 bg-red-600/80 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold text-white pointer-events-none">
+                        <div className="absolute top-4 right-4 bg-red-600/80 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-bold text-white pointer-events-none">
                             {new Date(rightPhoto.date).toLocaleDateString()}
                         </div>
                     </>

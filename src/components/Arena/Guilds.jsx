@@ -123,7 +123,7 @@ const GuildBrowser = ({ onJoin, onCreate }) => {
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-2xl font-black text-white italic uppercase">Iron Guilds</h2>
-                    <p className="text-white/50 text-sm">Join a clan, dominate the arena.</p>
+                    <p className="text-white/50 text-sm">Join a clan, compete together.</p>
                 </div>
                 <Button onClick={onCreate} variant="primary" className="flex items-center gap-2">
                     <Plus size={16} />
@@ -151,11 +151,11 @@ const GuildBrowser = ({ onJoin, onCreate }) => {
                                     <h3 className="font-bold text-white">{guild.name}</h3>
                                     <p className="text-xs text-white/50 line-clamp-1">{guild.description}</p>
                                     <div className="flex items-center gap-3 mt-1">
-                                        <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-white/70 flex items-center gap-1">
+                                        <span className="text-[11px] bg-white/10 px-2 py-0.5 rounded text-white/70 flex items-center gap-1">
                                             <Users size={10} />
                                             {guild.memberCount}/{guild.maxMembers}
                                         </span>
-                                        <span className="text-[10px] text-yellow-400 font-bold">
+                                        <span className="text-[11px] text-yellow-400 font-bold">
                                             Lvl {guild.level}
                                         </span>
                                     </div>
@@ -286,7 +286,7 @@ const GuildChat = ({ guildId, currentUser }) => {
                     return (
                         <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                             <div className={`max-w-[75%] ${isMe ? 'bg-red-600' : 'bg-white/10'} px-4 py-2 rounded-2xl ${isMe ? 'rounded-tr-none' : 'rounded-tl-none'}`}>
-                                {!isMe && <p className="text-[10px] text-white/50 font-bold mb-1">{msg.username}</p>}
+                                {!isMe && <p className="text-[11px] text-white/50 font-bold mb-1">{msg.username}</p>}
                                 <p className="text-sm text-white">{msg.message}</p>
                             </div>
                         </div>
@@ -325,7 +325,7 @@ const GuildMembers = ({ members }) => {
                                 {member.username}
                                 {member.role === 'leader' && <Crown size={12} className="text-yellow-400" />}
                             </p>
-                            <p className="text-[10px] text-white/40 uppercase tracking-wider">{member.role}</p>
+                            <p className="text-[11px] text-white/40 uppercase tracking-wider">{member.role}</p>
                         </div>
                     </div>
                 </div>

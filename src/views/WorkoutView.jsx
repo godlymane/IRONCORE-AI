@@ -1,30 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Play, Dumbbell, Trophy, Edit2, List, Calculator, X, Ghost, CheckCircle2, Circle, Timer, StopCircle, Clock, Zap } from 'lucide-react';
-import { Card, Button } from '../components/UIComponents';
+import { Card, Button, GlassCard } from '../components/UIComponents';
 import { EXERCISE_DB } from '../utils/constants';
 import { SFX } from '../utils/audio';
-
-// Glass Card Component
-const GlassCard = ({ children, className = "", onClick }) => (
-    <div
-        onClick={onClick}
-        className={`relative overflow-hidden rounded-3xl p-5 ${className}`}
-        style={{
-            background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)',
-            backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            boxShadow: '0 10px 40px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-        }}
-    >
-        <div
-            className="absolute top-0 left-0 right-0 h-[40%] rounded-t-3xl pointer-events-none"
-            style={{
-                background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%)',
-            }}
-        />
-        <div className="relative z-10">{children}</div>
-    </div>
-);
 
 export const WorkoutView = ({ workouts, updateData, deleteEntry }) => {
     const [isSessionActive, setIsSessionActive] = useState(false);
@@ -162,7 +140,7 @@ export const WorkoutView = ({ workouts, updateData, deleteEntry }) => {
 
     if (isSessionActive) {
         return (
-            <div className="pb-24 animate-in slide-in-from-bottom-5 relative">
+            <div className="pb-4 animate-in slide-in-from-bottom-5 relative">
                 {/* Sticky Header */}
                 <div
                     className="sticky top-0 z-20 py-4 mb-4 flex justify-between items-center"
@@ -174,7 +152,7 @@ export const WorkoutView = ({ workouts, updateData, deleteEntry }) => {
                     <div>
                         <div className="flex items-center gap-2 mb-1">
                             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                            <p className="text-[10px] text-green-400 font-black uppercase tracking-widest">Live Session</p>
+                            <p className="text-[11px] text-green-400 font-black uppercase tracking-widest">Live Session</p>
                         </div>
                         <input
                             value={sessionName}
@@ -219,13 +197,13 @@ export const WorkoutView = ({ workouts, updateData, deleteEntry }) => {
                         <div className="flex items-center gap-2">
                             <Timer size={16} className="text-red-400 animate-pulse" />
                             <span className="text-xl font-black text-white font-mono tabular-nums">{formatTime(restTimer)}</span>
-                            <span className="text-[10px] text-gray-400 font-bold uppercase">Rest</span>
+                            <span className="text-[11px] text-gray-400 font-bold uppercase">Rest</span>
                         </div>
                         <div className="h-4 w-[1px] bg-gray-700"></div>
                         <div className="flex gap-2">
                             <button
                                 onClick={() => setRestTimer(t => t + 30)}
-                                className="text-[10px] px-3 py-1.5 rounded-lg font-bold text-white transition-all hover:scale-105"
+                                className="text-[11px] px-3 py-1.5 rounded-lg font-bold text-white transition-all hover:scale-105"
                                 style={{
                                     background: 'linear-gradient(145deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
                                 }}
@@ -277,7 +255,7 @@ export const WorkoutView = ({ workouts, updateData, deleteEntry }) => {
                                             {ex.isCustom ? <List size={14} /> : <Edit2 size={14} />}
                                         </button>
                                     </div>
-                                    <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest mt-1 flex items-center gap-1">
+                                    <span className="text-[11px] font-mono text-gray-500 uppercase tracking-widest mt-1 flex items-center gap-1">
                                         <Trophy size={10} className="text-yellow-500" />
                                         PR: {ex.pr > 0 ? `${ex.pr}kg` : 'None'}
                                     </span>
@@ -291,7 +269,7 @@ export const WorkoutView = ({ workouts, updateData, deleteEntry }) => {
                             </div>
 
                             {/* Sets Table Header */}
-                            <div className="flex text-[10px] text-gray-500 uppercase font-bold px-2 mb-2">
+                            <div className="flex text-[11px] text-gray-500 uppercase font-bold px-2 mb-2">
                                 <span className="w-8 text-center">#</span>
                                 <span className="flex-1 text-center">Kg</span>
                                 <span className="flex-1 text-center">Reps</span>
@@ -310,6 +288,8 @@ export const WorkoutView = ({ workouts, updateData, deleteEntry }) => {
 
                                                 <input
                                                     type="number"
+                                                    inputMode="decimal"
+                                                    enterKeyHint="done"
                                                     placeholder={ghost ? ghost.w : "-"}
                                                     value={set.w}
                                                     onChange={e => updateSet(ex.id, sIdx, 'w', e.target.value)}
@@ -323,6 +303,8 @@ export const WorkoutView = ({ workouts, updateData, deleteEntry }) => {
 
                                                 <input
                                                     type="number"
+                                                    inputMode="numeric"
+                                                    enterKeyHint="done"
                                                     placeholder={ghost ? ghost.r : "-"}
                                                     value={set.r}
                                                     onChange={e => updateSet(ex.id, sIdx, 'r', e.target.value)}
@@ -398,11 +380,11 @@ export const WorkoutView = ({ workouts, updateData, deleteEntry }) => {
     }
 
     return (
-        <div className="space-y-6 pb-20 animate-in fade-in">
+        <div className="space-y-6 pb-4 animate-in fade-in">
             <div className="flex justify-between items-center">
                 <div>
                     <h2 className="text-2xl font-black italic text-white uppercase tracking-tighter">My Lifts</h2>
-                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Training Log</p>
+                    <p className="text-[11px] text-gray-500 font-bold uppercase tracking-widest">Training Log</p>
                 </div>
                 <div className="flex gap-2">
                     <button
@@ -447,7 +429,7 @@ export const WorkoutView = ({ workouts, updateData, deleteEntry }) => {
                             <div className="flex justify-between items-start mb-3 border-b border-gray-800/50 pb-3">
                                 <div>
                                     <h3 className="font-bold text-base text-white">{w.name}</h3>
-                                    <p className="text-[10px] text-gray-500 flex items-center gap-2 mt-1">
+                                    <p className="text-[11px] text-gray-500 flex items-center gap-2 mt-1">
                                         <Clock size={10} />
                                         {new Date(w.date).toDateString()} • {formatTime(w.duration || 0)}
                                     </p>
@@ -473,7 +455,7 @@ export const WorkoutView = ({ workouts, updateData, deleteEntry }) => {
                                     </div>
                                 ))}
                                 {w.exercises?.length > 5 && (
-                                    <p className="text-[10px] text-gray-600 italic pl-3">+{w.exercises.length - 5} more exercises</p>
+                                    <p className="text-[11px] text-gray-600 italic pl-3">+{w.exercises.length - 5} more exercises</p>
                                 )}
                             </div>
                         </GlassCard>
@@ -565,9 +547,11 @@ const IronToolsModal = ({ onClose }) => {
                     <div className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="text-[10px] font-bold text-gray-500 uppercase block mb-2">Weight (kg)</label>
+                                <label className="text-[11px] font-bold text-gray-500 uppercase block mb-2">Weight (kg)</label>
                                 <input
                                     type="number"
+                                    inputMode="decimal"
+                                    enterKeyHint="done"
                                     value={w}
                                     onChange={e => setW(e.target.value)}
                                     className="w-full p-3 rounded-xl text-white outline-none"
@@ -578,9 +562,11 @@ const IronToolsModal = ({ onClose }) => {
                                 />
                             </div>
                             <div>
-                                <label className="text-[10px] font-bold text-gray-500 uppercase block mb-2">Reps</label>
+                                <label className="text-[11px] font-bold text-gray-500 uppercase block mb-2">Reps</label>
                                 <input
                                     type="number"
+                                    inputMode="numeric"
+                                    enterKeyHint="done"
                                     value={r}
                                     onChange={e => setR(e.target.value)}
                                     className="w-full p-3 rounded-xl text-white outline-none"
@@ -605,9 +591,11 @@ const IronToolsModal = ({ onClose }) => {
                 ) : (
                     <div className="space-y-4">
                         <div>
-                            <label className="text-[10px] font-bold text-gray-500 uppercase block mb-2">Target Weight (kg)</label>
+                            <label className="text-[11px] font-bold text-gray-500 uppercase block mb-2">Target Weight (kg)</label>
                             <input
                                 type="number"
+                                inputMode="decimal"
+                                enterKeyHint="done"
                                 value={targetW}
                                 onChange={e => setTargetW(e.target.value)}
                                 className="w-full p-4 rounded-xl text-white outline-none text-center text-xl font-bold"
@@ -642,7 +630,7 @@ const IronToolsModal = ({ onClose }) => {
                             {calculatePlates().length > 0 ? calculatePlates().map((p, i) => (
                                 <span
                                     key={i}
-                                    className={`text-[10px] font-bold px-2 py-1 rounded ${p.c.includes('text-black') ? 'bg-gray-200 text-black' : ''}`}
+                                    className={`text-[11px] font-bold px-2 py-1 rounded ${p.c.includes('text-black') ? 'bg-gray-200 text-black' : ''}`}
                                     style={!p.c.includes('text-black') ? {
                                         background: 'linear-gradient(145deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
                                         color: '#9ca3af',

@@ -1,491 +1,763 @@
 // ========================================
-// IRONCORE ELITE - ULTRA-PREMIUM CUSTOM ICONS
-// Hand-crafted SVGs with premium animations
-// Unique IDs to prevent filter conflicts
+// IRONCORE v2 — BLAYZEX THEME
+// Sharp, aggressive, geometric SVG icons
+// ALL paths use M/L only - NO curves (C/Q/S/T)
+// ViewBox: 24x24 | Stroke: 2px | Angular design
 // ========================================
 
 import React from 'react';
 import { motion } from 'framer-motion';
 
 // ========================================
-// ELITE FLAME (HOME) - Aggressive fire icon
+// 1. ELITE FLAME (HOME/DASHBOARD)
+// ========================================
+// Concept: Sharp aggressive flame built from 3 stacked
+// angular triangular shapes. Represents home/energy.
+//
+// Geometric Breakdown:
+//   - Outer flame: 7-point polygon with inward notches
+//     at 60° angles creating aggressive silhouette
+//   - Middle flame: 5-point polygon offset upward
+//   - Inner flame: Small sharp triangle (glass highlight)
+//   - All straight lines, zero curves
+//
+// Layers:
+//   1. Base: Outer flame (red gradient #991b1b → #dc2626)
+//   2. Mid: Middle flame (semi-transparent red)
+//   3. Highlight: Inner white flame (glass 15% opacity)
+//   4. Detail: Center bright core
+//   5. Glow: Gaussian blur filter when active
+//
+// Animation: All layers pulse scale (1.0 → 1.08),
+//   outer flame glows red, inner core flickers opacity
 // ========================================
 export const EliteFlameIcon = ({ active, size = 24 }) => (
-    <motion.svg
-        width={size}
-        height={size}
-        viewBox="0 0 24 24"
-        fill="none"
-        style={{ overflow: 'visible' }}
-        animate={active ? { scale: [1, 1.08, 1] } : {}}
-        transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-    >
-        <defs>
-            <filter id="elite-flame-glow" x="-50%" y="-50%" width="200%" height="200%">
-                <feGaussianBlur stdDeviation="1.5" result="blur" />
-                <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                </feMerge>
-            </filter>
-            <linearGradient id="elite-flame-grad" x1="0%" y1="100%" x2="0%" y2="0%">
-                <stop offset="0%" stopColor="#7F0000" />
-                <stop offset="40%" stopColor="#CC0000" />
-                <stop offset="70%" stopColor="#FF0000" />
-                <stop offset="100%" stopColor="#FF3333" />
-            </linearGradient>
-            <linearGradient id="elite-flame-inner" x1="0%" y1="100%" x2="0%" y2="0%">
-                <stop offset="0%" stopColor="#FF0000" />
-                <stop offset="100%" stopColor="#FF4444" />
-            </linearGradient>
-        </defs>
+  <motion.svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    style={{ overflow: 'visible' }}
+    animate={active ? { scale: [1, 1.08, 1] } : {}}
+    transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+  >
+    <defs>
+      <filter id="ef-glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="1.5" result="blur" />
+        <feMerge>
+          <feMergeNode in="blur" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+      <linearGradient id="ef-grad" x1="0%" y1="100%" x2="0%" y2="0%">
+        <stop offset="0%" stopColor="#7F0000" />
+        <stop offset="35%" stopColor="#991b1b" />
+        <stop offset="60%" stopColor="#b91c1c" />
+        <stop offset="85%" stopColor="#dc2626" />
+        <stop offset="100%" stopColor="#FF3333" />
+      </linearGradient>
+      <linearGradient id="ef-mid" x1="0%" y1="100%" x2="0%" y2="0%">
+        <stop offset="0%" stopColor="#b91c1c" />
+        <stop offset="100%" stopColor="#FF4444" />
+      </linearGradient>
+      <linearGradient id="ef-glass" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stopColor="#ffffff" stopOpacity="0.25" />
+        <stop offset="100%" stopColor="#ffffff" stopOpacity="0.05" />
+      </linearGradient>
+    </defs>
 
-        {/* Main flame body */}
-        <motion.path
-            d="M12 2C12 2 4 10 4 15C4 19.4183 7.58172 23 12 23C16.4183 23 20 19.4183 20 15C20 10 12 2 12 2Z"
-            fill={active ? "url(#elite-flame-grad)" : "none"}
-            stroke={active ? "#FF0000" : "#6b7280"}
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            filter={active ? "url(#elite-flame-glow)" : "none"}
-        />
+    {/* Layer 1: Outer flame - 7-point angular polygon */}
+    <motion.path
+      d="M12 1 L15.5 7 L20 11 L18 15 L16 20 L12 23 L8 20 L6 15 L4 11 L8.5 7 Z"
+      fill={active ? "url(#ef-grad)" : "none"}
+      stroke={active ? "#dc2626" : "#6b7280"}
+      strokeWidth="1.5"
+      strokeLinejoin="miter"
+      filter={active ? "url(#ef-glow)" : "none"}
+    />
 
-        {/* Inner flame core */}
-        {active && (
-            <>
-                <motion.path
-                    d="M12 10C12 10 8 14 8 16C8 18.2091 9.79086 20 12 20C14.2091 20 16 18.2091 16 16C16 14 12 10 12 10Z"
-                    fill="url(#elite-flame-inner)"
-                    animate={{ opacity: [0.7, 1, 0.7], scale: [0.95, 1, 0.95] }}
-                    transition={{ duration: 0.6, repeat: Infinity }}
-                />
-                {/* Bright center highlight */}
-                <motion.ellipse
-                    cx="12"
-                    cy="17"
-                    rx="2"
-                    ry="1.5"
-                    fill="#FF0000"
-                    opacity="0.8"
-                    animate={{ opacity: [0.6, 0.9, 0.6] }}
-                    transition={{ duration: 0.4, repeat: Infinity }}
-                />
-            </>
-        )}
-    </motion.svg>
+    {/* Layer 2: Middle flame - sharper inner shape */}
+    {active && (
+      <motion.path
+        d="M12 4 L15 9 L17 13 L15 17.5 L12 20 L9 17.5 L7 13 L9 9 Z"
+        fill="url(#ef-mid)"
+        opacity="0.8"
+        animate={{ opacity: [0.6, 0.9, 0.6] }}
+        transition={{ duration: 0.8, repeat: Infinity }}
+      />
+    )}
+
+    {/* Layer 3: Inner flame - glass highlight triangle */}
+    {active && (
+      <motion.path
+        d="M12 7 L14.5 13 L12 18 L9.5 13 Z"
+        fill="url(#ef-glass)"
+        animate={{ opacity: [0.3, 0.6, 0.3] }}
+        transition={{ duration: 0.6, repeat: Infinity }}
+      />
+    )}
+
+    {/* Layer 4: Hot core - bright center diamond */}
+    {active && (
+      <motion.path
+        d="M12 11 L13.5 14 L12 17 L10.5 14 Z"
+        fill="#FF4444"
+        opacity="0.9"
+        animate={{ opacity: [0.6, 1, 0.6], scale: [0.95, 1.05, 0.95] }}
+        transition={{ duration: 0.5, repeat: Infinity }}
+      />
+    )}
+
+    {/* Inactive detail lines for depth */}
+    {!active && (
+      <>
+        <path d="M12 4 L14 9 L12 20 L10 9 Z" fill="none" stroke="#6b7280" strokeWidth="0.5" opacity="0.4" />
+      </>
+    )}
+  </motion.svg>
 );
 
 // ========================================
-// CROSSED SWORDS (ARENA) - Battle icon
+// 2. CROSSED SWORDS (ARENA/COMPETITION)
+// ========================================
+// Concept: Two swords crossing at 45° with angular
+// blades, geometric hilts, and spark at intersection.
+//
+// Geometric Breakdown:
+//   - Blade 1: Elongated diamond from top-left to
+//     bottom-right at 45° angle, sharp tip
+//   - Blade 2: Mirrored diamond top-right to bottom-left
+//   - Hilts: Rectangular crossguards perpendicular to blade
+//   - Handles: Short rectangular grips
+//   - Spark: 4-point star at intersection
+//
+// Layers:
+//   1. Base: Blade bodies (red gradient)
+//   2. Edge: Blade edge highlights (white 20% overlay)
+//   3. Hilts: Dark red crossguards
+//   4. Detail: Clash spark at center
+//   5. Glow: Red outer glow active state
+//
+// Animation: Slight rotate wobble on hover,
+//   spark pulses and scales at intersection
 // ========================================
 export const EliteSwordsIcon = ({ active, size = 24 }) => (
-    <motion.svg
-        width={size}
-        height={size}
-        viewBox="0 0 24 24"
-        fill="none"
-        style={{ overflow: 'visible' }}
-        whileHover={{ rotate: 5 }}
-    >
-        <defs>
-            <linearGradient id="elite-sword-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#f87171" />
-                <stop offset="50%" stopColor="#dc2626" />
-                <stop offset="100%" stopColor="#991b1b" />
-            </linearGradient>
-            <filter id="elite-sword-glow">
-                <feGaussianBlur stdDeviation="1" result="blur" />
-                <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                </feMerge>
-            </filter>
-        </defs>
+  <motion.svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    style={{ overflow: 'visible' }}
+    whileHover={{ rotate: 5 }}
+  >
+    <defs>
+      <linearGradient id="es-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#FF3333" />
+        <stop offset="50%" stopColor="#b91c1c" />
+        <stop offset="100%" stopColor="#991b1b" />
+      </linearGradient>
+      <linearGradient id="es-edge" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stopColor="#ffffff" stopOpacity="0.0" />
+        <stop offset="50%" stopColor="#ffffff" stopOpacity="0.2" />
+        <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
+      </linearGradient>
+      <filter id="es-glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="1.2" result="blur" />
+        <feMerge>
+          <feMergeNode in="blur" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    </defs>
 
-        {/* Left sword blade */}
-        <motion.path
-            d="M4 4L14 14M4 4L2 6L4 8M4 4L6 2"
-            fill="none"
-            stroke={active ? "url(#elite-sword-grad)" : "#6b7280"}
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            filter={active ? "url(#elite-sword-glow)" : "none"}
-        />
+    {/* Layer 1: Left sword blade - elongated diamond 45° */}
+    <motion.path
+      d="M3 3 L5 2 L14 11 L15 13 L13 15 L11 14 L2 5 Z"
+      fill={active ? "url(#es-grad)" : "none"}
+      stroke={active ? "#dc2626" : "#6b7280"}
+      strokeWidth="1.5"
+      strokeLinejoin="miter"
+      filter={active ? "url(#es-glow)" : "none"}
+    />
 
-        {/* Right sword blade */}
-        <motion.path
-            d="M20 4L10 14M20 4L22 6L20 8M20 4L18 2"
-            fill="none"
-            stroke={active ? "url(#elite-sword-grad)" : "#6b7280"}
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            filter={active ? "url(#elite-sword-glow)" : "none"}
-        />
+    {/* Layer 1: Right sword blade - mirrored diamond */}
+    <motion.path
+      d="M21 3 L19 2 L10 11 L9 13 L11 15 L13 14 L22 5 Z"
+      fill={active ? "url(#es-grad)" : "none"}
+      stroke={active ? "#dc2626" : "#6b7280"}
+      strokeWidth="1.5"
+      strokeLinejoin="miter"
+      filter={active ? "url(#es-glow)" : "none"}
+    />
 
-        {/* Left guard */}
-        <path
-            d="M6 12L4 14L6 16"
-            fill="none"
-            stroke={active ? "#FF0000" : "#6b7280"}
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-        />
+    {/* Layer 2: Blade edge highlights (glass) */}
+    {active && (
+      <>
+        <path d="M4 3 L5 2.5 L13 10.5 L12 12 Z" fill="url(#es-edge)" />
+        <path d="M20 3 L19 2.5 L11 10.5 L12 12 Z" fill="url(#es-edge)" />
+      </>
+    )}
 
-        {/* Right guard */}
-        <path
-            d="M18 12L20 14L18 16"
-            fill="none"
-            stroke={active ? "#f59e0b" : "#6b7280"}
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-        />
+    {/* Layer 3: Left hilt - angular crossguard + grip */}
+    <path
+      d="M5 16 L4 14 L6 14 L7 16 Z"
+      fill={active ? "#991b1b" : "#4b5563"}
+      stroke={active ? "#b91c1c" : "#6b7280"}
+      strokeWidth="1"
+    />
+    <path d="M5 16 L4.5 19 L6.5 19 L6 16 Z"
+      fill={active ? "#660000" : "#374151"}
+    />
 
-        {/* Center clash spark */}
-        {active && (
-            <motion.circle
-                cx="12"
-                cy="14"
-                r="2"
-                fill="#FF0000"
-                animate={{
-                    r: [1.5, 2.5, 1.5],
-                    opacity: [1, 0.6, 1]
-                }}
-                transition={{ duration: 0.4, repeat: Infinity }}
-            />
-        )}
-    </motion.svg>
+    {/* Layer 3: Right hilt - angular crossguard + grip */}
+    <path
+      d="M19 16 L20 14 L18 14 L17 16 Z"
+      fill={active ? "#991b1b" : "#4b5563"}
+      stroke={active ? "#b91c1c" : "#6b7280"}
+      strokeWidth="1"
+    />
+    <path d="M19 16 L19.5 19 L17.5 19 L18 16 Z"
+      fill={active ? "#660000" : "#374151"}
+    />
+
+    {/* Layer 4: Clash spark - 4-point angular star */}
+    {active && (
+      <motion.path
+        d="M12 9 L13 12 L12 15 L11 12 Z M9 12 L12 11 L15 12 L12 13 Z"
+        fill="#FF4444"
+        animate={{
+          scale: [0.8, 1.3, 0.8],
+          opacity: [0.7, 1, 0.7]
+        }}
+        transition={{ duration: 0.4, repeat: Infinity }}
+      />
+    )}
+  </motion.svg>
 );
 
 // ========================================
-// POWER DUMBBELL (LIFT) - Heavy iron icon
+// 3. POWER DUMBBELL (LIFT/WORKOUT)
+// ========================================
+// Concept: Geometric dumbbell with rectangular weight
+// plates (NOT circular), angular edges, layered depth.
+//
+// Geometric Breakdown:
+//   - Center bar: Horizontal rectangle connecting plates
+//   - Outer plates (x2): Large rectangles with angled
+//     corners (chamfered at 45°)
+//   - Inner plates (x2): Smaller rectangles stacked
+//     for depth effect
+//   - Edge bevels: 45° chamfers on plate corners
+//
+// Layers:
+//   1. Base: Outer weight plates (dark red gradient)
+//   2. Depth: Inner plates (mid red, offset)
+//   3. Bar: Center connecting bar (bright red)
+//   4. Glass: White highlight on top edge of plates
+//   5. Detail: Power indicator diamonds
+//
+// Animation: Slight rotate wobble (-3° to 3°),
+//   power diamond pulses at center
 // ========================================
 export const EliteDumbbellIcon = ({ active, size = 24 }) => (
-    <motion.svg
-        width={size}
-        height={size}
-        viewBox="0 0 24 24"
-        fill="none"
-        style={{ overflow: 'visible' }}
-        animate={active ? { rotate: [-3, 3, -3] } : {}}
-        transition={{ duration: 0.5, repeat: Infinity, ease: "easeInOut" }}
-    >
-        <defs>
-            <linearGradient id="elite-iron-grad" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="#f87171" />
-                <stop offset="50%" stopColor="#dc2626" />
-                <stop offset="100%" stopColor="#7f1d1d" />
-            </linearGradient>
-            <filter id="elite-iron-glow">
-                <feGaussianBlur stdDeviation="0.8" result="blur" />
-                <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                </feMerge>
-            </filter>
-        </defs>
+  <motion.svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    style={{ overflow: 'visible' }}
+    animate={active ? { rotate: [-3, 3, -3] } : {}}
+    transition={{ duration: 0.5, repeat: Infinity, ease: "easeInOut" }}
+  >
+    <defs>
+      <linearGradient id="ed-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stopColor="#FF3333" />
+        <stop offset="40%" stopColor="#b91c1c" />
+        <stop offset="100%" stopColor="#7F0000" />
+      </linearGradient>
+      <linearGradient id="ed-inner" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stopColor="#b91c1c" />
+        <stop offset="100%" stopColor="#660000" />
+      </linearGradient>
+      <linearGradient id="ed-glass" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stopColor="#ffffff" stopOpacity="0.2" />
+        <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
+      </linearGradient>
+      <filter id="ed-glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="0.8" result="blur" />
+        <feMerge>
+          <feMergeNode in="blur" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    </defs>
 
-        {/* Center bar */}
-        <rect
-            x="7"
-            y="11"
-            width="10"
-            height="2"
-            rx="1"
-            fill={active ? "#dc2626" : "#6b7280"}
-        />
+    {/* Layer 1: Left outer plate - chamfered rectangle */}
+    <motion.path
+      d="M1 6 L2 5 L6 5 L7 6 L7 18 L6 19 L2 19 L1 18 Z"
+      fill={active ? "url(#ed-grad)" : "#4b5563"}
+      stroke={active ? "#dc2626" : "#6b7280"}
+      strokeWidth="1"
+      strokeLinejoin="miter"
+      filter={active ? "url(#ed-glow)" : "none"}
+    />
 
-        {/* Left weight stack outer */}
-        <rect
-            x="2"
-            y="7"
-            width="4"
-            height="10"
-            rx="1.5"
-            fill={active ? "url(#elite-iron-grad)" : "#4b5563"}
-            filter={active ? "url(#elite-iron-glow)" : "none"}
-        />
-        {/* Left weight stack inner */}
-        <rect
-            x="5"
-            y="9"
-            width="2.5"
-            height="6"
-            rx="0.75"
-            fill={active ? "#b91c1c" : "#374151"}
-        />
+    {/* Layer 2: Left inner plate - depth layer */}
+    <path
+      d="M3 7.5 L3.5 7 L5.5 7 L6 7.5 L6 16.5 L5.5 17 L3.5 17 L3 16.5 Z"
+      fill={active ? "url(#ed-inner)" : "#374151"}
+    />
 
-        {/* Right weight stack outer */}
-        <rect
-            x="18"
-            y="7"
-            width="4"
-            height="10"
-            rx="1.5"
-            fill={active ? "url(#elite-iron-grad)" : "#4b5563"}
-            filter={active ? "url(#elite-iron-glow)" : "none"}
-        />
-        {/* Right weight stack inner */}
-        <rect
-            x="16.5"
-            y="9"
-            width="2.5"
-            height="6"
-            rx="0.75"
-            fill={active ? "#b91c1c" : "#374151"}
-        />
+    {/* Layer 1: Right outer plate - chamfered rectangle */}
+    <motion.path
+      d="M17 6 L18 5 L22 5 L23 6 L23 18 L22 19 L18 19 L17 18 Z"
+      fill={active ? "url(#ed-grad)" : "#4b5563"}
+      stroke={active ? "#dc2626" : "#6b7280"}
+      strokeWidth="1"
+      strokeLinejoin="miter"
+      filter={active ? "url(#ed-glow)" : "none"}
+    />
 
-        {/* Power indicator when active */}
-        {active && (
-            <motion.circle
-                cx="12"
-                cy="12"
-                r="1"
-                fill="#FF0000"
-                animate={{ scale: [1, 1.5, 1], opacity: [1, 0.5, 1] }}
-                transition={{ duration: 0.6, repeat: Infinity }}
-            />
-        )}
-    </motion.svg>
+    {/* Layer 2: Right inner plate - depth layer */}
+    <path
+      d="M18 7.5 L18.5 7 L20.5 7 L21 7.5 L21 16.5 L20.5 17 L18.5 17 L18 16.5 Z"
+      fill={active ? "url(#ed-inner)" : "#374151"}
+    />
+
+    {/* Layer 3: Center bar */}
+    <path
+      d="M7 10.5 L17 10.5 L17 13.5 L7 13.5 Z"
+      fill={active ? "#b91c1c" : "#6b7280"}
+      stroke={active ? "#991b1b" : "#4b5563"}
+      strokeWidth="0.5"
+    />
+
+    {/* Layer 4: Glass highlight - top edge of plates */}
+    {active && (
+      <>
+        <path d="M2 5.5 L6 5.5 L6 7 L2 7 Z" fill="url(#ed-glass)" />
+        <path d="M18 5.5 L22 5.5 L22 7 L18 7 Z" fill="url(#ed-glass)" />
+      </>
+    )}
+
+    {/* Layer 5: Center power diamond */}
+    {active && (
+      <motion.path
+        d="M12 10 L13 12 L12 14 L11 12 Z"
+        fill="#FF4444"
+        animate={{ scale: [1, 1.4, 1], opacity: [0.8, 1, 0.8] }}
+        transition={{ duration: 0.6, repeat: Infinity }}
+      />
+    )}
+
+    {/* Plate detail lines for visual richness */}
+    <path d="M4 9 L4 15" stroke={active ? "#dc262633" : "#55555533"} strokeWidth="0.5" />
+    <path d="M20 9 L20 15" stroke={active ? "#dc262633" : "#55555533"} strokeWidth="0.5" />
+  </motion.svg>
 );
 
 // ========================================
-// AI BRAIN (AI LAB) - Neural network icon
+// 4. AI BRAIN (AI COACH)
+// ========================================
+// Concept: Geometric brain with angular lobes and
+// neural connection lines. Represents AI intelligence.
+// Sharp angular brain silhouette (NOT organic blob).
+//
+// Geometric Breakdown:
+//   - Brain outline: Angular polygon with 10+ vertices
+//     creating two hemispheres with jagged lobe shapes
+//   - Center divide: Vertical line splitting hemispheres
+//   - Neural nodes: Small diamonds at key positions
+//   - Connection lines: Straight lines between nodes
+//   - Energy rays: Short angular lines radiating outward
+//
+// Layers:
+//   1. Base: Brain silhouette (red gradient)
+//   2. Structure: Center divide + lobe segment lines
+//   3. Glass: White highlight on upper-left lobe
+//   4. Neural: Connection dots + lines (white, animated)
+//   5. Energy: Outer ray lines (active state only)
+//
+// Animation: Neural nodes pulse sequentially,
+//   connection lines fade in/out, energy rays flicker
 // ========================================
 export const EliteBrainIcon = ({ active, size = 24 }) => (
-    <motion.svg
-        width={size}
-        height={size}
-        viewBox="0 0 24 24"
-        fill="none"
-        style={{ overflow: 'visible' }}
-    >
-        <defs>
-            <linearGradient id="elite-brain-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#FF4444" />
-                <stop offset="50%" stopColor="#FF0000" />
-                <stop offset="100%" stopColor="#CC0000" />
-            </linearGradient>
-            <filter id="elite-brain-glow">
-                <feGaussianBlur stdDeviation="1.5" result="blur" />
-                <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                </feMerge>
-            </filter>
-        </defs>
+  <motion.svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    style={{ overflow: 'visible' }}
+  >
+    <defs>
+      <linearGradient id="eb-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#FF4444" />
+        <stop offset="50%" stopColor="#b91c1c" />
+        <stop offset="100%" stopColor="#991b1b" />
+      </linearGradient>
+      <linearGradient id="eb-glass" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#ffffff" stopOpacity="0.15" />
+        <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
+      </linearGradient>
+      <filter id="eb-glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="1.5" result="blur" />
+        <feMerge>
+          <feMergeNode in="blur" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    </defs>
 
-        {/* Brain outline - simplified bulb shape */}
+    {/* Layer 1: Brain silhouette - angular polygon */}
+    <motion.path
+      d="M12 2 L15 3 L18 4 L20 6 L21 9 L21 12 L20 15 L18 17 L16 18 L14 19 L14 22 L10 22 L10 19 L8 18 L6 17 L4 15 L3 12 L3 9 L4 6 L6 4 L9 3 Z"
+      fill={active ? "url(#eb-grad)" : "none"}
+      stroke={active ? "#dc2626" : "#6b7280"}
+      strokeWidth="1.5"
+      strokeLinejoin="miter"
+      filter={active ? "url(#eb-glow)" : "none"}
+    />
+
+    {/* Layer 2: Center divide line */}
+    <path
+      d="M12 3.5 L12 18.5"
+      stroke={active ? "#991b1b" : "#555555"}
+      strokeWidth="1"
+    />
+
+    {/* Layer 2: Lobe segment lines */}
+    <path d="M6 8 L10 9" stroke={active ? "#991b1b88" : "#55555544"} strokeWidth="0.8" />
+    <path d="M14 9 L18 8" stroke={active ? "#991b1b88" : "#55555544"} strokeWidth="0.8" />
+    <path d="M5 13 L10 12" stroke={active ? "#991b1b88" : "#55555544"} strokeWidth="0.8" />
+    <path d="M14 12 L19 13" stroke={active ? "#991b1b88" : "#55555544"} strokeWidth="0.8" />
+
+    {/* Layer 3: Glass highlight - upper left lobe */}
+    {active && (
+      <path
+        d="M9 3.5 L12 2.5 L14 3.5 L12 5 Z"
+        fill="url(#eb-glass)"
+      />
+    )}
+
+    {/* Layer 4: Neural network nodes + connections */}
+    {active && (
+      <>
+        {/* Node: Left upper */}
         <motion.path
-            d="M12 3C7.5 3 5 6.5 5 10C5 12.5 6 14 7 15V19C7 20.1 7.9 21 9 21H15C16.1 21 17 20.1 17 19V15C18 14 19 12.5 19 10C19 6.5 16.5 3 12 3Z"
-            fill={active ? "url(#elite-brain-grad)" : "none"}
-            stroke={active ? "#FF0000" : "#6b7280"}
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            filter={active ? "url(#elite-brain-glow)" : "none"}
+          d="M7 8 L8 7 L9 8 L8 9 Z"
+          fill="#ffffff"
+          animate={{ opacity: [0.4, 1, 0.4], scale: [0.9, 1.15, 0.9] }}
+          transition={{ duration: 0.7, repeat: Infinity, delay: 0 }}
+        />
+        {/* Node: Right upper */}
+        <motion.path
+          d="M15 8 L16 7 L17 8 L16 9 Z"
+          fill="#ffffff"
+          animate={{ opacity: [0.4, 1, 0.4], scale: [0.9, 1.15, 0.9] }}
+          transition={{ duration: 0.7, repeat: Infinity, delay: 0.2 }}
+        />
+        {/* Node: Center */}
+        <motion.path
+          d="M12 12 L13 11 L14 12 L13 13 Z"
+          fill="#ffffff"
+          animate={{ opacity: [0.4, 1, 0.4], scale: [0.9, 1.15, 0.9] }}
+          transition={{ duration: 0.7, repeat: Infinity, delay: 0.35 }}
+        />
+        {/* Node: Left lower */}
+        <motion.path
+          d="M7 14 L8 13 L9 14 L8 15 Z"
+          fill="#ffffff"
+          animate={{ opacity: [0.4, 1, 0.4], scale: [0.9, 1.15, 0.9] }}
+          transition={{ duration: 0.7, repeat: Infinity, delay: 0.5 }}
         />
 
-        {/* Neural connections - creative lines inside */}
-        {active && (
-            <>
-                {/* Left synapse */}
-                <motion.circle
-                    cx="9"
-                    cy="9"
-                    r="1.2"
-                    fill="#fff"
-                    animate={{ opacity: [0.4, 1, 0.4], scale: [0.9, 1.1, 0.9] }}
-                    transition={{ duration: 0.7, repeat: Infinity, delay: 0 }}
-                />
-                {/* Right synapse */}
-                <motion.circle
-                    cx="15"
-                    cy="9"
-                    r="1.2"
-                    fill="#fff"
-                    animate={{ opacity: [0.4, 1, 0.4], scale: [0.9, 1.1, 0.9] }}
-                    transition={{ duration: 0.7, repeat: Infinity, delay: 0.2 }}
-                />
-                {/* Center synapse */}
-                <motion.circle
-                    cx="12"
-                    cy="13"
-                    r="1.2"
-                    fill="#fff"
-                    animate={{ opacity: [0.4, 1, 0.4], scale: [0.9, 1.1, 0.9] }}
-                    transition={{ duration: 0.7, repeat: Infinity, delay: 0.4 }}
-                />
-                {/* Connection lines */}
-                <line x1="9" y1="9" x2="12" y2="13" stroke="#fff" strokeWidth="0.5" opacity="0.6" />
-                <line x1="15" y1="9" x2="12" y2="13" stroke="#fff" strokeWidth="0.5" opacity="0.6" />
-                <line x1="9" y1="9" x2="15" y2="9" stroke="#fff" strokeWidth="0.5" opacity="0.6" />
-            </>
-        )}
-
-        {/* Base band */}
-        <rect
-            x="8"
-            y="17"
-            width="8"
-            height="1.5"
-            rx="0.75"
-            fill={active ? "#990000" : "#4b5563"}
+        {/* Connection lines between nodes */}
+        <motion.path
+          d="M8 8 L13 12 M16 8 L13 12 M8 8 L16 8 M8 14 L13 12"
+          stroke="#ffffff"
+          strokeWidth="0.6"
+          fill="none"
+          animate={{ opacity: [0.3, 0.7, 0.3] }}
+          transition={{ duration: 1.2, repeat: Infinity }}
         />
-    </motion.svg>
+      </>
+    )}
+
+    {/* Layer 5: Energy rays - outward bursts */}
+    {active && (
+      <motion.g
+        animate={{ opacity: [0.3, 0.6, 0.3] }}
+        transition={{ duration: 1.5, repeat: Infinity }}
+      >
+        <path d="M2 9 L3 9" stroke="#FF4444" strokeWidth="1.5" />
+        <path d="M21 9 L22 9" stroke="#FF4444" strokeWidth="1.5" />
+        <path d="M3 6 L4 6.5" stroke="#FF4444" strokeWidth="1" />
+        <path d="M20 6 L21 6.5" stroke="#FF4444" strokeWidth="1" />
+      </motion.g>
+    )}
+
+    {/* Layer: Base band / stem */}
+    <path
+      d="M10 20 L14 20 L14 22 L10 22 Z"
+      fill={active ? "#660000" : "#4b5563"}
+      stroke={active ? "#991b1b" : "#555555"}
+      strokeWidth="0.5"
+    />
+  </motion.svg>
 );
 
 // ========================================
-// PULSE HEART (CARDIO) - Heartbeat icon
+// 5. PULSE HEART (CARDIO)
+// ========================================
+// Concept: Geometric angular heart (NOT rounded) with
+// a prominent EKG pulse line cutting across it.
+//
+// Geometric Breakdown:
+//   - Heart: Built from straight lines only - two
+//     angular "humps" at top meeting at sharp V at bottom
+//     8 vertices forming the angular heart shape
+//   - EKG line: Sharp zigzag across heart center with
+//     prominent peak/valley pattern (M, L commands only)
+//   - Detail: Small angular notch at top center
+//
+// Layers:
+//   1. Base: Heart body (red gradient fill)
+//   2. Depth: Inner shadow polygon (dark red)
+//   3. Glass: Top-left highlight (white 15%)
+//   4. EKG: Pulse line across center (white, animated)
+//   5. Glow: Red outer glow on heartbeat
+//
+// Animation: Heartbeat scale pulse (1→1.12→1→1.08→1),
+//   EKG line draws with pathLength animation
 // ========================================
 export const EliteHeartIcon = ({ active, size = 24 }) => (
-    <motion.svg
-        width={size}
-        height={size}
-        viewBox="0 0 24 24"
+  <motion.svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    style={{ overflow: 'visible' }}
+    animate={active ? { scale: [1, 1.12, 1, 1.08, 1] } : {}}
+    transition={{ duration: 0.7, repeat: Infinity, ease: "easeOut" }}
+  >
+    <defs>
+      <linearGradient id="eh-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stopColor="#FF3333" />
+        <stop offset="40%" stopColor="#EF4444" />
+        <stop offset="70%" stopColor="#DC2626" />
+        <stop offset="100%" stopColor="#991B1B" />
+      </linearGradient>
+      <linearGradient id="eh-depth" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stopColor="#b91c1c" stopOpacity="0.4" />
+        <stop offset="100%" stopColor="#660000" stopOpacity="0.6" />
+      </linearGradient>
+      <linearGradient id="eh-glass" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#ffffff" stopOpacity="0.18" />
+        <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
+      </linearGradient>
+      <filter id="eh-glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="1.5" result="blur" />
+        <feMerge>
+          <feMergeNode in="blur" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    </defs>
+
+    {/* Layer 1: Angular heart body - 8 vertices, all straight */}
+    <motion.path
+      d="M12 5 L9 2 L5 2 L2 5 L2 9 L5 14 L12 22 L19 14 L22 9 L22 5 L19 2 L15 2 Z"
+      fill={active ? "url(#eh-grad)" : "none"}
+      stroke={active ? "#EF4444" : "#6b7280"}
+      strokeWidth="1.5"
+      strokeLinejoin="miter"
+      filter={active ? "url(#eh-glow)" : "none"}
+    />
+
+    {/* Layer 2: Inner depth shadow */}
+    {active && (
+      <path
+        d="M12 7 L10 4 L7 4 L5 6 L5 9 L7 13 L12 19 L17 13 L19 9 L19 6 L17 4 L14 4 Z"
+        fill="url(#eh-depth)"
+      />
+    )}
+
+    {/* Layer 3: Glass highlight - upper left lobe */}
+    {active && (
+      <path
+        d="M9 2.5 L5 2.5 L3 5 L3 7 L5 4.5 L9 3.5 Z"
+        fill="url(#eh-glass)"
+      />
+    )}
+
+    {/* Layer 4: EKG pulse line - sharp zigzag */}
+    {active && (
+      <motion.path
+        d="M3 11 L6 11 L7.5 11 L9 7 L10.5 14 L12 9 L13.5 13 L15 11 L17 11 L21 11"
+        stroke="#ffffff"
+        strokeWidth="1.8"
+        strokeLinejoin="miter"
         fill="none"
-        style={{ overflow: 'visible' }}
-        animate={active ? { scale: [1, 1.12, 1, 1.08, 1] } : {}}
-        transition={{ duration: 0.7, repeat: Infinity, ease: "easeOut" }}
-    >
-        <defs>
-            <linearGradient id="elite-heart-grad" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="#f87171" />
-                <stop offset="50%" stopColor="#ef4444" />
-                <stop offset="100%" stopColor="#dc2626" />
-            </linearGradient>
-            <filter id="elite-heart-glow">
-                <feGaussianBlur stdDeviation="1.5" result="blur" />
-                <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                </feMerge>
-            </filter>
-        </defs>
+        initial={{ pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: [0, 1, 1, 0] }}
+        transition={{ duration: 1.2, repeat: Infinity }}
+      />
+    )}
 
-        {/* Heart shape */}
-        <motion.path
-            d="M12 21C12 21 3 13.5 3 8.5C3 5.5 5.5 3 8.5 3C10.5 3 12 4.5 12 4.5C12 4.5 13.5 3 15.5 3C18.5 3 21 5.5 21 8.5C21 13.5 12 21 12 21Z"
-            fill={active ? "url(#elite-heart-grad)" : "none"}
-            stroke={active ? "#ef4444" : "#6b7280"}
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            filter={active ? "url(#elite-heart-glow)" : "none"}
-        />
-
-        {/* EKG heartbeat line */}
-        {active && (
-            <motion.path
-                d="M4 12H7L9 9L11 15L13 11L15 13H20"
-                stroke="#fff"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                fill="none"
-                initial={{ pathLength: 0, opacity: 0 }}
-                animate={{ pathLength: 1, opacity: [0, 1, 1, 0] }}
-                transition={{ duration: 1.2, repeat: Infinity }}
-            />
-        )}
-    </motion.svg>
+    {/* Inactive: subtle EKG hint */}
+    {!active && (
+      <path
+        d="M5 12 L8 12 L9.5 9 L11 14 L12.5 10 L14 12 L19 12"
+        stroke="#6b7280"
+        strokeWidth="1"
+        fill="none"
+        opacity="0.4"
+      />
+    )}
+  </motion.svg>
 );
 
 // ========================================
-// ELITE CROWN (PROFILE) - Royal status icon
+// 6. ELITE CROWN (PROFILE/USER)
+// ========================================
+// Concept: Royal crown with 5 sharp points, angular
+// base band, and geometric jewel details. Symmetrical.
+//
+// Geometric Breakdown:
+//   - Crown body: 5 sharp pointed peaks connected by
+//     angular valleys at 90° angles
+//   - Base band: Thick rectangle beneath crown
+//   - Center jewel: Diamond shape (rotated square)
+//   - Side jewels: Smaller triangular shapes
+//   - Band detail: Horizontal highlight line
+//
+// Layers:
+//   1. Base: Crown body (red gradient)
+//   2. Depth: Inner crown shadow (dark red)
+//   3. Band: Base rectangle (deep red)
+//   4. Jewels: Diamond shapes at peaks (bright red/white)
+//   5. Glass: White highlight stripe on band
+//   6. Glow: Red outer glow active state
+//
+// Animation: Center jewel pulses scale,
+//   band highlight shimmers opacity
 // ========================================
 export const EliteCrownIcon = ({ active, size = 24 }) => (
-    <motion.svg
-        width={size}
-        height={size}
-        viewBox="0 0 24 24"
-        fill="none"
-        style={{ overflow: 'visible' }}
-    >
-        <defs>
-            <linearGradient id="elite-crown-grad" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="#FF4444" />
-                <stop offset="30%" stopColor="#FF0000" />
-                <stop offset="60%" stopColor="#CC0000" />
-                <stop offset="100%" stopColor="#990000" />
-            </linearGradient>
-            <filter id="elite-crown-glow">
-                <feGaussianBlur stdDeviation="1.5" result="blur" />
-                <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                </feMerge>
-            </filter>
-        </defs>
+  <motion.svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    style={{ overflow: 'visible' }}
+  >
+    <defs>
+      <linearGradient id="ec-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stopColor="#FF4444" />
+        <stop offset="30%" stopColor="#dc2626" />
+        <stop offset="60%" stopColor="#b91c1c" />
+        <stop offset="100%" stopColor="#991b1b" />
+      </linearGradient>
+      <linearGradient id="ec-depth" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stopColor="#b91c1c" stopOpacity="0.5" />
+        <stop offset="100%" stopColor="#660000" stopOpacity="0.7" />
+      </linearGradient>
+      <linearGradient id="ec-glass" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stopColor="#ffffff" stopOpacity="0.0" />
+        <stop offset="50%" stopColor="#ffffff" stopOpacity="0.15" />
+        <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
+      </linearGradient>
+      <filter id="ec-glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="1.5" result="blur" />
+        <feMerge>
+          <feMergeNode in="blur" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    </defs>
 
-        {/* Crown shape */}
-        <motion.path
-            d="M3 18V8L7 12L12 6L17 12L21 8V18H3Z"
-            fill={active ? "url(#elite-crown-grad)" : "none"}
-            stroke={active ? "#FF0000" : "#6b7280"}
-            strokeWidth="2"
-            strokeLinejoin="round"
-            filter={active ? "url(#elite-crown-glow)" : "none"}
-        />
+    {/* Layer 1: Crown body - 5 sharp points with angular valleys */}
+    <motion.path
+      d="M2 17 L2 10 L5 5 L6 10 L9 4 L10 9 L12 2 L14 9 L15 4 L18 10 L19 5 L22 10 L22 17 Z"
+      fill={active ? "url(#ec-grad)" : "none"}
+      stroke={active ? "#dc2626" : "#6b7280"}
+      strokeWidth="1.5"
+      strokeLinejoin="miter"
+      filter={active ? "url(#ec-glow)" : "none"}
+    />
 
-        {/* Crown jewels */}
-        {active && (
-            <>
-                {/* Center jewel */}
-                <motion.circle
-                    cx="12"
-                    cy="9"
-                    r="1.5"
-                    fill="#dc2626"
-                    animate={{ scale: [1, 1.15, 1] }}
-                    transition={{ duration: 0.8, repeat: Infinity }}
-                />
-                {/* Side jewels */}
-                <circle cx="7" cy="13" r="1" fill="#ef4444" />
-                <circle cx="17" cy="13" r="1" fill="#ef4444" />
-            </>
-        )}
+    {/* Layer 2: Inner depth shadow */}
+    {active && (
+      <path
+        d="M4 16 L4 11 L6 7 L7 11 L9.5 6 L10.5 10 L12 4.5 L13.5 10 L14.5 6 L17 11 L18 7 L20 11 L20 16 Z"
+        fill="url(#ec-depth)"
+      />
+    )}
 
-        {/* Base band with detail */}
-        <rect
-            x="3"
-            y="18"
-            width="18"
-            height="2.5"
-            rx="1"
-            fill={active ? "#7F0000" : "#4b5563"}
-        />
-        {/* Band highlight */}
-        {active && (
-            <rect
-                x="4"
-                y="18.5"
-                width="16"
-                height="0.8"
-                rx="0.4"
-                fill="#FF3333"
-                opacity="0.5"
-            />
-        )}
-    </motion.svg>
+    {/* Layer 3: Base band */}
+    <path
+      d="M2 17 L22 17 L22 20 L2 20 Z"
+      fill={active ? "#7F0000" : "#4b5563"}
+      stroke={active ? "#991b1b" : "#555555"}
+      strokeWidth="0.5"
+    />
+
+    {/* Layer 4: Center jewel - large diamond */}
+    {active && (
+      <motion.path
+        d="M12 8 L13.5 10.5 L12 13 L10.5 10.5 Z"
+        fill="#FF4444"
+        stroke="#FF6666"
+        strokeWidth="0.5"
+        animate={{ scale: [1, 1.15, 1] }}
+        transition={{ duration: 0.8, repeat: Infinity }}
+      />
+    )}
+
+    {/* Layer 4: Side jewels - small triangles */}
+    {active && (
+      <>
+        {/* Left jewel */}
+        <path d="M6 10 L7 9 L7.5 11 Z" fill="#EF4444" />
+        {/* Right jewel */}
+        <path d="M18 10 L17 9 L16.5 11 Z" fill="#EF4444" />
+        {/* Far left jewel */}
+        <path d="M4 12 L5 11 L5 13 Z" fill="#DC2626" opacity="0.7" />
+        {/* Far right jewel */}
+        <path d="M20 12 L19 11 L19 13 Z" fill="#DC2626" opacity="0.7" />
+      </>
+    )}
+
+    {/* Layer 5: Glass highlight - band shimmer */}
+    {active && (
+      <motion.path
+        d="M3 17.5 L21 17.5 L21 18.3 L3 18.3 Z"
+        fill="url(#ec-glass)"
+        animate={{ opacity: [0.3, 0.7, 0.3] }}
+        transition={{ duration: 2, repeat: Infinity }}
+      />
+    )}
+
+    {/* Band detail notches */}
+    {active && (
+      <>
+        <path d="M8 17 L8 20" stroke="#991b1b44" strokeWidth="0.5" />
+        <path d="M12 17 L12 20" stroke="#991b1b44" strokeWidth="0.5" />
+        <path d="M16 17 L16 20" stroke="#991b1b44" strokeWidth="0.5" />
+      </>
+    )}
+  </motion.svg>
 );
 
 // ========================================
 // EXPORT NAV ICON SET
 // ========================================
 export const NavIcons = {
-    home: EliteFlameIcon,
-    arena: EliteSwordsIcon,
-    lift: EliteDumbbellIcon,
-    ailab: EliteBrainIcon,
-    pulse: EliteHeartIcon,
-    profile: EliteCrownIcon,
+  home: EliteFlameIcon,
+  arena: EliteSwordsIcon,
+  lift: EliteDumbbellIcon,
+  ailab: EliteBrainIcon,
+  pulse: EliteHeartIcon,
+  profile: EliteCrownIcon,
 };
 
 export default NavIcons;
-

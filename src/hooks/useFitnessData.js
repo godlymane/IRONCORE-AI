@@ -44,6 +44,7 @@ export function useFitnessData() {
         globalFeed: [], battles: []
     });
 
+    const [dataLoaded, setDataLoaded] = useState(false); // True after first Firestore collection snapshot
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -259,6 +260,8 @@ export function useFitnessData() {
                     }
                     setData(prev => ({ ...prev, [key]: list }));
                 }
+                // Mark data as loaded after first snapshot from any binding
+                setDataLoaded(true);
             }));
         };
 
@@ -335,7 +338,7 @@ export function useFitnessData() {
     };
 
     return {
-        user, loading, login, logout, profileLoaded,
+        user, loading, login, logout, profileLoaded, dataLoaded,
         uploadProfilePic, uploadProgressPhoto,
         sendMessage, toggleFollow, sendPrivateMessage, createPost,
         buyItem, completeDailyDrop, broadcastEvent, createBattle, isStorageReady,

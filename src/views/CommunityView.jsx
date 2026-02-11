@@ -1,31 +1,9 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Trophy, Users, Flame, Crown, Sword, Search, X, BarChart2, MessageSquare, Send, UserPlus, UserCheck, Heart, Image as ImageIcon, Camera, Mail, Swords, Skull, Sparkles } from 'lucide-react';
-import { Button } from '../components/UIComponents';
+import { Button, GlassCard } from '../components/UIComponents';
 import { getLevel } from '../utils/helpers';
 import { LEVELS } from '../utils/constants';
 import { SFX } from '../utils/audio';
-
-// Glass Card Component
-const GlassCard = ({ children, className = "", onClick, highlight = false }) => (
-    <div
-        onClick={onClick}
-        className={`relative overflow-hidden rounded-3xl p-5 transition-all duration-300 ${onClick ? 'cursor-pointer hover:scale-[1.01]' : ''} ${className}`}
-        style={{
-            background: highlight
-                ? 'linear-gradient(145deg, rgba(220, 38, 38, 0.15) 0%, rgba(185, 28, 28, 0.08) 100%)'
-                : 'linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)',
-            backdropFilter: 'blur(20px)',
-            border: highlight ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(255, 255, 255, 0.08)',
-            boxShadow: '0 10px 40px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-        }}
-    >
-        <div
-            className="absolute top-0 left-0 right-0 h-[40%] rounded-t-3xl pointer-events-none"
-            style={{ background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%)' }}
-        />
-        <div className="relative z-10">{children}</div>
-    </div>
-);
 
 export const CommunityView = ({ leaderboard, profile, updateData, workouts, setActiveTab, chat, sendMessage, following, toggleFollow, user, posts, createPost, sendPrivateMessage, inbox, globalFeed, isStorageReady, battles = [], createBattle, acceptBattle }) => {
     const [subTab, setSubTab] = useState('arena');
@@ -84,7 +62,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
     };
 
     return (
-        <div className="space-y-5 animate-in fade-in pb-24 relative">
+        <div className="space-y-5 animate-in fade-in pb-4 relative">
             {/* Navigation Tabs */}
             <div
                 className="flex p-1 rounded-2xl overflow-x-auto scrollbar-hide"
@@ -118,7 +96,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                             <div className="relative z-10">
                                 <div className="flex items-center gap-2 mb-2">
                                     <span
-                                        className="text-[9px] font-black px-2 py-0.5 rounded uppercase"
+                                        className="text-[11px] font-black px-2 py-0.5 rounded uppercase"
                                         style={{
                                             background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
                                         }}
@@ -151,12 +129,12 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                                     >
                                         <div className="absolute top-0 right-0 bottom-0 w-[2px] bg-white/50 animate-pulse" />
                                     </div>
-                                    <p className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-white drop-shadow-lg">
+                                    <p className="absolute inset-0 flex items-center justify-center text-[11px] font-black text-white drop-shadow-lg">
                                         {Math.round(progress)}% DEFEATED
                                     </p>
                                 </div>
 
-                                <div className="flex justify-between text-[10px] font-mono text-gray-500 mt-2 uppercase">
+                                <div className="flex justify-between text-[11px] font-mono text-gray-500 mt-2 uppercase">
                                     <span>{currentDamage.toLocaleString()}kg Dealt</span>
                                     <span>{BOSS_TARGET.toLocaleString()}kg HP</span>
                                 </div>
@@ -170,7 +148,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                                     }}
                                 >
                                     <div>
-                                        <p className="text-[10px] text-gray-400 uppercase font-bold">Your Impact</p>
+                                        <p className="text-[11px] text-gray-400 uppercase font-bold">Your Impact</p>
                                         <p className={`text-xl font-black ${userDamage > 0 ? 'text-green-400' : 'text-gray-600'}`}>
                                             {userDamage.toLocaleString()} <span className="text-xs">kg</span>
                                         </p>
@@ -181,11 +159,11 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                                                 <Sparkles size={12} />
                                                 Contributor
                                             </span>
-                                            <p className="text-[9px] text-gray-500">Keep grinding!</p>
+                                            <p className="text-[11px] text-gray-500">Keep grinding!</p>
                                         </div>
                                     ) : (
                                         <span
-                                            className="text-[9px] font-bold px-3 py-1.5 rounded-lg"
+                                            className="text-[11px] font-bold px-3 py-1.5 rounded-lg"
                                             style={{
                                                 background: 'linear-gradient(145deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.1) 100%)',
                                                 border: '1px solid rgba(239, 68, 68, 0.3)',
@@ -235,9 +213,9 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                         <div className="flex items-center justify-between px-1">
                             <h3 className="text-xs font-black uppercase text-gray-400 tracking-widest flex items-center gap-2">
                                 <Crown size={14} className="text-yellow-500" />
-                                Global Elite
+                                Global Arena
                             </h3>
-                            <span className="text-[10px] text-gray-600 uppercase">{filteredLeaderboard.length} Warriors</span>
+                            <span className="text-[11px] text-gray-600 uppercase">{filteredLeaderboard.length} Warriors</span>
                         </div>
 
                         <GlassCard className="!p-0 overflow-hidden">
@@ -286,11 +264,11 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                                 <GlassCard key={battle.id} className="!p-4">
                                     <div className="flex justify-between items-center mb-4">
                                         <div className="text-left">
-                                            <p className="text-[10px] text-gray-500 uppercase font-bold">You</p>
-                                            <p className="text-lg font-black text-white">{myVol.toLocaleString()} <span className="text-[10px]">kg</span></p>
+                                            <p className="text-[11px] text-gray-500 uppercase font-bold">You</p>
+                                            <p className="text-lg font-black text-white">{myVol.toLocaleString()} <span className="text-[11px]">kg</span></p>
                                         </div>
                                         <div
-                                            className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase"
+                                            className="px-3 py-1.5 rounded-lg text-[11px] font-black uppercase"
                                             style={{
                                                 background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.3) 0%, rgba(220, 38, 38, 0.1) 100%)',
                                                 color: '#f87171',
@@ -299,8 +277,8 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                                             VS
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-[10px] text-gray-500 uppercase font-bold">{opponentName}</p>
-                                            <p className="text-lg font-black text-gray-300">{oppVol.toLocaleString()} <span className="text-[10px]">kg</span></p>
+                                            <p className="text-[11px] text-gray-500 uppercase font-bold">{opponentName}</p>
+                                            <p className="text-lg font-black text-gray-300">{oppVol.toLocaleString()} <span className="text-[11px]">kg</span></p>
                                         </div>
                                     </div>
                                     <div
@@ -336,13 +314,13 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                                 >
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-full overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
-                                            {u.photo ? <img src={u.photo} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[10px] text-gray-500 bg-gray-800">?</div>}
+                                            {u.photo ? <img src={u.photo} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[11px] text-gray-500 bg-gray-800">?</div>}
                                         </div>
                                         <p className="text-sm font-bold text-gray-300">{u.username}</p>
                                     </div>
                                     <button
                                         onClick={() => handleChallenge(u)}
-                                        className="text-[10px] font-black uppercase px-4 py-2 rounded-xl flex items-center gap-1 transition-all hover:scale-105"
+                                        className="text-[11px] font-black uppercase px-4 py-2 rounded-xl flex items-center gap-1 transition-all hover:scale-105"
                                         style={{
                                             background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.9) 0%, rgba(185, 28, 28, 0.9) 100%)',
                                             boxShadow: '0 4px 15px rgba(220, 38, 38, 0.3)',
@@ -362,7 +340,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                     <div className="flex justify-between items-center">
                         <div>
                             <h3 className="text-lg font-black italic text-white uppercase">The Gram</h3>
-                            <p className="text-[10px] text-gray-500">Community progress photos</p>
+                            <p className="text-[11px] text-gray-500">Community progress photos</p>
                         </div>
                         {isStorageReady && (
                             <button
@@ -383,17 +361,17 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                             <GlassCard key={post.id} className="!p-0 overflow-hidden">
                                 <div className="flex items-center gap-3 p-4">
                                     <div className="w-10 h-10 rounded-full overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
-                                        {post.userPhoto ? <img src={post.userPhoto} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[10px] text-gray-500 bg-gray-800">?</div>}
+                                        {post.userPhoto ? <img src={post.userPhoto} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[11px] text-gray-500 bg-gray-800">?</div>}
                                     </div>
                                     <div>
                                         <p className="text-sm font-bold text-white">{post.username}</p>
-                                        <p className="text-[10px] text-red-400 uppercase font-bold">{getLevel(post.xp, LEVELS).name}</p>
+                                        <p className="text-[11px] text-red-400 uppercase font-bold">{getLevel(post.xp, LEVELS).name}</p>
                                     </div>
                                 </div>
                                 <img src={post.imageUrl} className="w-full aspect-square object-cover bg-black" />
                                 <div className="p-4">
                                     <p className="text-sm text-gray-300"><span className="font-bold text-white">{post.username}</span> {post.caption}</p>
-                                    <p className="text-[10px] text-gray-600 mt-2">{new Date(post.createdAt?.seconds * 1000).toLocaleDateString()}</p>
+                                    <p className="text-[11px] text-gray-600 mt-2">{new Date(post.createdAt?.seconds * 1000).toLocaleDateString()}</p>
                                 </div>
                             </GlassCard>
                         ))}
@@ -419,7 +397,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                                         color: '#d1d5db',
                                     }}
                                 >
-                                    <p className="font-bold text-[9px] opacity-70 mb-1">{msg.username}</p>
+                                    <p className="font-bold text-[11px] opacity-70 mb-1">{msg.username}</p>
                                     {msg.text}
                                 </div>
                             </div>
@@ -468,7 +446,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                                     </div>
                                     <span className="text-xs font-bold text-white">{msg.fromName}</span>
                                 </div>
-                                <span className="text-[9px] text-gray-600">{new Date(msg.createdAt?.seconds * 1000).toLocaleDateString()}</span>
+                                <span className="text-[11px] text-gray-600">{new Date(msg.createdAt?.seconds * 1000).toLocaleDateString()}</span>
                             </div>
                             <p className="text-sm text-gray-300">{msg.text}</p>
                         </GlassCard>
@@ -502,7 +480,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                                     border: '1px solid rgba(255,255,255,0.06)',
                                 }}
                             >
-                                <p className="text-[9px] text-gray-500 uppercase font-bold">XP</p>
+                                <p className="text-[11px] text-gray-500 uppercase font-bold">XP</p>
                                 <p className="text-xl font-black text-white">{selectedPlayer.xp}</p>
                             </div>
                             <div
@@ -512,7 +490,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                                     border: '1px solid rgba(255,255,255,0.06)',
                                 }}
                             >
-                                <p className="text-[9px] text-gray-500 uppercase font-bold">Battle Ready</p>
+                                <p className="text-[11px] text-gray-500 uppercase font-bold">Battle Ready</p>
                                 <p className="text-xl font-black text-green-400">YES</p>
                             </div>
                         </div>
@@ -631,14 +609,14 @@ const LeaderboardItem = ({ u, i, user, setSelectedPlayer }) => (
                 {i === 0 ? <Crown size={18} className="text-yellow-400" /> : i + 1}
             </div>
             <div className="w-10 h-10 rounded-full overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
-                {u.photo ? <img src={u.photo} className="w-full h-full object-cover" alt="User" /> : <div className="w-full h-full flex items-center justify-center text-[10px] text-gray-500 bg-gray-800">?</div>}
+                {u.photo ? <img src={u.photo} className="w-full h-full object-cover" alt="User" /> : <div className="w-full h-full flex items-center justify-center text-[11px] text-gray-500 bg-gray-800">?</div>}
             </div>
             <div>
                 <p className="font-bold text-sm text-white flex items-center gap-2">
                     {u.username || "Anonymous"}
-                    {u.userId === user?.uid && <span className="text-[9px] bg-red-500 text-white px-1.5 py-0.5 rounded">YOU</span>}
+                    {u.userId === user?.uid && <span className="text-[11px] bg-red-500 text-white px-1.5 py-0.5 rounded">YOU</span>}
                 </p>
-                <p className="text-[9px] uppercase text-gray-500 font-bold">{getLevel(u.xp, LEVELS).name}</p>
+                <p className="text-[11px] uppercase text-gray-500 font-bold">{getLevel(u.xp, LEVELS).name}</p>
             </div>
         </div>
         <div className="text-right">

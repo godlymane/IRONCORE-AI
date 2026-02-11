@@ -1,42 +1,51 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Flame
+  Flame, Plus, Utensils, Dumbbell, Heart
 } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 
-import { DashboardView } from './views/DashboardView';
-import { WorkoutView } from './views/WorkoutView';
-import { StatsView } from './views/StatsView';
-import { TrackView } from './views/TrackView';
-import { CardioView } from './views/CardioView';
-import { CoachView } from './views/CoachView';
-// import { CommunityView } from './views/CommunityView'; // Replacing with ArenaTab
-import { ArenaView } from './views/ArenaView';
-import { ProfileHub } from './views/ProfileHub';
-import { ChronicleView } from './views/ChronicleView';
+// Static imports — needed before auth resolves
 import { LoginView } from './views/LoginView';
 import { OnboardingView } from './views/OnboardingView';
-import { AILabView } from './views/AILabView';
-import { NavBtn, ToastProvider, useToast, ThemeToggle, PageTransition, SkeletonCard } from './components/UIComponents';
+
+// Lazy-loaded views — only fetched when user navigates to tab
+const DashboardView = React.lazy(() => import('./views/DashboardView').then(m => ({ default: m.DashboardView })));
+const WorkoutView = React.lazy(() => import('./views/WorkoutView').then(m => ({ default: m.WorkoutView })));
+const ChronicleView = React.lazy(() => import('./views/ChronicleView').then(m => ({ default: m.ChronicleView })));
+const CardioView = React.lazy(() => import('./views/CardioView').then(m => ({ default: m.CardioView })));
+const ArenaView = React.lazy(() => import('./views/ArenaView').then(m => ({ default: m.ArenaView })));
+const ProfileHub = React.lazy(() => import('./views/ProfileHub').then(m => ({ default: m.ProfileHub })));
+const AILabView = React.lazy(() => import('./views/AILabView').then(m => ({ default: m.AILabView })));
+
+import { NavBtn, ToastProvider, useToast, PageTransition, SkeletonCard, FloatingActionButton } from './components/UIComponents';
 import { OfflineIndicator } from './components/StatusComponents';
-import { SplashScreen, ParticleBackground } from './components/PremiumUI';
+import { SplashScreen, ParticleBackground, PullToRefresh } from './components/PremiumUI';
+import { DashboardSkeleton, WorkoutSkeleton, ChronicleSkeleton, CardioSkeleton, ArenaSkeleton, ProfileSkeleton, AILabSkeleton } from './components/ViewSkeletons';
 import { EliteFlameIcon, EliteSwordsIcon, EliteDumbbellIcon, EliteBrainIcon, EliteHeartIcon, EliteCrownIcon } from './components/EliteIcons';
 import { useFitnessData } from './hooks/useFitnessData';
+import { SFX, Haptics } from './utils/audio';
 import { ThemeProvider } from './context/ThemeContext';
 import { ArenaProvider } from './context/ArenaContext';
 import { PremiumProvider } from './context/PremiumContext';
 import PremiumPaywall from './components/PremiumPaywall';
 
+// Tab order for directional page transitions
+const TAB_ORDER = { dashboard: 0, arena: 1, workout: 2, ailab: 3, cardio: 4, profile: 5 };
+const TAB_KEYS = ['dashboard', 'arena', 'workout', 'ailab', 'cardio', 'profile'];
+
 // --- MAIN CONTENT WRAPPER ---
 const MainContent = () => {
   console.log('App rendering...');
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [direction, setDirection] = useState(0);
+  const prevTabRef = useRef('dashboard');
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const { addToast } = useToast();
 
   const {
-    user, loading, login, logout, profileLoaded,
+    user, loading, login, logout, profileLoaded, dataLoaded,
     uploadProfilePic, uploadProgressPhoto,
     meals, progress, burned, workouts, profile, photos,
     leaderboard, chat, following, posts, inbox, globalFeed,
@@ -45,6 +54,65 @@ const MainContent = () => {
     isStorageReady, battles,
     error
   } = useFitnessData();
+
+  // Nav auto-hide on scroll
+  const [navVisible, setNavVisible] = useState(true);
+  const lastScrollY = useRef(0);
+
+  const handleScroll = useCallback((e) => {
+    const currentY = e.target.scrollTop;
+    if (currentY < 50) { setNavVisible(true); }
+    else if (currentY > lastScrollY.current + 10) { setNavVisible(false); }
+    else if (currentY < lastScrollY.current - 10) { setNavVisible(true); }
+    lastScrollY.current = currentY;
+  }, []);
+
+  // Direction-aware tab switching
+  const handleTabChange = (newTab) => {
+    const d = (TAB_ORDER[newTab] ?? 0) - (TAB_ORDER[prevTabRef.current] ?? 0);
+    setDirection(d > 0 ? 1 : d < 0 ? -1 : 0);
+    prevTabRef.current = newTab;
+    setActiveTab(newTab);
+    setNavVisible(true);
+    SFX.pageTransition();
+  };
+
+  // Swipe navigation between tabs
+  const handleSwipe = useCallback((event, info) => {
+    const SWIPE_THRESHOLD = 50;
+    const VELOCITY_THRESHOLD = 300;
+    if (Math.abs(info.offset.x) > SWIPE_THRESHOLD || Math.abs(info.velocity.x) > VELOCITY_THRESHOLD) {
+      const currentIdx = TAB_ORDER[activeTab];
+      if (info.offset.x < 0 && currentIdx < TAB_KEYS.length - 1) {
+        handleTabChange(TAB_KEYS[currentIdx + 1]);
+      } else if (info.offset.x > 0 && currentIdx > 0) {
+        handleTabChange(TAB_KEYS[currentIdx - 1]);
+      } else {
+        Haptics.light();
+      }
+    }
+  }, [activeTab]);
+
+  // Configure status bar on native platforms
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
+        StatusBar.setStyle({ style: Style.Dark });
+        StatusBar.setBackgroundColor({ color: '#000000' });
+        StatusBar.setOverlaysWebView({ overlay: true });
+      }).catch(() => {});
+    }
+  }, []);
+
+  // Prefetch likely next views after dashboard loads
+  useEffect(() => {
+    if (!user || loading) return;
+    const timer = setTimeout(() => {
+      import('./views/WorkoutView');
+      import('./views/ArenaView');
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [user, loading]);
 
   // CHECK FOR ONBOARDING STATUS - Only after profile is loaded from Firestore
   useEffect(() => {
@@ -107,149 +175,133 @@ const MainContent = () => {
 
         <div className="max-w-md mx-auto min-h-screen relative shadow-2xl border-x border-gray-900/50 overflow-hidden" style={{ backgroundColor: 'var(--color-background)' }}>
 
-          {/* THEME TOGGLE - TOP RIGHT */}
-          <div className="fixed top-4 right-4 z-50 md:absolute md:right-6">
+          {/* THEME TOGGLE REMOVED */}
+          {/* <div className="fixed top-4 right-4 z-50 md:absolute md:right-6">
             <ThemeToggle />
-          </div>
+          </div> */}
 
           {/* VIEWPORT */}
-          <div className="p-5 overflow-y-auto h-screen scrollbar-hide pb-32">
+          <PullToRefresh onRefresh={async () => {
+            SFX.refresh();
+            await new Promise(r => setTimeout(r, 800));
+            addToast('Data synced', 'info');
+          }}>
+          <motion.div
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.1}
+            dragDirectionLock
+            onDragEnd={handleSwipe}
+            onScroll={handleScroll}
+            className="p-5 overflow-y-auto scrollbar-hide"
+            style={{ height: '100dvh', paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}
+          >
             <AnimatePresence mode="wait">
               {activeTab === 'dashboard' && (
-                <PageTransition key="dashboard">
-                  <DashboardView meals={meals} burned={burned} workouts={workouts} updateData={updateData} deleteEntry={deleteEntry} profile={profile} uploadProfilePic={uploadProfilePic} user={user} completeDailyDrop={completeDailyDrop} buyItem={buyItem} isStorageReady={isStorageReady} />
+                <PageTransition key="dashboard" direction={direction}>
+                  <React.Suspense fallback={<DashboardSkeleton />}>
+                    <DashboardView meals={meals} burned={burned} workouts={workouts} updateData={updateData} deleteEntry={deleteEntry} profile={profile} uploadProfilePic={uploadProfilePic} user={user} completeDailyDrop={completeDailyDrop} buyItem={buyItem} isStorageReady={isStorageReady} dataLoaded={dataLoaded} />
+                  </React.Suspense>
                 </PageTransition>
               )}
               {activeTab === 'workout' && (
-                <PageTransition key="workout">
-                  <WorkoutView workouts={workouts} updateData={updateData} deleteEntry={deleteEntry} />
+                <PageTransition key="workout" direction={direction}>
+                  <React.Suspense fallback={<WorkoutSkeleton />}>
+                    <WorkoutView workouts={workouts} updateData={updateData} deleteEntry={deleteEntry} />
+                  </React.Suspense>
                 </PageTransition>
               )}
               {activeTab === 'chronicle' && (
-                <PageTransition key="chronicle">
-                  <ChronicleView meals={meals} burned={burned} workouts={workouts} progress={progress} user={user} deleteEntry={deleteEntry} profile={profile} />
+                <PageTransition key="chronicle" direction={direction}>
+                  <React.Suspense fallback={<ChronicleSkeleton />}>
+                    <ChronicleView meals={meals} burned={burned} workouts={workouts} progress={progress} user={user} deleteEntry={deleteEntry} profile={profile} />
+                  </React.Suspense>
                 </PageTransition>
               )}
               {activeTab === 'cardio' && (
-                <PageTransition key="cardio">
-                  <CardioView progress={progress} profile={profile} updateData={updateData} setActiveTab={setActiveTab} />
+                <PageTransition key="cardio" direction={direction}>
+                  <React.Suspense fallback={<CardioSkeleton />}>
+                    <CardioView progress={progress} profile={profile} updateData={updateData} setActiveTab={setActiveTab} />
+                  </React.Suspense>
                 </PageTransition>
               )}
               {activeTab === 'arena' && (
-                <PageTransition key="arena">
-                  <ArenaProvider user={user}>
-                    <ArenaView user={user} workouts={workouts} meals={meals} burned={burned} />
-                  </ArenaProvider>
+                <PageTransition key="arena" direction={direction}>
+                  <React.Suspense fallback={<ArenaSkeleton />}>
+                    <ArenaProvider user={user}>
+                      <ArenaView user={user} workouts={workouts} meals={meals} burned={burned} />
+                    </ArenaProvider>
+                  </React.Suspense>
                 </PageTransition>
               )}
               {activeTab === 'profile' && (
-                <PageTransition key="profile">
-                  <ProfileHub profile={profile} progress={progress} meals={meals} burned={burned} workouts={workouts} leaderboard={leaderboard} photos={photos} deleteEntry={deleteEntry} uploadProfilePic={uploadProfilePic} uploadProgressPhoto={uploadProgressPhoto} onLogout={logout} isStorageReady={isStorageReady} />
-                </PageTransition>
-              )}
-              {activeTab === 'coach' && (
-                <PageTransition key="coach">
-                  <CoachView weight={latestWeight} meals={meals} workouts={workouts} profile={profile} />
+                <PageTransition key="profile" direction={direction}>
+                  <React.Suspense fallback={<ProfileSkeleton />}>
+                    <ProfileHub profile={profile} progress={progress} meals={meals} burned={burned} workouts={workouts} leaderboard={leaderboard} photos={photos} deleteEntry={deleteEntry} uploadProfilePic={uploadProfilePic} uploadProgressPhoto={uploadProgressPhoto} onLogout={logout} isStorageReady={isStorageReady} />
+                  </React.Suspense>
                 </PageTransition>
               )}
               {activeTab === 'ailab' && (
-                <PageTransition key="ailab">
-                  <AILabView workouts={workouts} meals={meals} profile={profile} updateData={updateData} />
+                <PageTransition key="ailab" direction={direction}>
+                  <React.Suspense fallback={<AILabSkeleton />}>
+                    <AILabView workouts={workouts} meals={meals} profile={profile} updateData={updateData} weight={latestWeight} />
+                  </React.Suspense>
                 </PageTransition>
               )}
             </AnimatePresence>
-          </div>
+          </motion.div>
+          </PullToRefresh>
 
-          {/* FAB - COACH AI - ELITE RED STYLE */}
-          <div className="fixed bottom-28 right-4 z-50 md:absolute md:bottom-32 md:right-6">
-            <button
-              onClick={() => setActiveTab('coach')}
-              className="relative group"
-            >
-              {/* Outer Glow Ring */}
-              <div
-                className={`absolute inset-0 rounded-full transition-all duration-500 ${activeTab === 'coach' ? 'scale-125 opacity-100' : 'scale-100 opacity-0 group-hover:scale-110 group-hover:opacity-50'
-                  }`}
-                style={{
-                  background: 'radial-gradient(circle, rgba(220, 38, 38, 0.5) 0%, transparent 70%)',
-                  filter: 'blur(10px)',
-                }}
-              />
 
-              {/* Main Button */}
-              <div
-                className={`relative p-4 rounded-full transition-all duration-300 transform group-hover:scale-105 active:scale-95 ${activeTab === 'coach' ? 'rotate-12' : ''
-                  }`}
-                style={{
-                  background: activeTab === 'coach'
-                    ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%)'
-                    : 'linear-gradient(135deg, rgba(220, 38, 38, 0.95) 0%, rgba(185, 28, 28, 1) 100%)',
-                  backdropFilter: 'blur(20px)',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                  boxShadow: activeTab === 'coach'
-                    ? '0 10px 40px rgba(220, 38, 38, 0.5), 0 0 60px rgba(220, 38, 38, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.5)'
-                    : '0 10px 40px rgba(220, 38, 38, 0.5), 0 0 30px rgba(220, 38, 38, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
-                }}
-              >
-                <Flame
-                  size={24}
-                  fill={activeTab === 'coach' ? 'currentColor' : 'none'}
-                  className={`${activeTab === 'coach' ? 'text-red-600' : 'text-white'} ${activeTab === 'coach' ? 'animate-pulse' : ''}`}
-                />
-              </div>
-            </button>
-          </div>
+
+          {/* FLOATING ACTION BUTTON */}
+          {['dashboard', 'workout', 'cardio'].includes(activeTab) && (
+            <FloatingActionButton
+              mainIcon={<Plus size={24} className="text-white" />}
+              actions={[
+                { label: 'Quick Meal', icon: <Utensils size={18} className="text-red-400" />, onClick: () => handleTabChange('dashboard') },
+                { label: 'Quick Workout', icon: <Dumbbell size={18} className="text-red-400" />, onClick: () => handleTabChange('workout') },
+                { label: 'Quick Cardio', icon: <Heart size={18} className="text-red-400" />, onClick: () => handleTabChange('cardio') },
+              ]}
+            />
+          )}
 
           {/* BOTTOM NAV - LIQUID GLASS FLOATING DOCK */}
-          <div className="fixed bottom-0 left-0 right-0 z-40 p-3 pb-6 md:pb-4">
+          <motion.div
+            className="fixed bottom-0 left-0 right-0 z-40 p-3"
+            animate={{ y: navVisible ? 0 : 120, opacity: navVisible ? 1 : 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 8px) + 8px)' }}
+          >
             <div className="max-w-md mx-auto">
               {/* Liquid Glass Container */}
-              <div
-                className="relative rounded-[28px] p-1 overflow-hidden"
-                style={{
-                  background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 50%, rgba(255, 255, 255, 0.05) 100%)',
-                  backdropFilter: 'blur(40px) saturate(200%)',
-                  WebkitBackdropFilter: 'blur(40px) saturate(200%)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  boxShadow: `
-                  0 25px 60px rgba(0, 0, 0, 0.6),
-                  0 10px 30px rgba(0, 0, 0, 0.4),
-                  0 -5px 30px rgba(220, 38, 38, 0.15),
-                  inset 0 2px 0 rgba(220, 38, 38, 0.2),
-                  inset 0 -1px 0 rgba(255, 255, 255, 0.05)
-                `
-                }}
-              >
-                {/* Top Shine Effect */}
-                <div
-                  className="absolute top-0 left-0 right-0 h-[50%] rounded-t-[28px] pointer-events-none"
+              <div className="relative rounded-[28px] p-1 overflow-hidden glass-nav-pill">
+                {/* Sliding Active Indicator */}
+                <motion.div
+                  className="absolute z-0 nav-active-indicator rounded-2xl"
                   style={{
-                    background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, transparent 100%)',
+                    width: `calc((100% - 8px) / 6)`,
+                    height: '80%',
+                    top: '10%',
                   }}
-                />
-
-                {/* Animated Shimmer */}
-                <div
-                  className="absolute inset-0 pointer-events-none overflow-hidden rounded-[28px]"
-                  style={{
-                    background: 'linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.03) 45%, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0.03) 55%, transparent 100%)',
-                    animation: 'liquid-shimmer 8s ease-in-out infinite',
-                    transform: 'translateX(-100%)',
+                  animate={{
+                    left: `calc(${TAB_ORDER[activeTab]} * (100% - 8px) / 6 + 4px)`,
                   }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                 />
 
                 {/* Nav Items Grid */}
                 <div className="relative z-10 grid grid-cols-6 gap-0">
-                  <NavBtn active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<EliteFlameIcon active={activeTab === 'dashboard'} size={22} />} label="Home" />
-                  <NavBtn active={activeTab === 'arena'} onClick={() => setActiveTab('arena')} icon={<EliteSwordsIcon active={activeTab === 'arena'} size={22} />} label="Arena" />
-                  <NavBtn active={activeTab === 'workout'} onClick={() => setActiveTab('workout')} icon={<EliteDumbbellIcon active={activeTab === 'workout'} size={22} />} label="Lift" />
-                  <NavBtn active={activeTab === 'ailab'} onClick={() => setActiveTab('ailab')} icon={<EliteBrainIcon active={activeTab === 'ailab'} size={22} />} label="AI Lab" />
-                  <NavBtn active={activeTab === 'cardio'} onClick={() => setActiveTab('cardio')} icon={<EliteHeartIcon active={activeTab === 'cardio'} size={22} />} label="Pulse" />
-                  <NavBtn active={activeTab === 'profile'} onClick={() => setActiveTab('profile')} icon={<EliteCrownIcon active={activeTab === 'profile'} size={22} />} label="Me" />
+                  <NavBtn active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} icon={<EliteFlameIcon active={activeTab === 'dashboard'} size={22} />} label="Home" />
+                  <NavBtn active={activeTab === 'arena'} onClick={() => handleTabChange('arena')} icon={<EliteSwordsIcon active={activeTab === 'arena'} size={22} />} label="Arena" />
+                  <NavBtn active={activeTab === 'workout'} onClick={() => handleTabChange('workout')} icon={<EliteDumbbellIcon active={activeTab === 'workout'} size={22} />} label="Lift" />
+                  <NavBtn active={activeTab === 'ailab'} onClick={() => handleTabChange('ailab')} icon={<EliteBrainIcon active={activeTab === 'ailab'} size={22} />} label="AI" />
+                  <NavBtn active={activeTab === 'cardio'} onClick={() => handleTabChange('cardio')} icon={<EliteHeartIcon active={activeTab === 'cardio'} size={22} />} label="Pulse" />
+                  <NavBtn active={activeTab === 'profile'} onClick={() => handleTabChange('profile')} icon={<EliteCrownIcon active={activeTab === 'profile'} size={22} />} label="Me" />
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
       </div>
     </PremiumProvider>

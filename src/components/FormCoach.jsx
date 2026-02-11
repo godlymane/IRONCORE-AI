@@ -143,8 +143,10 @@ export const FormCoach = ({ exercise = 'squat', onComplete }) => {
                 // Clear canvas
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                // Draw video frame
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                // Draw video frame to canvas if detector is running
+                if (video.readyState === 4) {
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                }
 
                 if (poses.length > 0) {
                     const pose = poses[0];
@@ -308,23 +310,23 @@ export const FormCoach = ({ exercise = 'squat', onComplete }) => {
                     </div>
                 ) : (
                     <>
+                        {/* Video Element - Always render but hide if canvas is successfully drawing */}
                         <video
                             ref={videoRef}
-                            className="absolute inset-0 w-full h-full object-cover"
-                            style={{ display: isStreaming ? 'none' : 'block' }}
+                            className={`absolute inset-0 w-full h-full object-cover ${isStreaming && detector ? 'opacity-0' : 'opacity-100'}`}
                             playsInline
                             muted
                         />
+                        {/* Canvas - Overlays on top of video */}
                         <canvas
                             ref={canvasRef}
                             width={640}
                             height={480}
-                            className="w-full h-full object-cover"
-                            style={{ display: isStreaming ? 'block' : 'none' }}
+                            className="absolute inset-0 w-full h-full object-cover pointer-events-none"
                         />
 
                         {!isStreaming && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-10">
                                 <Button onClick={startCamera} variant="primary">
                                     <Video className="w-4 h-4 mr-2" />
                                     Start Camera

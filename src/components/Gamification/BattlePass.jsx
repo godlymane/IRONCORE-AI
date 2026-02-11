@@ -65,7 +65,7 @@ export const BattlePass = ({ level = 1, xp = 0, isPremium = false }) => {
                             )}
                         </div>
                         {tierLevel % 5 === 0 && (
-                            <div className="mt-1 text-[9px] text-yellow-400 font-bold">+100 XP</div>
+                            <div className="mt-1 text-[11px] text-yellow-400 font-bold">+100 XP</div>
                         )}
                     </div>
                 ))}

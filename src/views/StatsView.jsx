@@ -145,10 +145,10 @@ export const StatsView = ({ leaderboard, profile, progress, meals, workouts }) =
   }, []);
 
   return (
-    <div className="space-y-6 pb-20 animate-in fade-in">
+    <div className="space-y-6 pb-4 animate-in fade-in">
         <div className="flex items-center justify-between">
              <h2 className="text-2xl font-black uppercase tracking-tighter italic text-white">Flex Analytics</h2>
-             <div className="px-3 py-1 bg-gray-900 rounded-full border border-gray-800 text-[10px] font-mono text-gray-400">INTENSITY OS</div>
+             <div className="px-3 py-1 bg-gray-900 rounded-full border border-gray-800 text-[11px] font-mono text-gray-400">INTENSITY OS</div>
         </div>
         
         {/* LEAGUE CARD */}
@@ -159,7 +159,7 @@ export const StatsView = ({ leaderboard, profile, progress, meals, workouts }) =
                 <h2 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-1">Current League</h2>
                 <div className={`text-4xl font-black italic ${currentLeague.color} drop-shadow-md`}>{currentLeague.name}</div>
                 <div className="mt-4 relative">
-                    <div className="flex justify-between text-[9px] font-mono text-gray-400 uppercase mb-1"><span>{currentXP} XP</span><span>{nextLeague ? nextLeague.min : 'MAX'} XP</span></div>
+                    <div className="flex justify-between text-[11px] font-mono text-gray-400 uppercase mb-1"><span>{currentXP} XP</span><span>{nextLeague ? nextLeague.min : 'MAX'} XP</span></div>
                     <div className="w-full bg-gray-900 h-3 rounded-full overflow-hidden border border-gray-700"><div className={`h-full transition-all duration-1000 ${currentLeague.color.replace('text-', 'bg-')}`} style={{width: `${progressToNext}%`}}></div></div>
                 </div>
             </div>
@@ -203,10 +203,10 @@ export const StatsView = ({ leaderboard, profile, progress, meals, workouts }) =
         <div className="bg-gray-900 border border-gray-800 p-4 rounded-3xl relative overflow-hidden">
             <div className="flex justify-between items-start mb-2 relative z-10">
                 <h3 className="text-xs font-black uppercase text-gray-500 flex items-center gap-2"><Flame size={14} className="text-red-500"/> Bio-Scan</h3>
-                <div className="text-right"><p className="text-[10px] text-gray-500 uppercase font-bold">Hard Sets</p><p className="text-lg font-black text-white italic">{Math.round(totalHardSets)}</p></div>
+                <div className="text-right"><p className="text-[11px] text-gray-500 uppercase font-bold">Hard Sets</p><p className="text-lg font-black text-white italic">{Math.round(totalHardSets)}</p></div>
             </div>
             <BodyHeatmap muscleScores={muscleIntensity} />
-            <p className="text-[9px] text-center text-gray-600 mt-2 italic">Based on training intensity (RPE).</p>
+            <p className="text-[11px] text-center text-gray-600 mt-2 italic">Based on training intensity (RPE).</p>
         </div>
 
         {/* TRENDS CHART */}
@@ -225,8 +225,8 @@ export const StatsView = ({ leaderboard, profile, progress, meals, workouts }) =
                 </ComposedChart>
             </ResponsiveContainer>
             <div className="flex justify-center gap-4 mt-2">
-                <div className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-green-500"></div><span className="text-[9px] text-gray-500">Discipline</span></div>
-                <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-yellow-500"></div><span className="text-[9px] text-gray-500">Weight</span></div>
+                <div className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-green-500"></div><span className="text-[11px] text-gray-500">Discipline</span></div>
+                <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-yellow-500"></div><span className="text-[11px] text-gray-500">Weight</span></div>
             </div>
         </div>
 
@@ -239,7 +239,7 @@ export const StatsView = ({ leaderboard, profile, progress, meals, workouts }) =
                          {a.unlocked && <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 pointer-events-none"></div>}
                          <div className="flex justify-between items-start mb-2"><div className={`p-1.5 rounded-lg ${a.unlocked ? 'bg-black/20' : 'bg-gray-800'}`}>{a.unlocked ? a.icon : <Lock size={14}/>}</div>{a.unlocked && <span className="text-[8px] font-black uppercase tracking-widest opacity-70">{a.rarity}</span>}</div>
                          <p className="text-xs font-black uppercase">{a.title}</p>
-                         <p className="text-[9px] opacity-80 leading-tight mt-1">{a.desc}</p>
+                         <p className="text-[11px] opacity-80 leading-tight mt-1">{a.desc}</p>
                      </div>
                  ))}
              </div>

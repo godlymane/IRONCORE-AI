@@ -76,12 +76,12 @@ export const PowerUpInventory = ({ powerUps = [], streakFreezeCount = 0, onUsePo
                             className={`flex-shrink-0 w-24 p-3 rounded-2xl border bg-gradient-to-br ${getRarityColor(powerUp.rarity)} ${getRarityBorder(powerUp.rarity)} text-center hover:scale-105 transition-transform cursor-pointer group`}
                         >
                             <div className="text-3xl mb-1">{powerUp.icon}</div>
-                            <p className="text-[10px] font-bold text-white truncate">{powerUp.name}</p>
+                            <p className="text-[11px] font-bold text-white truncate">{powerUp.name}</p>
                             <div className="mt-1 inline-block px-2 py-0.5 bg-black/30 rounded-full">
-                                <span className="text-[10px] font-bold text-white">x{powerUp.count}</span>
+                                <span className="text-[11px] font-bold text-white">x{powerUp.count}</span>
                             </div>
                             {/* Tooltip on hover */}
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-black/90 rounded-lg text-[9px] text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-black/90 rounded-lg text-[11px] text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                                 {powerUp.effect}
                             </div>
                         </div>

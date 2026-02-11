@@ -158,14 +158,14 @@ export const PersonalRecordsBoard = ({ records = [] }) => {
                             {pr.isNew && <Award className="w-4 h-4 text-yellow-400 animate-pulse" />}
                             <div>
                                 <p className="text-sm font-medium text-white">{pr.exercise}</p>
-                                <p className="text-[10px] text-white/40">{pr.date}</p>
+                                <p className="text-[11px] text-white/40">{pr.date}</p>
                             </div>
                         </div>
                         <div className="text-right">
                             <p className={`text-lg font-black ${pr.isNew ? 'text-yellow-400' : 'text-white'}`}>
                                 {pr.weight}
                             </p>
-                            <p className="text-[10px] text-white/40">lbs</p>
+                            <p className="text-[11px] text-white/40">lbs</p>
                         </div>
                     </motion.div>
                 ))}

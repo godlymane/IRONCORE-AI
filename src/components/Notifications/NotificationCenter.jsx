@@ -26,8 +26,8 @@ const NotificationItem = ({ note, onRead }) => {
                 <div className="mt-1">{getIcon(note.type)}</div>
                 <div className="flex-1">
                     <h4 className="text-xs font-bold text-white leading-tight">{note.title}</h4>
-                    <p className="text-[10px] text-gray-400 mt-1 leading-snug">{note.message}</p>
-                    <p className="text-[9px] text-gray-600 mt-2">
+                    <p className="text-[11px] text-gray-400 mt-1 leading-snug">{note.message}</p>
+                    <p className="text-[11px] text-gray-600 mt-2">
                         {note.createdAt ? new Date(note.createdAt.seconds * 1000).toLocaleTimeString() : 'Just now'}
                     </p>
                 </div>
@@ -105,7 +105,7 @@ export const NotificationCenter = ({ userId }) => {
                                 {unreadCount > 0 && (
                                     <button
                                         onClick={handleMarkAllRead}
-                                        className="text-[10px] text-red-400 font-bold hover:text-red-300"
+                                        className="text-[11px] text-red-400 font-bold hover:text-red-300"
                                     >
                                         Mark all read
                                     </button>
