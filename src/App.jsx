@@ -147,24 +147,25 @@ const MainContent = () => {
     }
   }, [user, profile, loading, profileLoaded]);
 
-  const handleOnboardingComplete = async (data) => {
-    // Save all wizard data AND the 'onboarded' flag
-    await updateData('add', 'profile', {
+  const handleOnboardingComplete = (data) => {
+    // Dismiss onboarding IMMEDIATELY — don't block on Firestore write
+    setShowOnboarding(false);
+    addToast("Profile Initialized. Welcome to the Team.", "success");
+
+    // Save data to Firestore in background (non-blocking)
+    updateData('add', 'profile', {
       ...data,
       onboarded: true,
       lastUpdated: new Date()
-    });
+    }).catch(e => console.error('Profile save error:', e));
 
     // Also save initial weight to progress history
     if (data.weight) {
-      await updateData('add', 'progress', {
+      updateData('add', 'progress', {
         weight: parseFloat(data.weight),
         date: new Date().toISOString().split('T')[0]
-      });
+      }).catch(e => console.error('Weight save error:', e));
     }
-
-    setShowOnboarding(false);
-    addToast("Profile Initialized. Welcome to the Team.", "success");
   };
 
   if (error) return <div className="p-10 text-red-500 text-center font-mono">System Error: {error}</div>;
