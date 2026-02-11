@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     ChevronRight, Target, Activity, Dumbbell, Flame, CheckCircle2,
-    ChevronLeft, Scale, Zap, Shield, Trophy, Fingerprint, User, Sparkles
+    ChevronLeft, Scale, Zap, Shield, Trophy, Fingerprint, User, Sparkles, Check
 } from 'lucide-react';
 import { Button } from '../components/UIComponents';
 import { SFX } from '../utils/audio';
 
 // Glass Input Component - Defined OUTSIDE parent to prevent focus loss on re-render
-const GlassInput = ({ label, value, onChange, placeholder, type = 'number', highlight = false }) => (
+const GlassInput = ({ label, value, onChange, placeholder, type = 'number', highlight = false, unit }) => (
     <div
         className="p-4 rounded-2xl transition-all"
         style={{
@@ -16,30 +16,90 @@ const GlassInput = ({ label, value, onChange, placeholder, type = 'number', high
         }}
     >
         <label className={`text-[11px] uppercase font-bold block mb-1 ${highlight ? 'text-orange-400' : 'text-gray-500'}`}>{label}</label>
-        <input
-            type={type}
-            value={value}
-            onChange={onChange}
-            className="w-full bg-transparent text-2xl font-black text-white outline-none placeholder:text-gray-700"
-            placeholder={placeholder}
-        />
+        <div className="flex items-baseline gap-1">
+            <input
+                type={type}
+                inputMode="decimal"
+                enterKeyHint="done"
+                value={value}
+                onChange={onChange}
+                className="w-full bg-transparent text-2xl font-black text-white outline-none placeholder:text-gray-700"
+                placeholder={placeholder}
+            />
+            {unit && <span className="text-[11px] text-gray-500 flex-shrink-0">{unit}</span>}
+        </div>
     </div>
 );
+
+// Activity level options with multipliers
+const ACTIVITY_LEVELS = [
+    { value: 1.2, label: 'Sedentary', desc: 'Desk job, no exercise', icon: '🛋️' },
+    { value: 1.375, label: 'Light', desc: '1-2 days/week', icon: '🚶' },
+    { value: 1.55, label: 'Moderate', desc: '3-5 days/week', icon: '🏃' },
+    { value: 1.725, label: 'Active', desc: '6-7 days/week', icon: '💪' },
+    { value: 1.9, label: 'Athlete', desc: 'Intense daily training', icon: '🔥' },
+];
+
+// Intensity configs for calorie adjustment
+const INTENSITY_CONFIGS = {
+    conservative: { lose: -300, gain: 200, label: 'Steady', desc: 'Slow & sustainable' },
+    moderate: { lose: -500, gain: 350, label: 'Optimized', desc: 'Balanced approach' },
+    aggressive: { lose: -750, gain: 500, label: 'Extreme', desc: 'Maximum effort' },
+};
 
 export const OnboardingView = ({ onComplete, user }) => {
     const [step, setStep] = useState('intro');
     const [loadingProgress, setLoadingProgress] = useState(0);
     const [data, setData] = useState({
         goal: 'maintain',
-        activity: '1.375',
+        activityLevel: 1.55,
         gender: 'male',
-        experience: 'intermediate',
         weight: '',
         height: '',
         age: '',
+        bodyFat: '',
         targetWeight: '',
-        pace: 0.5
+        intensity: 'moderate',
     });
+
+    // --- BMR / TDEE / Macro Calculation (Mifflin-St Jeor) ---
+    const calculated = useMemo(() => {
+        const w = parseFloat(data.weight) || 70;
+        const h = parseFloat(data.height) || 170;
+        const a = parseFloat(data.age) || 25;
+        const activity = parseFloat(data.activityLevel) || 1.55;
+
+        let bmr;
+        if (data.gender === 'male') {
+            bmr = (10 * w) + (6.25 * h) - (5 * a) + 5;
+        } else {
+            bmr = (10 * w) + (6.25 * h) - (5 * a) - 161;
+        }
+
+        const tdee = Math.round(bmr * activity);
+
+        // Target calories based on goal + intensity
+        let targetCalories = tdee;
+        if (data.goal !== 'maintain') {
+            const adjustment = INTENSITY_CONFIGS[data.intensity]?.[data.goal] || 0;
+            targetCalories = Math.max(1200, tdee + adjustment);
+        }
+
+        // Macros based on goal
+        let proteinMultiplier, fatPercent;
+        switch (data.goal) {
+            case 'lose': proteinMultiplier = 2.2; fatPercent = 0.25; break;
+            case 'gain': proteinMultiplier = 2.0; fatPercent = 0.25; break;
+            default: proteinMultiplier = 1.8; fatPercent = 0.30;
+        }
+
+        const protein = Math.round(w * proteinMultiplier);
+        const fat = Math.round((targetCalories * fatPercent) / 9);
+        const carbCals = targetCalories - (protein * 4) - (fat * 9);
+        const carbs = Math.round(Math.max(0, carbCals) / 4);
+
+        return { bmr: Math.round(bmr), tdee, targetCalories, protein, carbs, fat };
+    }, [data.weight, data.height, data.age, data.gender, data.activityLevel, data.goal, data.intensity]);
 
     useEffect(() => {
         if (step === 'analysis') {
@@ -70,8 +130,30 @@ export const OnboardingView = ({ onComplete, user }) => {
         setStep(next);
     };
 
+    // Build the final data payload with all calculated values
+    const handleComplete = () => {
+        playSuccess();
+        onComplete({
+            ...data,
+            weight: parseFloat(data.weight) || null,
+            height: parseFloat(data.height) || null,
+            age: parseInt(data.age) || null,
+            bodyFat: parseFloat(data.bodyFat) || null,
+            targetWeight: parseFloat(data.targetWeight) || null,
+            dailyCalories: calculated.targetCalories,
+            dailyProtein: calculated.protein,
+            dailyCarbs: calculated.carbs,
+            dailyFat: calculated.fat,
+            tdee: calculated.tdee,
+        });
+    };
+
+    // Step index for progress dots
+    const STEPS = ['intro', 'goal', 'bio', 'activity', 'intensity', 'analysis'];
+    const currentStepIdx = STEPS.indexOf(step);
+
     // Glass Option Card
-    const OptionCard = ({ selected, onClick, icon, title, desc, colorClass }) => (
+    const OptionCard = ({ selected, onClick, icon, title, desc }) => (
         <button
             onClick={onClick}
             className="relative w-full p-6 rounded-3xl transition-all duration-300 group overflow-hidden text-left"
@@ -79,7 +161,6 @@ export const OnboardingView = ({ onComplete, user }) => {
                 background: selected
                     ? `linear-gradient(145deg, rgba(220, 38, 38, 0.2) 0%, rgba(185, 28, 28, 0.1) 100%)`
                     : 'linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)',
-                backdropFilter: 'blur(20px)',
                 border: selected
                     ? '1px solid rgba(239, 68, 68, 0.4)'
                     : '1px solid rgba(255, 255, 255, 0.08)',
@@ -88,12 +169,10 @@ export const OnboardingView = ({ onComplete, user }) => {
                     : '0 10px 40px rgba(0, 0, 0, 0.2)',
             }}
         >
-            {/* Top shine */}
             <div
                 className="absolute top-0 left-0 right-0 h-[40%] rounded-t-3xl pointer-events-none"
                 style={{ background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%)' }}
             />
-
             <div className="flex items-center gap-5 relative z-10">
                 <div
                     className="p-4 rounded-2xl transition-all"
@@ -127,7 +206,6 @@ export const OnboardingView = ({ onComplete, user }) => {
                     className="absolute bottom-[-20%] right-[-20%] w-[600px] h-[600px] rounded-full blur-[120px] animate-pulse"
                     style={{ background: 'radial-gradient(circle, rgba(185, 28, 28, 0.25) 0%, transparent 70%)', animationDelay: '1s' }}
                 />
-                {/* Grid overlay */}
                 <div
                     className="absolute inset-0 opacity-[0.03]"
                     style={{
@@ -144,15 +222,15 @@ export const OnboardingView = ({ onComplete, user }) => {
                     <span className="text-xs font-mono font-bold tracking-[0.2em] uppercase">System_Init</span>
                 </div>
                 <div className="flex gap-1.5">
-                    {['intro', 'goal', 'bio', 'style', 'analysis'].map((s, i) => (
+                    {STEPS.map((s, i) => (
                         <div
                             key={s}
-                            className="h-1.5 w-8 rounded-full transition-all duration-500"
+                            className="h-1.5 w-6 rounded-full transition-all duration-500"
                             style={{
-                                background: Object.keys({ intro: 0, goal: 1, bio: 2, style: 3, analysis: 4 }).indexOf(step) >= i
+                                background: currentStepIdx >= i
                                     ? 'linear-gradient(90deg, #dc2626 0%, #ef4444 100%)'
                                     : 'rgba(255, 255, 255, 0.1)',
-                                boxShadow: Object.keys({ intro: 0, goal: 1, bio: 2, style: 3, analysis: 4 }).indexOf(step) >= i
+                                boxShadow: currentStepIdx >= i
                                     ? '0 0 12px rgba(239, 68, 68, 0.6)'
                                     : 'none',
                             }}
@@ -162,13 +240,12 @@ export const OnboardingView = ({ onComplete, user }) => {
             </div>
 
             {/* Content Area */}
-            <div className="flex-grow relative z-10 flex flex-col justify-center max-w-lg mx-auto w-full px-6 pb-12">
+            <div className="flex-grow relative z-10 flex flex-col justify-center max-w-lg mx-auto w-full px-6 pb-12 overflow-y-auto">
 
                 {/* 1. INTRO */}
                 {step === 'intro' && (
                     <div className="space-y-8 text-center animate-in zoom-in-95 duration-700">
                         <div className="relative w-32 h-32 mx-auto">
-                            {/* Glow ring */}
                             <div
                                 className="absolute inset-0 rounded-full blur-xl opacity-60"
                                 style={{ background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' }}
@@ -222,7 +299,7 @@ export const OnboardingView = ({ onComplete, user }) => {
                 {/* 2. GOAL */}
                 {step === 'goal' && (
                     <div className="space-y-6 animate-in slide-in-from-right duration-500">
-                        <div className="text-center mb-8">
+                        <div className="text-center mb-4">
                             <div
                                 className="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4"
                                 style={{
@@ -271,10 +348,10 @@ export const OnboardingView = ({ onComplete, user }) => {
                     </div>
                 )}
 
-                {/* 3. BIO-METRICS */}
+                {/* 3. BIO-METRICS (weight, height, age, gender, bodyFat optional, targetWeight) */}
                 {step === 'bio' && (
                     <div className="space-y-6 animate-in slide-in-from-right duration-500">
-                        <div className="text-center mb-8">
+                        <div className="text-center mb-4">
                             <div
                                 className="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4"
                                 style={{
@@ -289,9 +366,9 @@ export const OnboardingView = ({ onComplete, user }) => {
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                            <GlassInput label="Weight (KG)" value={data.weight} onChange={e => setData(prev => ({ ...prev, weight: e.target.value }))} placeholder="00.0" />
-                            <GlassInput label="Height (CM)" value={data.height} onChange={e => setData(prev => ({ ...prev, height: e.target.value }))} placeholder="000" />
-                            <GlassInput label="Age" value={data.age} onChange={e => setData(prev => ({ ...prev, age: e.target.value }))} placeholder="00" />
+                            <GlassInput label="Weight" value={data.weight} onChange={e => setData(prev => ({ ...prev, weight: e.target.value }))} placeholder="70" unit="kg" />
+                            <GlassInput label="Height" value={data.height} onChange={e => setData(prev => ({ ...prev, height: e.target.value }))} placeholder="175" unit="cm" />
+                            <GlassInput label="Age" value={data.age} onChange={e => setData(prev => ({ ...prev, age: e.target.value }))} placeholder="25" unit="yrs" />
                             <div
                                 className="p-4 rounded-2xl"
                                 style={{
@@ -311,19 +388,29 @@ export const OnboardingView = ({ onComplete, user }) => {
                             </div>
                         </div>
 
+                        {/* Body Fat % — Optional */}
+                        <GlassInput
+                            label="Body Fat % (Optional)"
+                            value={data.bodyFat}
+                            onChange={e => setData(prev => ({ ...prev, bodyFat: e.target.value }))}
+                            placeholder="15"
+                            unit="%"
+                        />
+
                         {data.goal !== 'maintain' && (
                             <div className="animate-in slide-in-from-bottom-2">
                                 <GlassInput
-                                    label="Target Weight (KG)"
+                                    label="Target Weight"
                                     value={data.targetWeight}
                                     onChange={e => setData(prev => ({ ...prev, targetWeight: e.target.value }))}
                                     placeholder="Goal"
+                                    unit="kg"
                                     highlight
                                 />
                             </div>
                         )}
 
-                        <div className="flex gap-4 mt-8">
+                        <div className="flex gap-4 mt-4">
                             <button
                                 onClick={() => setStep('goal')}
                                 className="p-4 rounded-2xl transition-all hover:scale-105"
@@ -335,8 +422,9 @@ export const OnboardingView = ({ onComplete, user }) => {
                                 <ChevronLeft className="text-gray-400" />
                             </button>
                             <button
-                                onClick={() => nextStep('style')}
-                                className="flex-1 py-4 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.02]"
+                                onClick={() => nextStep('activity')}
+                                disabled={!data.weight || !data.height || !data.age}
+                                className="flex-1 py-4 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.02] disabled:opacity-40"
                                 style={{
                                     background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.9) 0%, rgba(59, 130, 246, 0.9) 100%)',
                                     boxShadow: '0 10px 30px rgba(6, 182, 212, 0.3)',
@@ -348,10 +436,76 @@ export const OnboardingView = ({ onComplete, user }) => {
                     </div>
                 )}
 
-                {/* 4. STYLE / PACE */}
-                {step === 'style' && (
+                {/* 4. ACTIVITY LEVEL */}
+                {step === 'activity' && (
+                    <div className="space-y-5 animate-in slide-in-from-right duration-500">
+                        <div className="text-center mb-4">
+                            <div
+                                className="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4"
+                                style={{
+                                    background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(34, 197, 94, 0.1) 100%)',
+                                    border: '1px solid rgba(34, 197, 94, 0.3)',
+                                }}
+                            >
+                                <Activity size={28} className="text-green-400" />
+                            </div>
+                            <h2 className="text-3xl font-black italic uppercase">Activity Level</h2>
+                            <p className="text-sm text-gray-500 mt-2">How active is your daily routine?</p>
+                        </div>
+
+                        <div className="space-y-2">
+                            {ACTIVITY_LEVELS.map(level => (
+                                <button
+                                    key={level.value}
+                                    onClick={() => select('activityLevel', level.value)}
+                                    className="w-full p-4 rounded-xl transition-all flex items-center gap-3"
+                                    style={{
+                                        background: data.activityLevel === level.value
+                                            ? 'linear-gradient(145deg, rgba(220, 38, 38, 0.25) 0%, rgba(220, 38, 38, 0.1) 100%)'
+                                            : 'linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)',
+                                        border: data.activityLevel === level.value ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
+                                        boxShadow: data.activityLevel === level.value ? '0 6px 20px rgba(220, 38, 38, 0.2)' : 'none',
+                                    }}
+                                >
+                                    <span className="text-lg">{level.icon}</span>
+                                    <div className="text-left flex-1">
+                                        <p className={`text-sm font-bold ${data.activityLevel === level.value ? 'text-white' : 'text-gray-400'}`}>{level.label}</p>
+                                        <p className="text-[11px] text-gray-500">{level.desc}</p>
+                                    </div>
+                                    {data.activityLevel === level.value && <Check size={16} className="text-red-400" />}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="flex gap-4 mt-4">
+                            <button
+                                onClick={() => setStep('bio')}
+                                className="p-4 rounded-2xl transition-all hover:scale-105"
+                                style={{
+                                    background: 'linear-gradient(145deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%)',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                }}
+                            >
+                                <ChevronLeft className="text-gray-400" />
+                            </button>
+                            <button
+                                onClick={() => nextStep('intensity')}
+                                className="flex-1 py-4 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.02]"
+                                style={{
+                                    background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.9) 0%, rgba(22, 163, 74, 0.9) 100%)',
+                                    boxShadow: '0 10px 30px rgba(34, 197, 94, 0.3)',
+                                }}
+                            >
+                                Continue
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* 5. INTENSITY / PACE */}
+                {step === 'intensity' && (
                     <div className="space-y-6 animate-in slide-in-from-right duration-500">
-                        <div className="text-center mb-8">
+                        <div className="text-center mb-4">
                             <div
                                 className="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4"
                                 style={{
@@ -362,49 +516,59 @@ export const OnboardingView = ({ onComplete, user }) => {
                                 <Zap size={28} className="text-yellow-400" />
                             </div>
                             <h2 className="text-3xl font-black italic uppercase">Intensity Protocol</h2>
-                            <p className="text-sm text-gray-500 mt-2">How aggressive is your timeline?</p>
+                            <p className="text-sm text-gray-500 mt-2">
+                                {data.goal === 'maintain' ? 'Your maintenance calories will be calculated.' : 'How aggressive is your timeline?'}
+                            </p>
                         </div>
 
-                        <div className="space-y-3">
-                            {[
-                                { val: 0.25, label: 'Steady State', desc: 'Sustainable. 0.25kg/wk.' },
-                                { val: 0.5, label: 'Optimized', desc: 'Recommended balance. 0.5kg/wk.' },
-                                { val: 0.8, label: 'Extreme', desc: 'Maximum effort. 0.8kg/wk.' }
-                            ].map(opt => (
-                                <button
-                                    key={opt.val}
-                                    onClick={() => select('pace', opt.val)}
-                                    className="w-full p-5 rounded-2xl flex items-center justify-between transition-all text-left"
-                                    style={{
-                                        background: data.pace === opt.val
-                                            ? 'linear-gradient(145deg, rgba(220, 38, 38, 0.2) 0%, rgba(185, 28, 28, 0.1) 100%)'
-                                            : 'linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)',
-                                        border: data.pace === opt.val
-                                            ? '1px solid rgba(239, 68, 68, 0.4)'
-                                            : '1px solid rgba(255, 255, 255, 0.08)',
-                                        boxShadow: data.pace === opt.val ? '0 8px 25px rgba(220, 38, 38, 0.2)' : 'none',
-                                    }}
-                                >
-                                    <div>
-                                        <p className={`font-black uppercase ${data.pace === opt.val ? 'text-white' : 'text-gray-400'}`}>{opt.label}</p>
-                                        <p className="text-xs text-gray-500">{opt.desc}</p>
-                                    </div>
-                                    <div
-                                        className="w-6 h-6 rounded-full flex items-center justify-center transition-all"
+                        {data.goal !== 'maintain' ? (
+                            <div className="space-y-3">
+                                {Object.entries(INTENSITY_CONFIGS).map(([key, config]) => (
+                                    <button
+                                        key={key}
+                                        onClick={() => select('intensity', key)}
+                                        className="w-full p-5 rounded-2xl flex items-center justify-between transition-all text-left"
                                         style={{
-                                            border: data.pace === opt.val ? '2px solid #dc2626' : '2px solid rgba(255,255,255,0.2)',
-                                            background: data.pace === opt.val ? '#dc2626' : 'transparent',
+                                            background: data.intensity === key
+                                                ? 'linear-gradient(145deg, rgba(220, 38, 38, 0.2) 0%, rgba(185, 28, 28, 0.1) 100%)'
+                                                : 'linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)',
+                                            border: data.intensity === key
+                                                ? '1px solid rgba(239, 68, 68, 0.4)'
+                                                : '1px solid rgba(255, 255, 255, 0.08)',
+                                            boxShadow: data.intensity === key ? '0 8px 25px rgba(220, 38, 38, 0.2)' : 'none',
                                         }}
                                     >
-                                        {data.pace === opt.val && <div className="w-2 h-2 bg-white rounded-full" />}
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
+                                        <div>
+                                            <p className={`font-black uppercase ${data.intensity === key ? 'text-white' : 'text-gray-400'}`}>{config.label}</p>
+                                            <p className="text-xs text-gray-500">{config.desc}</p>
+                                        </div>
+                                        <div
+                                            className="w-6 h-6 rounded-full flex items-center justify-center transition-all"
+                                            style={{
+                                                border: data.intensity === key ? '2px solid #dc2626' : '2px solid rgba(255,255,255,0.2)',
+                                                background: data.intensity === key ? '#dc2626' : 'transparent',
+                                            }}
+                                        >
+                                            {data.intensity === key && <div className="w-2 h-2 bg-white rounded-full" />}
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <div
+                                className="p-6 rounded-2xl text-center"
+                                style={{
+                                    background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)',
+                                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                                }}
+                            >
+                                <p className="text-sm text-gray-400">Your TDEE will be set as your daily target for recomposition.</p>
+                            </div>
+                        )}
 
-                        <div className="flex gap-4 mt-8">
+                        <div className="flex gap-4 mt-4">
                             <button
-                                onClick={() => setStep('bio')}
+                                onClick={() => setStep('activity')}
                                 className="p-4 rounded-2xl transition-all hover:scale-105"
                                 style={{
                                     background: 'linear-gradient(145deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%)',
@@ -427,7 +591,7 @@ export const OnboardingView = ({ onComplete, user }) => {
                     </div>
                 )}
 
-                {/* 5. ANALYSIS / LOADING */}
+                {/* 6. ANALYSIS / LOADING */}
                 {step === 'analysis' && (
                     <div className="text-center space-y-8 animate-in zoom-in-95 duration-500">
                         <div className="relative w-48 h-48 mx-auto flex items-center justify-center">
@@ -455,49 +619,78 @@ export const OnboardingView = ({ onComplete, user }) => {
                         <div>
                             <h2 className="text-2xl font-black uppercase italic flex items-center justify-center gap-2">
                                 <Sparkles size={20} className="text-red-400 animate-pulse" />
-                                Computing Macros...
+                                Computing Protocol...
                             </h2>
                             <p className="text-sm text-gray-500 mt-3 font-mono leading-relaxed">
-                                BMR: Calculating... <br />
-                                TDEE: Analysing Activity... <br />
-                                Split: Optimizing...
+                                BMR: {calculated.bmr} kcal <br />
+                                TDEE: {calculated.tdee} kcal <br />
+                                Target: {calculated.targetCalories} kcal
                             </p>
                         </div>
                     </div>
                 )}
 
-                {/* 6. COMPLETE */}
+                {/* 7. COMPLETE — Show calculated macros */}
                 {step === 'complete' && (
-                    <div className="text-center space-y-8 animate-in zoom-in-95 duration-500">
+                    <div className="text-center space-y-6 animate-in zoom-in-95 duration-500">
                         <div
-                            className="w-32 h-32 mx-auto rounded-3xl flex items-center justify-center"
+                            className="w-28 h-28 mx-auto rounded-3xl flex items-center justify-center"
                             style={{
                                 background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(34, 197, 94, 0.1) 100%)',
                                 border: '1px solid rgba(34, 197, 94, 0.3)',
                                 boxShadow: '0 0 60px rgba(34, 197, 94, 0.3)',
                             }}
                         >
-                            <Trophy size={64} className="text-green-400" />
+                            <Trophy size={56} className="text-green-400" />
                         </div>
                         <div>
                             <h2 className="text-4xl font-black italic uppercase text-white mb-2">System Ready</h2>
-                            <p className="text-gray-400 text-sm">Your custom IronCore dashboard has been generated.</p>
+                            <p className="text-gray-400 text-sm">Your custom IronCore protocol has been generated.</p>
                         </div>
 
+                        {/* Calorie & Macro Results */}
                         <div
-                            className="p-6 rounded-3xl w-full text-left space-y-4"
+                            className="p-5 rounded-2xl text-center"
+                            style={{
+                                background: 'linear-gradient(145deg, rgba(220, 38, 38, 0.15) 0%, rgba(185, 28, 28, 0.08) 100%)',
+                                border: '1px solid rgba(239, 68, 68, 0.3)',
+                                boxShadow: '0 10px 40px rgba(220, 38, 38, 0.15)',
+                            }}
+                        >
+                            <p className="text-[11px] text-gray-400 uppercase mb-1">Your Daily Target</p>
+                            <p className="text-5xl font-black italic text-white mb-1">{calculated.targetCalories}</p>
+                            <p className="text-xs text-red-400 font-bold uppercase">Calories</p>
+                            <div className="flex justify-center gap-6 mt-4">
+                                <div className="text-center">
+                                    <p className="text-xl font-black text-amber-400">{calculated.protein}g</p>
+                                    <p className="text-[11px] text-gray-500 uppercase">Protein</p>
+                                </div>
+                                <div className="text-center">
+                                    <p className="text-xl font-black text-yellow-400">{calculated.carbs}g</p>
+                                    <p className="text-[11px] text-gray-500 uppercase">Carbs</p>
+                                </div>
+                                <div className="text-center">
+                                    <p className="text-xl font-black text-pink-400">{calculated.fat}g</p>
+                                    <p className="text-[11px] text-gray-500 uppercase">Fat</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Summary */}
+                        <div
+                            className="p-4 rounded-2xl w-full text-left space-y-3"
                             style={{
                                 background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)',
                                 border: '1px solid rgba(255, 255, 255, 0.08)',
                             }}
                         >
-                            <div className="flex justify-between text-xs pb-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                            <div className="flex justify-between text-xs pb-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                 <span className="text-gray-500 uppercase font-bold">Goal</span>
                                 <span className="text-white font-bold">{data.goal.toUpperCase()}</span>
                             </div>
-                            <div className="flex justify-between text-xs pb-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                <span className="text-gray-500 uppercase font-bold">Protocol</span>
-                                <span className="text-white font-bold">{data.pace === 0.25 ? 'STEADY' : data.pace === 0.5 ? 'OPTIMIZED' : 'EXTREME'}</span>
+                            <div className="flex justify-between text-xs pb-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                <span className="text-gray-500 uppercase font-bold">TDEE</span>
+                                <span className="text-white font-bold">{calculated.tdee} kcal</span>
                             </div>
                             <div className="flex justify-between text-xs">
                                 <span className="text-gray-500 uppercase font-bold">Status</span>
@@ -509,7 +702,7 @@ export const OnboardingView = ({ onComplete, user }) => {
                         </div>
 
                         <button
-                            onClick={() => { playSuccess(); onComplete(data); }}
+                            onClick={handleComplete}
                             className="w-full py-5 rounded-2xl font-black text-lg uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-95"
                             style={{
                                 background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%)',
@@ -533,6 +726,3 @@ export const OnboardingView = ({ onComplete, user }) => {
         </div>
     );
 };
-
-
-

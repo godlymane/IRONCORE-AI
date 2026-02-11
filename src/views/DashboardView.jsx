@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Flame, Search, Plus, Droplets, Zap, Settings, Target,
-  X, Check, Scroll, Sword, Camera, Upload, Pill, ChevronRight, ChevronLeft,
-  AlertCircle, ScanLine, AlertTriangle, ShoppingBag, Snowflake, ArrowUpCircle,
-
-  ChefHat, Utensils, TrendingUp, Trophy, Sparkles
+  X, Check, Camera, ScanLine, ShoppingBag, Snowflake, ArrowUpCircle,
+  ChefHat, Utensils, Trophy, Sparkles
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Card, MacroBadge, Button, useToast, Skeleton, GlassCard, staggerContainer, slideUp } from '../components/UIComponents';
@@ -539,12 +537,16 @@ export const DashboardView = ({
         </div>
       )}
 
-      {/* Goal Architect Modal */}
+      {/* Profile Settings Modal */}
       {showSettings && (
-        <GoalArchitectModal
+        <ProfileSettingsModal
           profile={profile}
-          updateData={updateData}
-          addToast={addToast}
+          userPhoto={userPhoto}
+          user={user}
+          uploadProfilePic={uploadProfilePic}
+          fileInputRef={fileInputRef}
+          uploadingPhoto={uploadingPhoto}
+          setUploadingPhoto={setUploadingPhoto}
           onClose={() => setShowSettings(false)}
         />
       )}
@@ -692,466 +694,129 @@ const MotivationCard = () => {
     </GlassCard>
   );
 };
-// SMART GOAL ARCHITECT - Auto-calculates calories using Mifflin-St Jeor formula
-const GoalArchitectModal = ({ profile, updateData, addToast, onClose }) => {
-  const [step, setStep] = useState(1); // Multi-step wizard
-  const [formData, setFormData] = useState({
-    weight: profile?.weight || '',
-    height: profile?.height || '',
-    age: profile?.age || '',
-    gender: profile?.gender || 'male',
-    activityLevel: profile?.activityLevel || 1.55, // Moderately active
-    goal: profile?.goal || 'maintain',
-    intensity: profile?.intensity || 'moderate', // conservative, moderate, aggressive
-    bodyFat: profile?.bodyFat || '',
-  });
-  const [saving, setSaving] = useState(false);
-
-  // Activity Level Multipliers
-  const activityLevels = [
-    { value: 1.2, label: 'Sedentary', desc: 'Desk job, no exercise', icon: '🛋️' },
-    { value: 1.375, label: 'Light', desc: '1-2 days/week', icon: '🚶' },
-    { value: 1.55, label: 'Moderate', desc: '3-5 days/week', icon: '🏃' },
-    { value: 1.725, label: 'Active', desc: '6-7 days/week', icon: '💪' },
-    { value: 1.9, label: 'Athlete', desc: 'Intense daily training', icon: '🔥' },
-  ];
-
-  // Goal Adjustments
-  const goalConfigs = {
-    lose: { label: 'Fat Loss', icon: <Flame size={18} />, color: 'orange', emoji: '🔥' },
-    maintain: { label: 'Maintain', icon: <Target size={18} />, color: 'red', emoji: '⚖️' },
-    gain: { label: 'Build Muscle', icon: <TrendingUp size={18} />, color: 'green', emoji: '💪' },
-  };
-
-  // Intensity adjustments (calories)
-  const intensityConfigs = {
-    conservative: { lose: -300, gain: 200, label: 'Conservative', desc: 'Slow & steady' },
-    moderate: { lose: -500, gain: 350, label: 'Moderate', desc: 'Balanced approach' },
-    aggressive: { lose: -750, gain: 500, label: 'Aggressive', desc: 'Faster results' },
-  };
-
-  // Calculate TDEE using Mifflin-St Jeor
-  const calculateTDEE = () => {
-    const w = parseFloat(formData.weight) || 70;
-    const h = parseFloat(formData.height) || 170;
-    const a = parseFloat(formData.age) || 25;
-    const activity = parseFloat(formData.activityLevel) || 1.55;
-
-    // Mifflin-St Jeor Equation
-    let bmr;
-    if (formData.gender === 'male') {
-      bmr = (10 * w) + (6.25 * h) - (5 * a) + 5;
-    } else {
-      bmr = (10 * w) + (6.25 * h) - (5 * a) - 161;
-    }
-
-    const tdee = Math.round(bmr * activity);
-    return tdee;
-  };
-
-  // Calculate target calories based on goal and intensity
-  const calculateTargetCalories = () => {
-    const tdee = calculateTDEE();
-    if (formData.goal === 'maintain') return tdee;
-
-    const adjustment = intensityConfigs[formData.intensity]?.[formData.goal] || 0;
-    return Math.max(1200, tdee + adjustment); // Never below 1200
-  };
-
-  // Calculate macros based on goal
-  const calculateMacros = () => {
-    const calories = calculateTargetCalories();
-    const weight = parseFloat(formData.weight) || 70;
-
-    let proteinMultiplier, fatPercent;
-    switch (formData.goal) {
-      case 'lose':
-        proteinMultiplier = 2.2; // Higher protein for muscle retention
-        fatPercent = 0.25;
-        break;
-      case 'gain':
-        proteinMultiplier = 2.0;
-        fatPercent = 0.25;
-        break;
-      default:
-        proteinMultiplier = 1.8;
-        fatPercent = 0.30;
-    }
-
-    const protein = Math.round(weight * proteinMultiplier);
-    const fat = Math.round((calories * fatPercent) / 9);
-    const carbCals = calories - (protein * 4) - (fat * 9);
-    const carbs = Math.round(carbCals / 4);
-
-    return { protein, carbs, fat };
-  };
-
-  const targetCalories = calculateTargetCalories();
-  const macros = calculateMacros();
-  const tdee = calculateTDEE();
-
-  const handleSave = async () => {
-    setSaving(true);
+// Profile Settings Modal — lightweight profile viewer (replaces old Goal Architect)
+const ProfileSettingsModal = ({ profile, userPhoto, user, uploadProfilePic, fileInputRef, uploadingPhoto, setUploadingPhoto, onClose }) => {
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !uploadProfilePic) return;
+    setUploadingPhoto(true);
     try {
-      await updateData('add', 'profile', {
-        weight: parseFloat(formData.weight) || null,
-        height: parseFloat(formData.height) || null,
-        age: parseInt(formData.age) || null,
-        gender: formData.gender,
-        activityLevel: formData.activityLevel,
-        goal: formData.goal,
-        intensity: formData.intensity,
-        bodyFat: parseFloat(formData.bodyFat) || null,
-        dailyCalories: targetCalories,
-        dailyProtein: macros.protein,
-        dailyCarbs: macros.carbs,
-        dailyFat: macros.fat,
-        tdee: tdee,
-      });
-      addToast("🎯 Goal Protocol Activated!", "success");
-      onClose();
-    } catch (e) {
-      addToast("Save failed", "error");
+      await uploadProfilePic(file);
+    } catch (err) {
+      console.error('Photo upload error:', err);
     }
-    setSaving(false);
+    setUploadingPhoto(false);
   };
 
-  const inputStyle = {
-    background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%)',
-    border: '1px solid rgba(255, 255, 255, 0.08)',
-  };
-
-  const isStep1Valid = formData.weight && formData.height && formData.age;
+  const dailyCalories = profile?.dailyCalories || 2000;
+  const dailyProtein = profile?.dailyProtein || 150;
+  const dailyCarbs = profile?.dailyCarbs || 200;
+  const dailyFat = profile?.dailyFat || 60;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex items-center justify-center p-3 animate-in fade-in">
+    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 animate-in fade-in">
       <div
-        className="w-full max-w-sm max-h-[90vh] overflow-y-auto rounded-3xl relative"
+        className="w-full max-w-sm rounded-3xl relative overflow-hidden"
         style={{
           background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%)',
-          backdropFilter: 'blur(40px)',
           border: '1px solid rgba(255, 255, 255, 0.1)',
-          boxShadow: '0 25px 80px rgba(0, 0, 0, 0.7), 0 0 100px rgba(220, 38, 38, 0.15)',
+          boxShadow: '0 25px 80px rgba(0, 0, 0, 0.7)',
         }}
       >
-        {/* Animated gradient border */}
-        <div
-          className="absolute inset-0 rounded-3xl pointer-events-none"
-          style={{
-            background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.2), rgba(153, 27, 27, 0.1), rgba(220, 38, 38, 0.2))',
-            backgroundSize: '200% 200%',
-            animation: 'gradient-shift 4s ease infinite',
-            opacity: 0.5,
-            zIndex: 0,
-          }}
-        />
-
-        <div className="relative z-10 p-5">
+        <div className="p-6">
           <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors z-20">
             <X size={20} />
           </button>
 
-          {/* Header */}
-          <div className="text-center mb-5">
-            <div
-              className="w-14 h-14 mx-auto rounded-2xl flex items-center justify-center mb-3 animate-pulse-glow"
-              style={{
-                background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.5) 0%, rgba(153, 27, 27, 0.4) 100%)',
-                border: '1px solid rgba(220, 38, 38, 0.5)',
-              }}
-            >
-              <Zap size={24} className="text-red-300" />
-            </div>
-            <h3 className="text-xl font-black italic text-white uppercase tracking-tight">Goal Architect</h3>
-            <p className="text-[11px] text-gray-400 mt-1">AI-Powered Calorie Calculator</p>
+          {/* Profile Photo */}
+          <div className="flex flex-col items-center mb-6">
+            <button onClick={() => fileInputRef.current?.click()} className="relative group mb-3">
+              <div
+                className="w-20 h-20 rounded-2xl overflow-hidden"
+                style={{
+                  border: '2px solid rgba(220, 38, 38, 0.6)',
+                  boxShadow: '0 8px 25px rgba(220, 38, 38, 0.3)',
+                }}
+              >
+                {uploadingPhoto ? (
+                  <div className="w-full h-full bg-gray-900 flex items-center justify-center">
+                    <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : userPhoto ? (
+                  <img src={userPhoto} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+                    <Camera size={24} className="text-gray-400" />
+                  </div>
+                )}
+              </div>
+              <div className="absolute -bottom-1 -right-1 p-1 rounded-full bg-red-600">
+                <Camera size={12} className="text-white" />
+              </div>
+            </button>
+            <input type="file" ref={fileInputRef} onChange={handlePhotoUpload} className="hidden" accept="image/*" />
+            <h3 className="text-lg font-black italic text-white uppercase">{user?.displayName || 'Athlete'}</h3>
+            <p className="text-[11px] text-gray-500">{user?.email}</p>
           </div>
 
-          {/* Step Indicator */}
-          <div className="flex justify-center gap-2 mb-5">
-            {[1, 2, 3].map(s => (
+          {/* Current Protocol Summary */}
+          <div
+            className="p-4 rounded-2xl text-center mb-4"
+            style={{
+              background: 'linear-gradient(145deg, rgba(220, 38, 38, 0.12) 0%, rgba(185, 28, 28, 0.06) 100%)',
+              border: '1px solid rgba(239, 68, 68, 0.2)',
+            }}
+          >
+            <p className="text-[11px] text-gray-400 uppercase mb-1">Daily Target</p>
+            <p className="text-3xl font-black italic text-white">{dailyCalories}</p>
+            <p className="text-[11px] text-red-400 font-bold uppercase">Calories</p>
+            <div className="flex justify-center gap-5 mt-3">
+              <div className="text-center">
+                <p className="text-sm font-black text-amber-400">{dailyProtein}g</p>
+                <p className="text-[10px] text-gray-500 uppercase">Protein</p>
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-black text-yellow-400">{dailyCarbs}g</p>
+                <p className="text-[10px] text-gray-500 uppercase">Carbs</p>
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-black text-pink-400">{dailyFat}g</p>
+                <p className="text-[10px] text-gray-500 uppercase">Fat</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Stats Grid */}
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            {[
+              { label: 'Goal', value: (profile?.goal || 'maintain').toUpperCase() },
+              { label: 'TDEE', value: `${profile?.tdee || '—'} kcal` },
+              { label: 'Weight', value: profile?.weight ? `${profile.weight} kg` : '—' },
+              { label: 'Height', value: profile?.height ? `${profile.height} cm` : '—' },
+            ].map(stat => (
               <div
-                key={s}
-                className={`w-2 h-2 rounded-full transition-all ${step >= s ? 'bg-red-600 scale-125' : 'bg-gray-700'}`}
-                style={step >= s ? { boxShadow: '0 0 10px rgba(220, 38, 38, 0.7)' } : {}}
-              />
+                key={stat.label}
+                className="p-3 rounded-xl text-center"
+                style={{
+                  background: 'linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                }}
+              >
+                <p className="text-[10px] text-gray-500 uppercase font-bold">{stat.label}</p>
+                <p className="text-sm font-bold text-white">{stat.value}</p>
+              </div>
             ))}
           </div>
 
-          {/* STEP 1: Body Stats */}
-          {step === 1 && (
-            <div className="space-y-4 animate-in slide-in-from-right-4">
-              <div className="text-center mb-4">
-                <span className="text-2xl">📊</span>
-                <h4 className="text-sm font-bold text-white mt-1">Body Stats</h4>
-              </div>
-
-              {/* Gender Selection */}
-              <div className="grid grid-cols-2 gap-3">
-                {['male', 'female'].map(g => (
-                  <button
-                    key={g}
-                    onClick={() => setFormData(prev => ({ ...prev, gender: g }))}
-                    className={`p-3 rounded-xl transition-all flex items-center justify-center gap-2 ${formData.gender === g ? 'scale-105' : 'opacity-60'}`}
-                    style={{
-                      background: formData.gender === g
-                        ? 'linear-gradient(145deg, rgba(220, 38, 38, 0.35) 0%, rgba(220, 38, 38, 0.15) 100%)'
-                        : 'linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)',
-                      border: formData.gender === g ? '1px solid rgba(220, 38, 38, 0.5)' : '1px solid rgba(255, 255, 255, 0.08)',
-                    }}
-                  >
-                    <span className="text-lg">{g === 'male' ? '👨' : '👩'}</span>
-                    <span className={`text-xs font-bold uppercase ${formData.gender === g ? 'text-white' : 'text-gray-500'}`}>
-                      {g}
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Weight, Height, Age, Body Fat */}
-              <div className="grid grid-cols-4 gap-2">
-                <div className="p-3 rounded-xl" style={inputStyle}>
-                  <label className="text-[11px] uppercase font-bold text-gray-500 block mb-1">Weight</label>
-                  <div className="flex items-baseline gap-1">
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      enterKeyHint="done"
-                      value={formData.weight}
-                      onChange={e => setFormData(prev => ({ ...prev, weight: e.target.value }))}
-                      placeholder="70"
-                      className="w-full bg-transparent text-lg font-black text-white outline-none placeholder:text-gray-700"
-                    />
-                    <span className="text-[11px] text-gray-500">kg</span>
-                  </div>
-                </div>
-                <div className="p-3 rounded-xl" style={inputStyle}>
-                  <label className="text-[11px] uppercase font-bold text-gray-500 block mb-1">Height</label>
-                  <div className="flex items-baseline gap-1">
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      enterKeyHint="done"
-                      value={formData.height}
-                      onChange={e => setFormData(prev => ({ ...prev, height: e.target.value }))}
-                      placeholder="175"
-                      className="w-full bg-transparent text-lg font-black text-white outline-none placeholder:text-gray-700"
-                    />
-                    <span className="text-[11px] text-gray-500">cm</span>
-                  </div>
-                </div>
-                <div className="p-3 rounded-xl" style={inputStyle}>
-                  <label className="text-[11px] uppercase font-bold text-gray-500 block mb-1">Age</label>
-                  <div className="flex items-baseline gap-1">
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      enterKeyHint="done"
-                      value={formData.age}
-                      onChange={e => setFormData(prev => ({ ...prev, age: e.target.value }))}
-                      placeholder="25"
-                      className="w-full bg-transparent text-lg font-black text-white outline-none placeholder:text-gray-700"
-                    />
-                    <span className="text-[11px] text-gray-500">yrs</span>
-                  </div>
-                </div>
-                <div className="p-3 rounded-xl" style={inputStyle}>
-                  <label className="text-[11px] uppercase font-bold text-gray-500 block mb-1">Body Fat</label>
-                  <div className="flex items-baseline gap-1">
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      enterKeyHint="done"
-                      value={formData.bodyFat}
-                      onChange={e => setFormData(prev => ({ ...prev, bodyFat: e.target.value }))}
-                      placeholder="15"
-                      className="w-full bg-transparent text-lg font-black text-white outline-none placeholder:text-gray-700"
-                    />
-                    <span className="text-[11px] text-gray-500">%</span>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setStep(2)}
-                disabled={!isStep1Valid}
-                className="w-full py-3 rounded-xl font-bold text-sm text-white transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-40 flex items-center justify-center gap-2"
-                style={{
-                  background: isStep1Valid
-                    ? 'linear-gradient(135deg, rgba(220, 38, 38, 0.8) 0%, rgba(185, 28, 28, 0.8) 100%)'
-                    : 'rgba(255,255,255,0.1)',
-                }}
-              >
-                Continue <ChevronRight size={16} />
-              </button>
-            </div>
-          )}
-
-          {/* STEP 2: Activity & Goal */}
-          {step === 2 && (
-            <div className="space-y-4 animate-in slide-in-from-right-4">
-              <div className="text-center mb-2">
-                <span className="text-2xl">🎯</span>
-                <h4 className="text-sm font-bold text-white mt-1">Activity & Goal</h4>
-              </div>
-
-              {/* Activity Level */}
-              <div>
-                <label className="text-[11px] uppercase font-bold text-gray-500 block mb-2">Activity Level</label>
-                <div className="space-y-2">
-                  {activityLevels.map(level => (
-                    <button
-                      key={level.value}
-                      onClick={() => setFormData(prev => ({ ...prev, activityLevel: level.value }))}
-                      className={`w-full p-3 rounded-xl transition-all flex items-center gap-3 ${formData.activityLevel === level.value ? 'scale-[1.02]' : 'opacity-60'}`}
-                      style={{
-                        background: formData.activityLevel === level.value
-                          ? 'linear-gradient(145deg, rgba(220, 38, 38, 0.25) 0%, rgba(220, 38, 38, 0.1) 100%)'
-                          : inputStyle.background,
-                        border: formData.activityLevel === level.value ? '1px solid rgba(239, 68, 68, 0.4)' : inputStyle.border,
-                      }}
-                    >
-                      <span className="text-lg">{level.icon}</span>
-                      <div className="text-left flex-1">
-                        <p className={`text-xs font-bold ${formData.activityLevel === level.value ? 'text-white' : 'text-gray-400'}`}>{level.label}</p>
-                        <p className="text-[11px] text-gray-500">{level.desc}</p>
-                      </div>
-                      {formData.activityLevel === level.value && <Check size={14} className="text-red-400" />}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Goal Selection */}
-              <div>
-                <label className="text-[11px] uppercase font-bold text-gray-500 block mb-2">Your Goal</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {Object.entries(goalConfigs).map(([key, config]) => (
-                    <button
-                      key={key}
-                      onClick={() => setFormData(prev => ({ ...prev, goal: key }))}
-                      className={`p-3 rounded-xl transition-all flex flex-col items-center gap-1 ${formData.goal === key ? 'scale-105' : 'opacity-60'}`}
-                      style={{
-                        background: formData.goal === key
-                          ? 'linear-gradient(145deg, rgba(220, 38, 38, 0.3) 0%, rgba(220, 38, 38, 0.1) 100%)'
-                          : inputStyle.background,
-                        border: formData.goal === key ? '1px solid rgba(239, 68, 68, 0.4)' : inputStyle.border,
-                      }}
-                    >
-                      <span className="text-lg">{config.emoji}</span>
-                      <span className={`text-[11px] font-bold uppercase ${formData.goal === key ? 'text-white' : 'text-gray-500'}`}>{config.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <button onClick={() => setStep(1)} className="px-4 py-3 rounded-xl text-gray-400 text-sm font-bold" style={inputStyle}>
-                  <ChevronLeft size={16} />
-                </button>
-                <button
-                  onClick={() => setStep(3)}
-                  className="flex-1 py-3 rounded-xl font-bold text-sm text-white transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
-                  style={{ background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.8) 0%, rgba(185, 28, 28, 0.8) 100%)' }}
-                >
-                  Continue <ChevronRight size={16} />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 3: Intensity & Results */}
-          {step === 3 && (
-            <div className="space-y-4 animate-in slide-in-from-right-4">
-              <div className="text-center mb-2">
-                <span className="text-2xl">⚡</span>
-                <h4 className="text-sm font-bold text-white mt-1">Your Protocol</h4>
-              </div>
-
-              {/* Intensity Slider */}
-              {formData.goal !== 'maintain' && (
-                <div>
-                  <label className="text-[11px] uppercase font-bold text-gray-500 block mb-2">Intensity</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {Object.entries(intensityConfigs).map(([key, config]) => (
-                      <button
-                        key={key}
-                        onClick={() => setFormData(prev => ({ ...prev, intensity: key }))}
-                        className={`p-3 rounded-xl transition-all flex flex-col items-center gap-1 ${formData.intensity === key ? 'scale-105' : 'opacity-60'}`}
-                        style={{
-                          background: formData.intensity === key
-                            ? 'linear-gradient(145deg, rgba(220, 38, 38, 0.3) 0%, rgba(220, 38, 38, 0.1) 100%)'
-                            : inputStyle.background,
-                          border: formData.intensity === key ? '1px solid rgba(239, 68, 68, 0.4)' : inputStyle.border,
-                        }}
-                      >
-                        <span className={`text-xs font-bold ${formData.intensity === key ? 'text-white' : 'text-gray-500'}`}>{config.label}</span>
-                        <span className="text-[11px] text-gray-500">{config.desc}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Results Display */}
-              <div
-                className="p-4 rounded-2xl text-center"
-                style={{
-                  background: 'linear-gradient(145deg, rgba(220, 38, 38, 0.15) 0%, rgba(185, 28, 28, 0.1) 100%)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                }}
-              >
-                <p className="text-[11px] text-gray-400 uppercase mb-1">Your Daily Target</p>
-                <p className="text-4xl font-black italic text-white mb-1">{targetCalories}</p>
-                <p className="text-xs text-red-400 font-bold">CALORIES</p>
-                <div className="flex justify-center gap-4 mt-3">
-                  <div className="text-center">
-                    <p className="text-lg font-black text-amber-400">{macros.protein}g</p>
-                    <p className="text-[11px] text-gray-500 uppercase">Protein</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-lg font-black text-yellow-400">{macros.carbs}g</p>
-                    <p className="text-[11px] text-gray-500 uppercase">Carbs</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-lg font-black text-pink-400">{macros.fat}g</p>
-                    <p className="text-[11px] text-gray-500 uppercase">Fat</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* TDEE Info */}
-              <div className="text-center text-[11px] text-gray-500">
-                Base TDEE: {tdee} kcal • {formData.goal === 'lose' ? 'Deficit' : formData.goal === 'gain' ? 'Surplus' : 'Maintenance'} Protocol
-              </div>
-
-              <div className="flex gap-2">
-                <button onClick={() => setStep(2)} className="px-4 py-3 rounded-xl text-gray-400 text-sm font-bold" style={inputStyle}>
-                  <ChevronLeft size={16} />
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="flex-1 py-4 rounded-xl font-bold text-sm text-white transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
-                  style={{
-                    background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.9) 0%, rgba(22, 163, 74, 0.9) 100%)',
-                    boxShadow: '0 10px 40px rgba(34, 197, 94, 0.4)',
-                  }}
-                >
-                  {saving ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Check size={18} />
-                      Activate Protocol
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          )}
+          <button
+            onClick={onClose}
+            className="w-full py-3 rounded-xl font-bold text-sm text-white transition-all hover:scale-[1.02] active:scale-95"
+            style={{
+              background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.8) 0%, rgba(185, 28, 28, 0.8) 100%)',
+            }}
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>

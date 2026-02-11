@@ -20,6 +20,7 @@ export const FormCoach = ({ exercise = 'squat', onComplete }) => {
     const [formScore, setFormScore] = useState(100);
     const [error, setError] = useState(null);
     const animationRef = useRef(null);
+    const isStreamingRef = useRef(false); // Ref to avoid stale closure in detectPose loop
 
     // Form rules for different exercises
     const formRules = {
@@ -94,9 +95,11 @@ export const FormCoach = ({ exercise = 'squat', onComplete }) => {
         };
     }, []);
 
-    // Start camera stream
+    // Start camera stream — handles Capacitor Android WebView permissions
     const startCamera = async () => {
         try {
+            // On Capacitor Android, the WebView's onPermissionRequest in MainActivity
+            // handles camera permission grants. getUserMedia triggers the native dialog.
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: 'user', width: 640, height: 480 },
                 audio: false,
@@ -106,17 +109,20 @@ export const FormCoach = ({ exercise = 'squat', onComplete }) => {
                 videoRef.current.srcObject = stream;
                 videoRef.current.onloadedmetadata = () => {
                     videoRef.current.play();
+                    isStreamingRef.current = true;
                     setIsStreaming(true);
                     detectPose();
                 };
             }
         } catch (err) {
-            setError('Camera access denied. Please allow camera permissions.');
+            console.error('Camera error:', err);
+            setError('Camera access denied. Please allow camera permissions in your device settings.');
         }
     };
 
     // Stop camera stream
     const stopCamera = () => {
+        isStreamingRef.current = false;
         if (videoRef.current?.srcObject) {
             videoRef.current.srcObject.getTracks().forEach(track => track.stop());
         }
@@ -126,7 +132,7 @@ export const FormCoach = ({ exercise = 'squat', onComplete }) => {
         }
     };
 
-    // Main pose detection loop
+    // Main pose detection loop — uses ref to avoid stale closure
     const detectPose = async () => {
         if (!detector || !videoRef.current || !canvasRef.current) return;
 
@@ -135,23 +141,18 @@ export const FormCoach = ({ exercise = 'squat', onComplete }) => {
         const ctx = canvas.getContext('2d');
 
         const detect = async () => {
-            if (!isStreaming) return;
+            if (!isStreamingRef.current) return;
 
             try {
-                const poses = await detector.estimatePoses(video);
-
-                // Clear canvas
+                // Clear canvas — video element is visible underneath
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                // Draw video frame to canvas if detector is running
-                if (video.readyState === 4) {
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                }
+                const poses = await detector.estimatePoses(video);
 
                 if (poses.length > 0) {
                     const pose = poses[0];
 
-                    // Draw skeleton
+                    // Draw skeleton overlay on top of video frame
                     drawSkeleton(ctx, pose);
 
                     // Check form
@@ -310,12 +311,13 @@ export const FormCoach = ({ exercise = 'squat', onComplete }) => {
                     </div>
                 ) : (
                     <>
-                        {/* Video Element - Always render but hide if canvas is successfully drawing */}
+                        {/* Video Element - Keep visible as base layer; canvas draws over it with skeleton */}
                         <video
                             ref={videoRef}
-                            className={`absolute inset-0 w-full h-full object-cover ${isStreaming && detector ? 'opacity-0' : 'opacity-100'}`}
+                            className="absolute inset-0 w-full h-full object-cover"
                             playsInline
                             muted
+                            autoPlay
                         />
                         {/* Canvas - Overlays on top of video */}
                         <canvas

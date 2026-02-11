@@ -149,31 +149,46 @@ html {
   scrollbar-width: none;
 }
 
-/* Premium Red-Accent Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* Premium Red-Accent Scrollbar — Desktop only, hidden on mobile */
+@media (min-width: 769px) {
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #dc2626 0%, #991b1b 100%);
+    border-radius: 3px;
+    box-shadow: 0 0 10px rgba(220, 38, 38, 0.3);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+  }
+
+  /* Firefox scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #dc2626 rgba(0, 0, 0, 0.3);
+  }
 }
 
-::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 3px;
-}
+/* Mobile: force hide all scrollbars to prevent red line on overscroll */
+@media (max-width: 768px) {
+  ::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
 
-::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #dc2626 0%, #991b1b 100%);
-  border-radius: 3px;
-  box-shadow: 0 0 10px rgba(220, 38, 38, 0.3);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
-}
-
-/* Firefox scrollbar */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: #dc2626 rgba(0, 0, 0, 0.3);
+  * {
+    scrollbar-width: none !important;
+  }
 }
 
 /* =============================================

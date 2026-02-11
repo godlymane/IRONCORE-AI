@@ -36,6 +36,7 @@ export function useFitnessData() {
     const [storage, setStorage] = useState(null);
     const [isStorageReady, setIsStorageReady] = useState(false);
     const [profileLoaded, setProfileLoaded] = useState(false); // Track if profile has been fetched from Firestore
+    const [profileExists, setProfileExists] = useState(false); // Track if Firestore doc actually has data
 
     const [data, setData] = useState({
         meals: [], progress: [], burned: [], workouts: [], photos: [],
@@ -270,10 +271,13 @@ export function useFitnessData() {
 
             listeners.push(onSnapshot(actualRef, (snap) => {
                 if (isDoc) {
-                    setData(prev => ({ ...prev, [key]: snap.exists() ? snap.data() : {} }));
+                    const docData = snap.exists() ? snap.data() : {};
+                    setData(prev => ({ ...prev, [key]: docData }));
                     // Mark profile as loaded once Firestore responds
                     if (key === 'profile') {
                         setProfileLoaded(true);
+                        // Track whether the doc exists AND has meaningful data (not just {})
+                        setProfileExists(snap.exists() && Object.keys(docData).length > 0);
                     }
                 }
                 else {
@@ -362,7 +366,7 @@ export function useFitnessData() {
     };
 
     return {
-        user, loading, login, logout, profileLoaded, dataLoaded,
+        user, loading, login, logout, profileLoaded, profileExists, dataLoaded,
         uploadProfilePic, uploadProgressPhoto,
         sendMessage, toggleFollow, sendPrivateMessage, createPost,
         buyItem, completeDailyDrop, broadcastEvent, createBattle, isStorageReady,

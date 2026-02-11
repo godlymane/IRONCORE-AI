@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, Gauge, Mountain, Flame, Check, Settings } from 'lucide-react';
+import { Lock, Gauge, Mountain, Flame, Check, Settings, Footprints } from 'lucide-react';
 import { PulseHeartIcon, TreadmillIcon, WalkingIcon, CyclingIcon } from '../components/IronCoreIcons';
 import { PremiumIcon } from '../components/PremiumIcon';
 import { GlassCard } from '../components/UIComponents';

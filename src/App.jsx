@@ -45,7 +45,7 @@ const MainContent = () => {
   const { addToast } = useToast();
 
   const {
-    user, loading, login, logout, profileLoaded, dataLoaded,
+    user, loading, login, logout, profileLoaded, profileExists, dataLoaded,
     uploadProfilePic, uploadProgressPhoto,
     meals, progress, burned, workouts, profile, photos,
     leaderboard, chat, following, posts, inbox, globalFeed,
@@ -140,12 +140,15 @@ const MainContent = () => {
   useEffect(() => {
     // Only run this check once per session — never re-show onboarding after dismissal
     if (onboardingChecked.current) return;
-    if (user && profileLoaded && !loading) {
-      onboardingChecked.current = true;
-      const needsOnboarding = !profile.onboarded;
-      setShowOnboarding(needsOnboarding);
-    }
-  }, [user, profile, loading, profileLoaded]);
+    // Wait until Firestore has ACTUALLY responded with profile data
+    if (!user || !profileLoaded || loading) return;
+
+    onboardingChecked.current = true;
+    // If profile exists in Firestore AND has onboarded flag, skip onboarding
+    // Only show onboarding if profile doesn't exist or onboarded is explicitly not true
+    const needsOnboarding = !profileExists || !profile.onboarded;
+    setShowOnboarding(needsOnboarding);
+  }, [user, profile, loading, profileLoaded, profileExists]);
 
   const handleOnboardingComplete = (data) => {
     // Dismiss onboarding IMMEDIATELY — don't block on Firestore write
@@ -178,6 +181,9 @@ const MainContent = () => {
   if (loading) return <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4"><div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin" /><p className="text-xs text-gray-500 font-black uppercase tracking-widest animate-pulse">Syncing Cloud Data...</p></div>;
   if (!user) return <LoginView onLogin={login} />;
 
+  // Wait for Firestore profile to load before deciding onboarding — prevents flash
+  if (!profileLoaded) return <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4"><div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin" /><p className="text-xs text-gray-500 font-black uppercase tracking-widest animate-pulse">Loading Profile...</p></div>;
+
   if (showOnboarding) return <OnboardingView user={user} onComplete={handleOnboardingComplete} />;
 
   const latestWeight = progress.find(p => p.weight)?.weight;
@@ -194,7 +200,7 @@ const MainContent = () => {
         {/* Premium Paywall Overlay */}
         <PremiumPaywall />
 
-        <div className="max-w-md mx-auto min-h-screen relative shadow-2xl border-x border-gray-900/50 overflow-hidden" style={{ backgroundColor: 'var(--color-background)' }}>
+        <div className="max-w-md mx-auto min-h-screen relative shadow-2xl overflow-hidden md:border-x md:border-gray-900/50" style={{ backgroundColor: 'var(--color-background)' }}>
 
           {/* THEME TOGGLE REMOVED */}
           {/* <div className="fixed top-4 right-4 z-50 md:absolute md:right-6">
