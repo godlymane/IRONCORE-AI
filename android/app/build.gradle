@@ -40,19 +40,7 @@ dependencies {
     implementation project(':capacitor-cordova-android-plugins')
 }
 
-// --- CRITICAL FIX: FORCE STABLE VERSIONS ---
-// This block prevents Gradle from auto-upgrading to broken alpha/beta versions
-configurations.all {
-    resolutionStrategy {
-        // Force 'activity' back to 1.9.0 (Stable) instead of 1.11.0 (Requires API 36)
-        force 'androidx.activity:activity:1.9.0'
-        
-        // Force 'core-ktx' back to 1.13.0 (Stable) instead of 1.17.0 (Requires API 36)
-        force 'androidx.core:core-ktx:1.13.0'
-        force 'androidx.core:core:1.13.0'
-    }
-}
-// ------------------------------------------
+// Resolution strategy removed - using compileSdk 35 which supports latest deps
 
 apply from: 'capacitor.build.gradle'
 
