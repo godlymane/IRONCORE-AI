@@ -3,11 +3,10 @@ import { initializeApp } from 'firebase/app';
 import {
     getAuth,
     signInWithPopup,
-    signInWithRedirect,
-    getRedirectResult,
     GoogleAuthProvider,
     signOut,
-    onAuthStateChanged
+    onAuthStateChanged,
+    signInWithCredential
 } from 'firebase/auth';
 import {
     getFirestore, doc, setDoc, collection, addDoc,
@@ -19,6 +18,7 @@ import {
     uploadBytes,
     getDownloadURL
 } from 'firebase/storage';
+import { Capacitor } from '@capacitor/core';
 
 const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -74,19 +74,13 @@ export function useFitnessData() {
             setDb(firestore);
             setStorage(storageInstance);
 
-            // Handle redirect result (for when popup fails and we use redirect)
-            getRedirectResult(authInstance).then((result) => {
-                if (result?.user) {
-                    console.log('Redirect login successful');
-                }
-            }).catch((error) => {
-                console.error('Redirect result error:', error);
-            });
-
+            // Auth state listener — sole source of truth for login state
             const unsubscribe = onAuthStateChanged(authInstance, (u) => {
+                console.log('Auth state changed:', u ? u.email : 'null');
                 setUser(u);
                 setLoading(false);
             });
+
             return () => unsubscribe();
         } catch (err) {
             setError(err.message);
@@ -99,20 +93,50 @@ export function useFitnessData() {
             alert('Auth not initialized');
             return;
         }
-        const provider = new GoogleAuthProvider();
+
         try {
             console.log('Attempting Google login...');
-            await signInWithPopup(auth, provider);
-            console.log('Login successful!');
+            const isNative = Capacitor.isNativePlatform();
+
+            if (isNative) {
+                // Native: use Capacitor Firebase Authentication plugin
+                // This opens Google's native sign-in UI (not a WebView redirect)
+                console.log('Native platform — using native Google Sign-In...');
+                const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
+                const result = await FirebaseAuthentication.signInWithGoogle();
+                // Use the credential to sign in with Firebase JS SDK
+                const credential = GoogleAuthProvider.credential(result.credential?.idToken);
+                await signInWithCredential(auth, credential);
+                console.log('Native Google Sign-In successful');
+            } else {
+                // Web: use popup (works in normal browsers)
+                console.log('Web platform, using popup...');
+                const provider = new GoogleAuthProvider();
+                await signInWithPopup(auth, provider);
+            }
         } catch (e) {
             console.error('Login error:', e);
-            alert('Login Error: ' + e.code + ' - ' + e.message);
+            if (e.code === 'auth/popup-closed-by-user' || e.message?.includes('canceled')) {
+                console.log('Login cancelled by user');
+            } else {
+                alert('Login Error: ' + (e.message || e.code));
+            }
         }
     };
 
     const logout = async () => {
         if (!auth) return;
-        try { await signOut(auth); setData(prev => ({ ...prev, meals: [] })); } catch (e) { console.error(e); }
+        try {
+            // Sign out from native Google if on Capacitor
+            if (Capacitor.isNativePlatform()) {
+                try {
+                    const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
+                    await FirebaseAuthentication.signOut();
+                } catch (e) { /* native signout failed, continue with web signout */ }
+            }
+            await signOut(auth);
+            setData(prev => ({ ...prev, meals: [] }));
+        } catch (e) { console.error(e); }
     };
 
     const uploadProfilePic = async (file) => {

@@ -135,16 +135,15 @@ const MainContent = () => {
     return () => clearTimeout(timer);
   }, [user, loading]);
 
-  // CHECK FOR ONBOARDING STATUS - Only after profile is loaded from Firestore
+  // CHECK FOR ONBOARDING STATUS - Only ONCE after profile first loads from Firestore
+  const onboardingChecked = useRef(false);
   useEffect(() => {
+    // Only run this check once per session — never re-show onboarding after dismissal
+    if (onboardingChecked.current) return;
     if (user && profileLoaded && !loading) {
-      // If profile is empty OR 'onboarded' is NOT true, show wizard
-      const needsOnboarding = Object.keys(profile).length === 0 || !profile.onboarded;
-      if (needsOnboarding) {
-        setShowOnboarding(true);
-      } else {
-        setShowOnboarding(false);
-      }
+      onboardingChecked.current = true;
+      const needsOnboarding = !profile.onboarded;
+      setShowOnboarding(needsOnboarding);
     }
   }, [user, profile, loading, profileLoaded]);
 
@@ -185,8 +184,8 @@ const MainContent = () => {
   return (
     <PremiumProvider user={user}>
       <div className="min-h-screen text-gray-100 font-sans selection:bg-red-500/30 pb- safe-area-inset-bottom" style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)' }}>
-        {/* Background Particles */}
-        <ParticleBackground count={20} />
+        {/* Background Particles — disabled on mobile for performance */}
+        {window.innerWidth > 768 && <ParticleBackground count={20} />}
 
         {/* Offline Indicator */}
         <OfflineIndicator />

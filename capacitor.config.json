@@ -5,7 +5,16 @@
   "backgroundColor": "#000000",
   "server": {
     "androidScheme": "https",
-    "iosScheme": "https"
+    "iosScheme": "https",
+    "hostname": "ironcore-f68c2.firebaseapp.com",
+    "allowNavigation": [
+      "ironcore-f68c2.firebaseapp.com",
+      "*.google.com",
+      "*.googleapis.com",
+      "*.googleusercontent.com",
+      "*.gstatic.com",
+      "accounts.google.com"
+    ]
   },
   "plugins": {
     "StatusBar": {
@@ -31,6 +40,10 @@
     "Haptics": {},
     "CapacitorHttp": {
       "enabled": true
+    },
+    "FirebaseAuthentication": {
+      "skipNativeAuth": false,
+      "providers": ["google.com"]
     }
   },
   "ios": {

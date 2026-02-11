@@ -917,3 +917,98 @@ html {
     font-size: 11px !important;
   }
 }
+
+/* =============================================
+   MOBILE PERFORMANCE OVERRIDES
+   Strips GPU-heavy effects on phones to eliminate lag.
+   backdrop-blur + box-shadow layers + infinite animations
+   are the #1 cause of jank in mobile WebViews.
+   ============================================= */
+@media (max-width: 768px) {
+  /* Kill ALL backdrop-blur — the single biggest perf killer */
+  .glass,
+  .liquid-glass,
+  .glass-nav,
+  .glass-nav-pill,
+  .card-glass,
+  .btn-glass {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  /* Replace blur with solid dark backgrounds that look clean */
+  .glass {
+    background: rgba(15, 15, 15, 0.92) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+  }
+
+  .liquid-glass {
+    background: rgba(18, 18, 18, 0.95) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
+  }
+
+  .liquid-glass::before {
+    display: none !important; /* Kill shimmer animation */
+  }
+
+  .glass-nav,
+  .glass-nav-pill {
+    background: rgba(10, 10, 10, 0.97) !important;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.5) !important;
+  }
+
+  .glass-nav-pill::after {
+    display: none !important; /* Kill nav shine overlay */
+  }
+
+  .card-glass {
+    background: rgba(15, 15, 15, 0.92) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+  }
+
+  .btn-glass {
+    background: rgba(30, 30, 30, 0.9) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  }
+
+  /* Kill glow effects — they cause paint on every frame */
+  .glow-red, .glow-crimson, .glow-gold, .glow-green, .glow-orange {
+    box-shadow: none !important;
+  }
+
+  .nav-active-indicator {
+    box-shadow: 0 0 8px rgba(220, 38, 38, 0.4) !important;
+  }
+
+  /* Kill infinite animations — these never stop eating CPU */
+  .animate-float,
+  .animate-bounce-gentle,
+  .animate-heartbeat,
+  .animate-fire,
+  .animate-pulse-glow {
+    animation: none !important;
+  }
+
+  /* Kill gradient-shift (200% background-size causes layout thrash) */
+  .animate-gradient {
+    animation: none !important;
+    background-size: 100% 100% !important;
+  }
+
+  /* Simplify hover effects — no translateY on mobile */
+  .hover-lift:hover,
+  .card-glass:hover {
+    transform: none !important;
+  }
+
+  /* Inline backdrop-blur via Tailwind classes */
+  .backdrop-blur-xl,
+  .backdrop-blur-lg,
+  .backdrop-blur-md,
+  .backdrop-blur-sm,
+  .backdrop-blur {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    background: rgba(15, 15, 15, 0.92) !important;
+  }
+}

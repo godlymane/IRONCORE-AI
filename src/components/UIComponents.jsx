@@ -311,11 +311,18 @@ export const Card = ({ children, className = "", onClick }) => (
 // --- CONSOLIDATED GLASS CARD ---
 // Single source of truth for all glass card styling across the app
 export const GlassCard = ({ children, className = "", onClick, highlight = false, animated = false }) => {
+  // Detect mobile to skip GPU-heavy blur effects (inline styles bypass CSS media queries)
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+
   const content = (
     <div
       onClick={onClick}
-      className={`relative overflow-hidden rounded-3xl p-5 transition-all duration-500 ${onClick ? 'cursor-pointer hover:scale-[1.01]' : ''} ${className}`}
-      style={{
+      className={`relative overflow-hidden rounded-3xl p-5 transition-all duration-300 ${onClick ? 'cursor-pointer' : ''} ${className}`}
+      style={isMobile ? {
+        background: highlight ? 'rgba(40, 10, 10, 0.95)' : 'rgba(18, 18, 18, 0.95)',
+        border: highlight ? '1px solid rgba(220, 38, 38, 0.3)' : '1px solid rgba(220, 38, 38, 0.1)',
+        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5)',
+      } : {
         background: highlight
           ? 'linear-gradient(145deg, rgba(220, 38, 38, 0.15) 0%, rgba(153, 27, 27, 0.08) 50%, rgba(220, 38, 38, 0.12) 100%)'
           : 'linear-gradient(145deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 50%, rgba(255, 255, 255, 0.02) 100%)',
@@ -327,11 +334,13 @@ export const GlassCard = ({ children, className = "", onClick, highlight = false
           : '0 10px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06)',
       }}
     >
-      {/* Subtle top shine */}
-      <div
-        className="absolute top-0 left-0 right-0 h-[40%] rounded-t-3xl pointer-events-none"
-        style={{ background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%)' }}
-      />
+      {/* Subtle top shine — skip on mobile to save GPU */}
+      {!isMobile && (
+        <div
+          className="absolute top-0 left-0 right-0 h-[40%] rounded-t-3xl pointer-events-none"
+          style={{ background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%)' }}
+        />
+      )}
       <div className="relative z-10">{children}</div>
     </div>
   );
