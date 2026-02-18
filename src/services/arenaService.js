@@ -59,7 +59,7 @@ export const updateUserStats = async (userId, userData) => {
         // Also update leaderboard entry
         await updateLeaderboardEntry(userId, userData);
 
-        console.log('✅ User stats updated');
+        // User stats updated
     } catch (error) {
         console.error('Error updating user stats:', error);
         throw error;
@@ -139,7 +139,7 @@ export const checkDailyStreak = async (userId) => {
                 // Use freeze
                 updates.streakFreezeCount = increment(-1);
                 // Keep streak as is (don't increment, don't reset)
-                console.log('❄️ Streak Freeze used!');
+                // Streak freeze used
             } else {
                 // Reset streak
                 updates.currentStreak = 1; // Reset to 1 (today counts)
@@ -332,7 +332,7 @@ export const updateBossProgress = async (userId, username, damage) => {
             });
         }
 
-        console.log(`✅ Dealt ${damage} damage to boss`);
+        // Boss damage dealt
         return { newHP, defeated: newHP === 0 };
     } catch (error) {
         console.error('Error updating boss progress:', error);
@@ -357,7 +357,7 @@ export const createCommunityBoss = async (bossData) => {
             startedAt: serverTimestamp(),
             defeatedAt: null
         });
-        console.log('✅ Community boss created');
+        // Community boss created
     } catch (error) {
         console.error('Error creating community boss:', error);
         throw error;
@@ -395,7 +395,7 @@ export const createBattle = async (challenger, opponent, battleType = 'ranked') 
             completedAt: null
         });
 
-        console.log('✅ Battle created:', battleRef.id);
+        // Battle created
         return battleRef.id;
     } catch (error) {
         console.error('Error creating battle:', error);
@@ -414,7 +414,7 @@ export const acceptBattle = async (battleId) => {
             status: 'active',
             acceptedAt: serverTimestamp()
         });
-        console.log('✅ Battle accepted');
+        // Battle accepted
     } catch (error) {
         console.error('Error accepting battle:', error);
         throw error;
@@ -432,7 +432,7 @@ export const declineBattle = async (battleId) => {
             status: 'declined',
             declinedAt: serverTimestamp()
         });
-        console.log('✅ Battle declined');
+        // Battle declined
     } catch (error) {
         console.error('Error declining battle:', error);
         throw error;
@@ -481,7 +481,7 @@ export const completeBattle = async (battleId, winnerId, xpReward = 100) => {
             currentStreak: 0
         });
 
-        console.log('✅ Battle completed');
+        // Battle completed
         return { winnerId, loserId, xpReward };
     } catch (error) {
         console.error('Error completing battle:', error);
@@ -587,7 +587,7 @@ export const sendChatMessage = async (userId, username, message) => {
             message,
             timestamp: serverTimestamp()
         });
-        console.log('✅ Message sent');
+        // Message sent
     } catch (error) {
         console.error('Error sending message:', error);
         throw error;
@@ -668,7 +668,7 @@ export const awardXP = async (userId, amount, reason = 'activity') => {
         // Update leaderboard
         await updateLeaderboardEntry(userId, { ...userData, xp: newXP, level: newLevel });
 
-        console.log(`✅ Awarded ${amount} XP to user`);
+        // XP awarded
         return { newXP, newLevel, leveledUp: newLevel > userData.level };
     } catch (error) {
         console.error('Error awarding XP:', error);

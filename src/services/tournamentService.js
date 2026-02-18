@@ -10,6 +10,7 @@ import {
     where,
     orderBy,
     limit,
+    startAfter,
     serverTimestamp,
     increment,
     onSnapshot
@@ -82,23 +83,35 @@ export const joinTournament = async (tournamentId, user) => {
 };
 
 /**
- * Get tournament leaderboard
- * @param {string} tournamentId 
- * @param {number} limitCount 
+ * Get tournament leaderboard with pagination
+ * @param {string} tournamentId
+ * @param {number} pageSize
+ * @param {object|null} lastDoc - Last document snapshot for cursor pagination
+ * @returns {{ participants: Array, lastDoc: object|null, hasMore: boolean }}
  */
-export const getTournamentLeaderboard = async (tournamentId, limitCount = 50) => {
+export const getTournamentLeaderboard = async (tournamentId, pageSize = 50, lastDoc = null) => {
     try {
-        const q = query(
+        const constraints = [
             collection(db, `tournaments/${tournamentId}/participants`),
             orderBy('score', 'desc'),
-            limit(limitCount)
-        );
+            limit(pageSize)
+        ];
+        if (lastDoc) constraints.push(startAfter(lastDoc));
+        const q = query(...constraints);
         const snapshot = await getDocs(q);
-        return snapshot.docs.map((doc, index) => ({
-            id: doc.id,
-            rank: index + 1,
-            ...doc.data()
+        const startRank = lastDoc ? (lastDoc._rankOffset || 0) : 0;
+        const participants = snapshot.docs.map((d, index) => ({
+            id: d.id,
+            rank: startRank + index + 1,
+            ...d.data()
         }));
+        const lastSnap = snapshot.docs[snapshot.docs.length - 1] || null;
+        if (lastSnap) lastSnap._rankOffset = startRank + snapshot.docs.length;
+        return {
+            participants,
+            lastDoc: lastSnap,
+            hasMore: snapshot.docs.length === pageSize
+        };
     } catch (error) {
         console.error('Error getting tournament leaderboard:', error);
         throw error;
@@ -122,7 +135,7 @@ export const subscribeToTournamentLeaderboard = (tournamentId, callback) => {
             rank: index + 1,
             ...doc.data()
         })));
-    });
+    }, (err) => console.error('Tournament leaderboard listener error:', err.code || err.message));
 };
 
 /**

@@ -1,14 +1,71 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // This rule matches any document inside the 'users' folder
+
+    // ── Private user data ──
+    // Only the owning user can read/write their own data
     match /users/{userId}/{document=**} {
-      // It allows reading/writing ONLY if the person asking is logged in
-      // AND their User ID matches the folder name.
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-    
-    // Allow reading/writing to 'artifacts' for the demo app structure
+
+    // ── Global social collections ──
+    match /global/data/leaderboard/{entryId} {
+      // Anyone authenticated can read leaderboard
+      allow read: if request.auth != null;
+      // Users can only write their own leaderboard entry
+      allow write: if request.auth != null && request.auth.uid == entryId;
+    }
+
+    match /global/data/chat/{messageId} {
+      allow read: if request.auth != null;
+      // Users can create messages attributed to themselves
+      allow create: if request.auth != null
+                    && request.resource.data.userId == request.auth.uid;
+      // Only author can update/delete
+      allow update, delete: if request.auth != null
+                            && resource.data.userId == request.auth.uid;
+    }
+
+    match /global/data/posts/{postId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null
+                            && resource.data.userId == request.auth.uid;
+    }
+
+    match /global/data/feed/{feedId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false; // Feed entries are immutable
+    }
+
+    match /global/data/battles/{battleId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.challengerId == request.auth.uid;
+      // Only participants can update their battle
+      allow update: if request.auth != null
+                    && (resource.data.challengerId == request.auth.uid
+                        || resource.data.opponentId == request.auth.uid);
+      allow delete: if false;
+    }
+
+    // ── Guilds ──
+    match /guilds/{guildId}/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // ── Subscriptions (read-only from client, writes should go through server) ──
+    match /subscriptions/{subId} {
+      allow read: if request.auth != null;
+      // Block client-side writes — Cloud Function should handle this
+      allow write: if false;
+    }
+
+    // ── Legacy artifacts structure ──
     match /artifacts/{appId}/users/{userId}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }

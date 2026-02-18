@@ -80,7 +80,7 @@ export const WorkoutView = ({ workouts, updateData, deleteEntry }) => {
             id: Date.now(),
             name: defaultEx,
             isCustom: false,
-            sets: [{ w: '', r: '', completed: false }],
+            sets: [{ w: '', r: '', rpe: '', completed: false }],
             pr: getPR(defaultEx)
         }]);
     };
@@ -122,13 +122,35 @@ export const WorkoutView = ({ workouts, updateData, deleteEntry }) => {
     const addSet = (exId) => {
         setSessionExercises(prev => prev.map(ex => {
             if (ex.id !== exId) return ex;
-            return { ...ex, sets: [...ex.sets, { w: '', r: '', completed: false }] };
+            return { ...ex, sets: [...ex.sets, { w: '', r: '', rpe: '', completed: false }] };
         }));
     };
 
     const finishSession = async () => {
         if (sessionExercises.length === 0) { setIsSessionActive(false); return; }
+
+        // Auto-compute and save 1RM estimates for each exercise
+        const oneRMUpdates = {};
+        sessionExercises.forEach(ex => {
+            let best1RM = 0;
+            ex.sets.forEach(s => {
+                const weight = parseFloat(s.w);
+                const reps = parseFloat(s.r);
+                if (weight > 0 && reps > 0 && reps <= 30) {
+                    const estimated = Math.round(weight * (1 + reps / 30));
+                    if (estimated > best1RM) best1RM = estimated;
+                }
+            });
+            if (best1RM > 0) oneRMUpdates[ex.name] = best1RM;
+        });
+
         await updateData('add', 'workouts', { name: sessionName, exercises: sessionExercises, duration: elapsed });
+
+        // Save 1RM records to profile (merge — only updates if new record is higher)
+        if (Object.keys(oneRMUpdates).length > 0) {
+            await updateData('add', 'profile', { oneRMRecords: oneRMUpdates });
+        }
+
         setIsSessionActive(false);
         SFX.levelUp();
     };
@@ -273,6 +295,7 @@ export const WorkoutView = ({ workouts, updateData, deleteEntry }) => {
                                 <span className="w-8 text-center">#</span>
                                 <span className="flex-1 text-center">Kg</span>
                                 <span className="flex-1 text-center">Reps</span>
+                                <span className="w-12 text-center">RPE</span>
                                 <span className="w-12 text-center">Done</span>
                             </div>
 
@@ -312,6 +335,22 @@ export const WorkoutView = ({ workouts, updateData, deleteEntry }) => {
                                                     style={{
                                                         background: 'linear-gradient(145deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.2) 100%)',
                                                         border: '1px solid rgba(255,255,255,0.08)',
+                                                    }}
+                                                />
+
+                                                <input
+                                                    type="number"
+                                                    inputMode="numeric"
+                                                    enterKeyHint="done"
+                                                    placeholder="RPE"
+                                                    value={set.rpe || ''}
+                                                    min="1"
+                                                    max="10"
+                                                    onChange={e => updateSet(ex.id, sIdx, 'rpe', Math.min(10, Math.max(1, parseInt(e.target.value) || '')))}
+                                                    className="w-12 p-3 rounded-xl text-white text-center outline-none text-sm placeholder:text-gray-600"
+                                                    style={{
+                                                        background: 'linear-gradient(145deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.2) 100%)',
+                                                        border: set.rpe >= 9 ? '1px solid rgba(220,38,38,0.5)' : '1px solid rgba(255,255,255,0.08)',
                                                     }}
                                                 />
 

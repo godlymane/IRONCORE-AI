@@ -2,182 +2,332 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 
 /**
  * Voice Commands Hook for IronCore AI
- * Uses Web Speech API for hands-free workout logging
+ * "Hey IronCore" wake word activation + voice coach responses
+ *
+ * Flow: Background listening → Wake word detected → Active listening →
+ *       Process command → AI responds → Speak response → Back to background
  */
-export function useVoiceCommands({ onCommand, onLog }) {
-    const [isListening, setIsListening] = useState(false);
+
+const WAKE_WORDS = ['hey ironcore', 'hey iron core', 'ok ironcore', 'ok iron core', 'iron core'];
+
+// Voice states
+const VOICE_STATE = {
+    IDLE: 'idle',           // Not started
+    LISTENING: 'listening', // Background wake word detection
+    ACTIVE: 'active',       // Actively capturing user command after wake word
+    PROCESSING: 'processing', // Sending to AI
+    SPEAKING: 'speaking',   // Coach is speaking response
+};
+
+export function useVoiceCommands({ onCommand, onQuery, enabled = false }) {
+    const [voiceState, setVoiceState] = useState(VOICE_STATE.IDLE);
     const [transcript, setTranscript] = useState('');
     const [isSupported, setIsSupported] = useState(false);
-    const recognitionRef = useRef(null);
+    const [lastResponse, setLastResponse] = useState('');
 
-    // Check browser support
+    const recognitionRef = useRef(null);
+    const voiceStateRef = useRef(VOICE_STATE.IDLE);
+    const silenceTimerRef = useRef(null);
+    const restartTimerRef = useRef(null);
+    const enabledRef = useRef(enabled);
+
+    // Keep refs in sync
+    useEffect(() => {
+        enabledRef.current = enabled;
+    }, [enabled]);
+
+    useEffect(() => {
+        voiceStateRef.current = voiceState;
+    }, [voiceState]);
+
+    // Text-to-speech — coach speaks back
+    const speak = useCallback((text, onDone) => {
+        if (!text || !('speechSynthesis' in window)) {
+            onDone?.();
+            return;
+        }
+
+        // Cancel any pending speech
+        window.speechSynthesis.cancel();
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1.05;
+        utterance.pitch = 0.95;
+        utterance.volume = 1;
+
+        // Try to find a good voice
+        const voices = window.speechSynthesis.getVoices();
+        const preferred = voices.find(v => v.name.includes('Google') && v.lang.startsWith('en')) ||
+            voices.find(v => v.lang.startsWith('en-US') && !v.name.includes('Female')) ||
+            voices.find(v => v.lang.startsWith('en'));
+        if (preferred) utterance.voice = preferred;
+
+        utterance.onend = () => {
+            onDone?.();
+        };
+        utterance.onerror = () => {
+            onDone?.();
+        };
+
+        setVoiceState(VOICE_STATE.SPEAKING);
+        window.speechSynthesis.speak(utterance);
+    }, []);
+
+    // Initialize speech recognition
     useEffect(() => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         setIsSupported(!!SpeechRecognition);
 
-        if (SpeechRecognition) {
-            const recognition = new SpeechRecognition();
-            recognition.continuous = true;
-            recognition.interimResults = true;
-            recognition.lang = 'en-US';
+        if (!SpeechRecognition) return;
 
-            recognition.onresult = (event) => {
-                let finalTranscript = '';
-                let interimTranscript = '';
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+        recognition.maxAlternatives = 1;
 
-                for (let i = event.resultIndex; i < event.results.length; i++) {
-                    const transcript = event.results[i][0].transcript;
-                    if (event.results[i].isFinal) {
-                        finalTranscript += transcript;
-                    } else {
-                        interimTranscript += transcript;
-                    }
+        recognition.onresult = (event) => {
+            let finalTranscript = '';
+            let interimTranscript = '';
+
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const t = event.results[i][0].transcript;
+                if (event.results[i].isFinal) {
+                    finalTranscript += t;
+                } else {
+                    interimTranscript += t;
                 }
+            }
 
+            const currentState = voiceStateRef.current;
+
+            if (currentState === VOICE_STATE.LISTENING) {
+                // Background mode — only look for wake word
+                const combined = (finalTranscript + interimTranscript).toLowerCase();
+                const hasWake = WAKE_WORDS.some(w => combined.includes(w));
+                if (hasWake) {
+                    // Wake word detected! Switch to active mode
+                    setTranscript('');
+                    setVoiceState(VOICE_STATE.ACTIVE);
+                    voiceStateRef.current = VOICE_STATE.ACTIVE;
+
+                    // Play activation sound via quick beep
+                    playActivationSound();
+
+                    // Set silence timeout — if no speech for 5s, go back to background
+                    clearTimeout(silenceTimerRef.current);
+                    silenceTimerRef.current = setTimeout(() => {
+                        if (voiceStateRef.current === VOICE_STATE.ACTIVE) {
+                            setVoiceState(VOICE_STATE.LISTENING);
+                            voiceStateRef.current = VOICE_STATE.LISTENING;
+                            setTranscript('');
+                        }
+                    }, 5000);
+                }
+            } else if (currentState === VOICE_STATE.ACTIVE) {
+                // Active mode — capture the actual command
                 setTranscript(interimTranscript || finalTranscript);
 
+                // Reset silence timer on any speech
+                clearTimeout(silenceTimerRef.current);
+                silenceTimerRef.current = setTimeout(() => {
+                    if (voiceStateRef.current === VOICE_STATE.ACTIVE) {
+                        // Silence after speech — process what we have
+                        setVoiceState(VOICE_STATE.LISTENING);
+                        voiceStateRef.current = VOICE_STATE.LISTENING;
+                        setTranscript('');
+                    }
+                }, 3000);
+
                 if (finalTranscript) {
-                    processCommand(finalTranscript.toLowerCase().trim());
-                }
-            };
+                    // Got final transcript — process the command
+                    clearTimeout(silenceTimerRef.current);
+                    const cleanCmd = cleanWakeWords(finalTranscript.trim());
 
-            recognition.onerror = (event) => {
-                console.error('Speech recognition error:', event.error);
-                if (event.error === 'not-allowed') {
-                    setIsListening(false);
+                    if (cleanCmd.length > 2) {
+                        processVoiceInput(cleanCmd);
+                    }
                 }
-            };
+            }
+        };
 
-            recognition.onend = () => {
-                if (isListening) {
-                    recognition.start(); // Auto-restart for continuous listening
-                }
-            };
+        recognition.onerror = (event) => {
+            if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                setIsSupported(false);
+                return;
+            }
+            // For aborted/no-speech errors, just restart if enabled
+            if (enabledRef.current && (event.error === 'no-speech' || event.error === 'aborted')) {
+                scheduleRestart();
+            }
+        };
 
-            recognitionRef.current = recognition;
-        }
+        recognition.onend = () => {
+            // Auto-restart if still enabled (handles browser auto-stop)
+            if (enabledRef.current && voiceStateRef.current !== VOICE_STATE.IDLE) {
+                scheduleRestart();
+            }
+        };
+
+        recognitionRef.current = recognition;
 
         return () => {
-            if (recognitionRef.current) {
-                recognitionRef.current.abort();
-            }
+            clearTimeout(silenceTimerRef.current);
+            clearTimeout(restartTimerRef.current);
+            try { recognition.abort(); } catch (_) {}
         };
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Restart recognition with a small delay to avoid rapid restart errors
+    const scheduleRestart = useCallback(() => {
+        clearTimeout(restartTimerRef.current);
+        restartTimerRef.current = setTimeout(() => {
+            if (recognitionRef.current && enabledRef.current) {
+                try {
+                    recognitionRef.current.start();
+                } catch (_) {
+                    // Already started, ignore
+                }
+            }
+        }, 300);
     }, []);
 
-    // Command parser
-    const processCommand = useCallback((text) => {
-        // Wake word check
-        const wakeWords = ['hey ironcore', 'hey iron core', 'ok ironcore', 'iron'];
-        const hasWakeWord = wakeWords.some(w => text.includes(w));
-
-        // Remove wake word from command
-        let command = text;
-        wakeWords.forEach(w => {
-            command = command.replace(w, '').trim();
+    // Remove wake words from the command text
+    const cleanWakeWords = (text) => {
+        let clean = text.toLowerCase();
+        WAKE_WORDS.forEach(w => {
+            clean = clean.replace(new RegExp(w, 'gi'), '');
         });
+        return clean.trim();
+    };
 
-        // Parse commands
+    // Process voice input — match commands or send to AI
+    const processVoiceInput = useCallback((text) => {
+        const lower = text.toLowerCase();
+
+        // Quick command patterns
         const commands = {
-            // Workout logging
-            log: /log (\d+) (.+)/i,
-            complete: /complete (.+)/i,
-            finish: /finish (set|workout|session)/i,
-
-            // Timer controls
-            start: /start (timer|rest|workout)/i,
-            stop: /stop (timer|rest|workout)/i,
-            pause: /pause/i,
-
-            // Navigation
-            go: /go to (.+)/i,
-            show: /show (.+)/i,
-            open: /open (.+)/i,
-
-            // Quick actions
-            water: /log water|drink water|add water/i,
-            weight: /log weight (\d+\.?\d*)/i,
+            log_water: /^(log|add|drink) water$/i,
+            log_weight: /^log weight (\d+\.?\d*)/i,
+            start_timer: /^start (timer|rest)/i,
+            stop_timer: /^stop (timer|rest)/i,
+            open_form: /^(open|show|start) form/i,
+            open_coach: /^(open|show) (coach|chat)/i,
+            open_nutrition: /^(open|show) (nutrition|food|meals)/i,
+            open_stats: /^(open|show) (stats|analytics)/i,
         };
 
-        // Match and execute
         for (const [action, pattern] of Object.entries(commands)) {
-            const match = command.match(pattern);
+            const match = lower.match(pattern);
             if (match) {
-                const result = {
-                    action,
-                    params: match.slice(1),
-                    raw: text,
-                    hasWakeWord
+                const result = { action, params: match.slice(1), raw: text };
+                onCommand?.(result);
+
+                // Quick confirmation
+                const confirmations = {
+                    log_water: "Water logged!",
+                    log_weight: `Weight ${match[1]} logged.`,
+                    start_timer: "Timer started.",
+                    stop_timer: "Timer stopped.",
+                    open_form: "Opening form coach.",
+                    open_coach: "Opening chat.",
+                    open_nutrition: "Opening nutrition.",
+                    open_stats: "Opening analytics.",
                 };
 
-                onCommand?.(result);
-                onLog?.(`Voice: ${action} - ${match.slice(1).join(', ')}`);
-
-                // Speak confirmation
-                speak(`${action} ${match.slice(1).join(' ')}`);
-                return result;
+                speak(confirmations[action] || "Done.", () => {
+                    setVoiceState(VOICE_STATE.LISTENING);
+                    voiceStateRef.current = VOICE_STATE.LISTENING;
+                });
+                return;
             }
         }
 
-        // No match - could be a general query for AI coach
-        if (hasWakeWord && command.length > 3) {
-            onCommand?.({ action: 'query', params: [command], raw: text, hasWakeWord });
-        }
+        // No command matched — send to AI coach as a question
+        setVoiceState(VOICE_STATE.PROCESSING);
+        voiceStateRef.current = VOICE_STATE.PROCESSING;
 
-        return null;
-    }, [onCommand, onLog]);
+        onQuery?.(text, (aiResponse) => {
+            // Callback from parent with AI response
+            setLastResponse(aiResponse);
+            speak(aiResponse, () => {
+                setVoiceState(VOICE_STATE.LISTENING);
+                voiceStateRef.current = VOICE_STATE.LISTENING;
+            });
+        });
+    }, [onCommand, onQuery, speak]);
 
-    // Text-to-speech feedback
-    const speak = useCallback((text) => {
-        if ('speechSynthesis' in window) {
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.rate = 1.1;
-            utterance.pitch = 1;
-            utterance.volume = 0.8;
-            window.speechSynthesis.speak(utterance);
-        }
+    // Play short activation sound
+    const playActivationSound = useCallback(() => {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.setValueAtTime(880, ctx.currentTime);
+            osc.frequency.setValueAtTime(1320, ctx.currentTime + 0.08);
+            gain.gain.setValueAtTime(0.15, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.15);
+        } catch (_) {}
     }, []);
 
-    // Toggle listening
-    const toggleListening = useCallback(() => {
+    // Start/stop based on enabled prop
+    useEffect(() => {
         if (!recognitionRef.current) return;
 
-        if (isListening) {
-            recognitionRef.current.stop();
-            setIsListening(false);
-            setTranscript('');
+        if (enabled) {
+            setVoiceState(VOICE_STATE.LISTENING);
+            voiceStateRef.current = VOICE_STATE.LISTENING;
+            try {
+                recognitionRef.current.start();
+            } catch (_) {}
         } else {
-            recognitionRef.current.start();
-            setIsListening(true);
-            speak('Listening');
-        }
-    }, [isListening, speak]);
-
-    const startListening = useCallback(() => {
-        if (recognitionRef.current && !isListening) {
-            recognitionRef.current.start();
-            setIsListening(true);
-        }
-    }, [isListening]);
-
-    const stopListening = useCallback(() => {
-        if (recognitionRef.current && isListening) {
-            recognitionRef.current.stop();
-            setIsListening(false);
+            clearTimeout(silenceTimerRef.current);
+            clearTimeout(restartTimerRef.current);
+            try { recognitionRef.current.abort(); } catch (_) {}
+            setVoiceState(VOICE_STATE.IDLE);
+            voiceStateRef.current = VOICE_STATE.IDLE;
             setTranscript('');
+            window.speechSynthesis?.cancel();
         }
-    }, [isListening]);
+    }, [enabled]);
+
+    // Manual activate (for tap-to-talk fallback)
+    const manualActivate = useCallback(() => {
+        if (voiceStateRef.current === VOICE_STATE.LISTENING || voiceStateRef.current === VOICE_STATE.IDLE) {
+            playActivationSound();
+            setVoiceState(VOICE_STATE.ACTIVE);
+            voiceStateRef.current = VOICE_STATE.ACTIVE;
+            setTranscript('');
+
+            // If not already listening, start recognition
+            if (voiceStateRef.current === VOICE_STATE.IDLE && recognitionRef.current) {
+                try { recognitionRef.current.start(); } catch (_) {}
+            }
+
+            clearTimeout(silenceTimerRef.current);
+            silenceTimerRef.current = setTimeout(() => {
+                if (voiceStateRef.current === VOICE_STATE.ACTIVE) {
+                    setVoiceState(enabledRef.current ? VOICE_STATE.LISTENING : VOICE_STATE.IDLE);
+                    voiceStateRef.current = enabledRef.current ? VOICE_STATE.LISTENING : VOICE_STATE.IDLE;
+                    setTranscript('');
+                }
+            }, 6000);
+        }
+    }, [playActivationSound]);
 
     return {
-        isListening,
+        voiceState,
         transcript,
         isSupported,
-        toggleListening,
-        startListening,
-        stopListening,
+        lastResponse,
         speak,
+        manualActivate,
+        VOICE_STATE,
     };
 }
 
 export default useVoiceCommands;
-
-

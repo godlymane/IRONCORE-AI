@@ -12,7 +12,6 @@ import { OnboardingView } from './views/OnboardingView';
 // Lazy-loaded views — only fetched when user navigates to tab
 const DashboardView = React.lazy(() => import('./views/DashboardView').then(m => ({ default: m.DashboardView })));
 const WorkoutView = React.lazy(() => import('./views/WorkoutView').then(m => ({ default: m.WorkoutView })));
-const ChronicleView = React.lazy(() => import('./views/ChronicleView').then(m => ({ default: m.ChronicleView })));
 const CardioView = React.lazy(() => import('./views/CardioView').then(m => ({ default: m.CardioView })));
 const ArenaView = React.lazy(() => import('./views/ArenaView').then(m => ({ default: m.ArenaView })));
 const ProfileHub = React.lazy(() => import('./views/ProfileHub').then(m => ({ default: m.ProfileHub })));
@@ -21,12 +20,12 @@ const AILabView = React.lazy(() => import('./views/AILabView').then(m => ({ defa
 import { NavBtn, ToastProvider, useToast, PageTransition, SkeletonCard, FloatingActionButton } from './components/UIComponents';
 import { OfflineIndicator } from './components/StatusComponents';
 import { SplashScreen, ParticleBackground, PullToRefresh } from './components/PremiumUI';
-import { DashboardSkeleton, WorkoutSkeleton, ChronicleSkeleton, CardioSkeleton, ArenaSkeleton, ProfileSkeleton, AILabSkeleton } from './components/ViewSkeletons';
+import { DashboardSkeleton, WorkoutSkeleton, CardioSkeleton, ArenaSkeleton, ProfileSkeleton, AILabSkeleton } from './components/ViewSkeletons';
 import { EliteFlameIcon, EliteSwordsIcon, EliteDumbbellIcon, EliteBrainIcon, EliteHeartIcon, EliteCrownIcon } from './components/EliteIcons';
 import { useFitnessData } from './hooks/useFitnessData';
 import { SFX, Haptics } from './utils/audio';
 import { ThemeProvider } from './context/ThemeContext';
-import { ArenaProvider } from './context/ArenaContext';
+// ArenaProvider removed — Arena now uses useFitnessData leaderboard directly
 import { PremiumProvider } from './context/PremiumContext';
 import PremiumPaywall from './components/PremiumPaywall';
 
@@ -36,7 +35,6 @@ const TAB_KEYS = ['dashboard', 'arena', 'workout', 'ailab', 'cardio', 'profile']
 
 // --- MAIN CONTENT WRAPPER ---
 const MainContent = () => {
-  console.log('App rendering...');
   const [activeTab, setActiveTab] = useState('dashboard');
   const [direction, setDirection] = useState(0);
   const prevTabRef = useRef('dashboard');
@@ -52,7 +50,7 @@ const MainContent = () => {
     sendMessage, toggleFollow, createPost, sendPrivateMessage,
     updateData, deleteEntry, completeDailyDrop, buyItem, createBattle,
     isStorageReady, battles,
-    error
+    refreshData, error
   } = useFitnessData();
 
   // Nav auto-hide on scroll
@@ -138,14 +136,17 @@ const MainContent = () => {
   // CHECK FOR ONBOARDING STATUS - Only ONCE after profile first loads from Firestore
   const onboardingChecked = useRef(false);
   useEffect(() => {
-    // Only run this check once per session — never re-show onboarding after dismissal
     if (onboardingChecked.current) return;
-    // Wait until Firestore has ACTUALLY responded with profile data
     if (!user || !profileLoaded || loading) return;
 
     onboardingChecked.current = true;
-    // If profile exists in Firestore AND has onboarded flag, skip onboarding
-    // Only show onboarding if profile doesn't exist or onboarded is explicitly not true
+    // Check localStorage first (instant, survives offline/slow Firestore)
+    const localOnboarded = localStorage.getItem(`ironai_onboarded_${user.uid}`);
+    if (localOnboarded === 'true') {
+      setShowOnboarding(false);
+      return;
+    }
+    // Fallback: check Firestore profile
     const needsOnboarding = !profileExists || !profile.onboarded;
     setShowOnboarding(needsOnboarding);
   }, [user, profile, loading, profileLoaded, profileExists]);
@@ -154,6 +155,12 @@ const MainContent = () => {
     // Dismiss onboarding IMMEDIATELY — don't block on Firestore write
     setShowOnboarding(false);
     addToast("Profile Initialized. Welcome to the Team.", "success");
+
+    // Persist to localStorage FIRST (instant, survives app restart even if Firestore write fails)
+    if (user?.uid) {
+      localStorage.setItem(`ironai_onboarded_${user.uid}`, 'true');
+      localStorage.setItem(`ironai_profile_${user.uid}`, JSON.stringify({ ...data, onboarded: true }));
+    }
 
     // Save data to Firestore in background (non-blocking)
     updateData('add', 'profile', {
@@ -190,7 +197,7 @@ const MainContent = () => {
 
   return (
     <PremiumProvider user={user}>
-      <div className="min-h-screen text-gray-100 font-sans selection:bg-red-500/30 pb- safe-area-inset-bottom" style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)' }}>
+      <div className="min-h-screen text-gray-100 font-sans selection:bg-red-500/30 pb-safe-area-inset-bottom" style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)' }}>
         {/* Background Particles — disabled on mobile for performance */}
         {window.innerWidth > 768 && <ParticleBackground count={20} />}
 
@@ -210,7 +217,8 @@ const MainContent = () => {
           {/* VIEWPORT */}
           <PullToRefresh onRefresh={async () => {
             SFX.refresh();
-            await new Promise(r => setTimeout(r, 800));
+            refreshData();
+            await new Promise(r => setTimeout(r, 600));
             addToast('Data synced', 'info');
           }}>
           <div
@@ -222,53 +230,56 @@ const MainContent = () => {
             <AnimatePresence mode="wait">
               {activeTab === 'dashboard' && (
                 <PageTransition key="dashboard" direction={direction}>
-                  <React.Suspense fallback={<DashboardSkeleton />}>
-                    <DashboardView meals={meals} burned={burned} workouts={workouts} updateData={updateData} deleteEntry={deleteEntry} profile={profile} uploadProfilePic={uploadProfilePic} user={user} completeDailyDrop={completeDailyDrop} buyItem={buyItem} isStorageReady={isStorageReady} dataLoaded={dataLoaded} />
-                  </React.Suspense>
+                  <ViewErrorBoundary viewName="Dashboard">
+                    <React.Suspense fallback={<DashboardSkeleton />}>
+                      <DashboardView meals={meals} burned={burned} workouts={workouts} updateData={updateData} deleteEntry={deleteEntry} profile={profile} uploadProfilePic={uploadProfilePic} user={user} completeDailyDrop={completeDailyDrop} buyItem={buyItem} isStorageReady={isStorageReady} dataLoaded={dataLoaded} />
+                    </React.Suspense>
+                  </ViewErrorBoundary>
                 </PageTransition>
               )}
               {activeTab === 'workout' && (
                 <PageTransition key="workout" direction={direction}>
-                  <React.Suspense fallback={<WorkoutSkeleton />}>
-                    <WorkoutView workouts={workouts} updateData={updateData} deleteEntry={deleteEntry} />
-                  </React.Suspense>
-                </PageTransition>
-              )}
-              {activeTab === 'chronicle' && (
-                <PageTransition key="chronicle" direction={direction}>
-                  <React.Suspense fallback={<ChronicleSkeleton />}>
-                    <ChronicleView meals={meals} burned={burned} workouts={workouts} progress={progress} user={user} deleteEntry={deleteEntry} profile={profile} />
-                  </React.Suspense>
+                  <ViewErrorBoundary viewName="Workout">
+                    <React.Suspense fallback={<WorkoutSkeleton />}>
+                      <WorkoutView workouts={workouts} updateData={updateData} deleteEntry={deleteEntry} />
+                    </React.Suspense>
+                  </ViewErrorBoundary>
                 </PageTransition>
               )}
               {activeTab === 'cardio' && (
                 <PageTransition key="cardio" direction={direction}>
-                  <React.Suspense fallback={<CardioSkeleton />}>
-                    <CardioView progress={progress} profile={profile} updateData={updateData} setActiveTab={setActiveTab} />
-                  </React.Suspense>
+                  <ViewErrorBoundary viewName="Cardio">
+                    <React.Suspense fallback={<CardioSkeleton />}>
+                      <CardioView progress={progress} profile={profile} updateData={updateData} setActiveTab={setActiveTab} />
+                    </React.Suspense>
+                  </ViewErrorBoundary>
                 </PageTransition>
               )}
               {activeTab === 'arena' && (
                 <PageTransition key="arena" direction={direction}>
-                  <React.Suspense fallback={<ArenaSkeleton />}>
-                    <ArenaProvider user={user}>
-                      <ArenaView user={user} workouts={workouts} meals={meals} burned={burned} />
-                    </ArenaProvider>
-                  </React.Suspense>
+                  <ViewErrorBoundary viewName="Arena">
+                    <React.Suspense fallback={<ArenaSkeleton />}>
+                      <ArenaView user={user} workouts={workouts} meals={meals} burned={burned} leaderboard={leaderboard} profile={profile} chat={chat} sendMessage={sendMessage} battles={battles} createBattle={createBattle} />
+                    </React.Suspense>
+                  </ViewErrorBoundary>
                 </PageTransition>
               )}
               {activeTab === 'profile' && (
                 <PageTransition key="profile" direction={direction}>
-                  <React.Suspense fallback={<ProfileSkeleton />}>
-                    <ProfileHub profile={profile} progress={progress} meals={meals} burned={burned} workouts={workouts} leaderboard={leaderboard} photos={photos} deleteEntry={deleteEntry} uploadProfilePic={uploadProfilePic} uploadProgressPhoto={uploadProgressPhoto} onLogout={logout} isStorageReady={isStorageReady} />
-                  </React.Suspense>
+                  <ViewErrorBoundary viewName="Profile">
+                    <React.Suspense fallback={<ProfileSkeleton />}>
+                      <ProfileHub profile={profile} progress={progress} meals={meals} burned={burned} workouts={workouts} leaderboard={leaderboard} photos={photos} deleteEntry={deleteEntry} uploadProfilePic={uploadProfilePic} uploadProgressPhoto={uploadProgressPhoto} onLogout={logout} isStorageReady={isStorageReady} user={user} />
+                    </React.Suspense>
+                  </ViewErrorBoundary>
                 </PageTransition>
               )}
               {activeTab === 'ailab' && (
                 <PageTransition key="ailab" direction={direction}>
-                  <React.Suspense fallback={<AILabSkeleton />}>
-                    <AILabView workouts={workouts} meals={meals} profile={profile} updateData={updateData} weight={latestWeight} />
-                  </React.Suspense>
+                  <ViewErrorBoundary viewName="AI Lab">
+                    <React.Suspense fallback={<AILabSkeleton />}>
+                      <AILabView workouts={workouts} meals={meals} profile={profile} updateData={updateData} weight={latestWeight} />
+                    </React.Suspense>
+                  </ViewErrorBoundary>
                 </PageTransition>
               )}
             </AnimatePresence>
@@ -331,6 +342,50 @@ const MainContent = () => {
   );
 };
 
+// Per-view error boundary — isolates crashes to individual views
+class ViewErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error(`[${this.props.viewName || 'View'}] Error:`, error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+          <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center">
+            <span className="text-2xl">!</span>
+          </div>
+          <h3 className="text-lg font-black text-white uppercase">
+            {this.props.viewName || 'This view'} crashed
+          </h3>
+          <p className="text-xs text-gray-500 max-w-xs">{this.state.error?.message || 'Unknown error'}</p>
+          <button
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="px-6 py-2 rounded-xl text-xs font-bold text-white"
+            style={{
+              background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+              boxShadow: '0 4px 15px rgba(220, 38, 38, 0.4)',
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// App-level error boundary (fatal)
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);

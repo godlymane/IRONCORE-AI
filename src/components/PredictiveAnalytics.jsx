@@ -140,7 +140,7 @@ export const PredictiveAnalytics = ({ workouts = [], profile = {}, meals = [], p
             {/* Header */}
             <div className="flex items-center gap-2 mb-4">
                 <Brain className="w-5 h-5 text-red-400" />
-                <h3 className="text-lg font-bold text-white">AI Insights</h3>
+                <h3 className="text-lg font-bold text-white">Predictive Insights</h3>
             </div>
 
             {/* Score Cards */}

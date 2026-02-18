@@ -413,6 +413,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                             onChange={e => setMsgInput(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && (sendMessage(msgInput), setMsgInput(""))}
                             placeholder="Talk trash..."
+                            maxLength={500}
                             className="flex-grow rounded-xl px-4 py-3 text-xs text-white outline-none"
                             style={{
                                 background: 'linear-gradient(145deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.2) 100%)',
@@ -514,6 +515,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                                     value={dmInput}
                                     onChange={e => setDmInput(e.target.value)}
                                     placeholder="Send Message..."
+                                    maxLength={500}
                                     className="flex-grow rounded-xl px-4 py-3 text-xs text-white outline-none"
                                     style={{
                                         background: 'linear-gradient(145deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.2) 100%)',
@@ -550,6 +552,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                             value={caption}
                             onChange={e => setCaption(e.target.value)}
                             placeholder="Write a caption..."
+                            maxLength={300}
                             className="w-full p-4 rounded-xl text-white text-xs outline-none mb-4 h-24 resize-none"
                             style={{
                                 background: 'linear-gradient(145deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.2) 100%)',

@@ -130,7 +130,7 @@ const ComparisonView = ({ photos }) => {
                             className="absolute inset-0 w-full h-full object-cover"
                         />
 
-                        {/* Left Photo (Forecast - Older) - Clipped */}
+                        {/* Left Photo (Older) - Clipped */}
                         <div
                             className="absolute inset-0 overflow-hidden border-r-2 border-white/50"
                             style={{ width: `${sliderPos}%` }}
@@ -138,15 +138,7 @@ const ComparisonView = ({ photos }) => {
                             <img
                                 src={leftPhoto.url}
                                 alt="Before"
-                                className="absolute inset-0 w-full h-full object-cover max-w-none"
-                                style={{ width: `${100 / (sliderPos / 100)}%` }} // This logic is wrong for simple clipping.
-                            // Correct approach for simple overlay: just standard object-cover with clipped div
-                            />
-                            {/* Correction: standard img inside clipped div needs to be positioned same as container */}
-                            <img
-                                src={leftPhoto.url}
-                                alt="Before"
-                                className="absolute top-0 left-0 w-[100vw] max-w-none h-full object-cover md:w-full" // Hacky, better to use fixed dimensions or %
+                                className="absolute top-0 left-0 h-full object-cover"
                                 style={{ width: containerRef.current ? containerRef.current.clientWidth : '100%' }}
                             />
                         </div>
@@ -281,8 +273,8 @@ export const ProgressPhotos = ({ userId }) => {
     const refreshPhotos = async () => {
         if (!userId) return;
         try {
-            const data = await getPhotos(userId);
-            setPhotos(data);
+            const result = await getPhotos(userId);
+            setPhotos(result.photos || []);
         } catch (err) {
             console.error(err);
         } finally {
@@ -300,15 +292,35 @@ export const ProgressPhotos = ({ userId }) => {
         setView('gallery');
     };
 
-    const handleDelete = async (photo) => {
-        if (window.confirm('Delete this photo?')) {
-            await deletePhoto(userId, photo.id, photo.storagePath);
-            await refreshPhotos();
-        }
+    const [pendingDeletePhoto, setPendingDeletePhoto] = useState(null);
+
+    const handleDelete = (photo) => {
+        setPendingDeletePhoto(photo);
+    };
+
+    const confirmDeletePhoto = async () => {
+        if (!pendingDeletePhoto) return;
+        await deletePhoto(userId, pendingDeletePhoto.id, pendingDeletePhoto.storagePath);
+        setPendingDeletePhoto(null);
+        await refreshPhotos();
     };
 
     return (
         <div className="space-y-6">
+            {/* Photo Delete Confirm */}
+            {pendingDeletePhoto && (
+                <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xl flex items-center justify-center p-6">
+                    <div className="w-full max-w-xs rounded-3xl p-6 space-y-4" style={{ background: 'linear-gradient(145deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <p className="text-white font-bold text-center">Delete this photo?</p>
+                        <p className="text-gray-500 text-xs text-center">This can't be undone.</p>
+                        <div className="flex gap-3">
+                            <button onClick={() => setPendingDeletePhoto(null)} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-gray-400 bg-white/5 border border-white/10">Cancel</button>
+                            <button onClick={confirmDeletePhoto} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white" style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)' }}>Delete</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="flex justify-between items-center">
                 <div>
                     <h3 className="text-xl font-black italic text-white uppercase">Body Chronicle</h3>

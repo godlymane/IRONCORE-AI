@@ -74,18 +74,39 @@ export const ChronicleView = ({ meals, burned, workouts, progress, user, deleteE
         { name: 'Fats', val: totals.f, color: '#f87171' }
     ];
 
+    const [pendingDelete, setPendingDelete] = useState(null);
+
     const handleDelete = (item) => {
-        if (!window.confirm("Delete this entry?")) return;
+        setPendingDelete(item);
+    };
+
+    const confirmDelete = () => {
+        if (!pendingDelete) return;
         let collection = '';
-        if (item.type === 'meal') collection = 'meals';
-        else if (item.type === 'workout') collection = 'workouts';
-        else if (item.type === 'cardio') collection = 'burned';
-        if (collection) deleteEntry(collection, item.id);
+        if (pendingDelete.type === 'meal') collection = 'meals';
+        else if (pendingDelete.type === 'workout') collection = 'workouts';
+        else if (pendingDelete.type === 'cardio') collection = 'burned';
+        if (collection) deleteEntry(collection, pendingDelete.id);
+        setPendingDelete(null);
     };
 
     return (
         <div className="space-y-6 animate-in fade-in pb-4">
             <h2 className="text-2xl font-black uppercase tracking-tighter italic text-white">Chronicle</h2>
+
+            {/* Glass confirm dialog — replaces window.confirm */}
+            {pendingDelete && (
+                <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xl flex items-center justify-center p-6">
+                    <div className="w-full max-w-xs rounded-3xl p-6 space-y-4" style={{ background: 'linear-gradient(145deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <p className="text-white font-bold text-center">Delete this entry?</p>
+                        <p className="text-gray-500 text-xs text-center">This can't be undone.</p>
+                        <div className="flex gap-3">
+                            <button onClick={() => setPendingDelete(null)} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-gray-400 bg-white/5 border border-white/10">Cancel</button>
+                            <button onClick={confirmDelete} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white" style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)' }}>Delete</button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div ref={scrollRef} className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide scroll-smooth">
                 {dates.map(date => {

@@ -362,12 +362,11 @@ export const SplashScreen = ({ onComplete }) => {
 
             {/* Logo container */}
             <div className="relative flex flex-col items-center">
-                {/* Glowing orb */}
+                {/* Brand Logo */}
                 <motion.div
-                    className="w-24 h-24 rounded-full mb-6"
+                    className="w-28 h-28 mb-6"
                     style={{
-                        background: 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)',
-                        boxShadow: '0 0 60px rgba(220, 38, 38, 0.6), 0 0 120px rgba(220, 38, 38, 0.3)',
+                        filter: 'drop-shadow(0 0 40px rgba(220, 38, 38, 0.5)) drop-shadow(0 0 80px rgba(220, 38, 38, 0.2))',
                     }}
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{
@@ -376,13 +375,7 @@ export const SplashScreen = ({ onComplete }) => {
                     }}
                     transition={{ duration: 0.5, type: 'spring', bounce: 0.4 }}
                 >
-                    <motion.div
-                        className="w-full h-full rounded-full flex items-center justify-center"
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-                    >
-                        <span className="text-4xl font-black text-white">🔥</span>
-                    </motion.div>
+                    <img src="/icons/icon-192x192.png" alt="IronCore" className="w-full h-full object-contain" />
                 </motion.div>
 
                 {/* Brand text */}
@@ -395,7 +388,7 @@ export const SplashScreen = ({ onComplete }) => {
                     }}
                     transition={{ duration: 0.4 }}
                 >
-                    <span className="text-red-500">IRON</span>CORE
+                    <span className="text-red-500">IRONCORE</span><span className="text-gray-400">FIT</span> <span className="text-white">AI</span>
                 </motion.h1>
 
                 {/* Tagline */}

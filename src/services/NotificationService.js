@@ -80,7 +80,7 @@ export const subscribeToNotifications = (userId, callback) => {
             ...doc.data()
         }));
         callback(notifications);
-    });
+    }, (err) => console.error('Notifications listener error:', err.code || err.message));
 };
 
 /**

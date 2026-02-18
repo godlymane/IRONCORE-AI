@@ -9,7 +9,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
       const result = await initializePushNotifications();
-      console.log('Push notifications initialized:', result);
+      // Push notifications initialized
     } catch (error) {
       console.warn('Push notification setup failed:', error);
     }

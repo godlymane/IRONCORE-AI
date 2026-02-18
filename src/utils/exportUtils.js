@@ -114,6 +114,90 @@ export const exportAllData = (data) => {
 };
 
 /**
+ * Generate and download a printable HTML report as PDF
+ * Opens a new window with styled HTML the user can print/save as PDF
+ */
+export const exportPDFReport = ({ workouts = [], meals = [], profile = {}, progress = [] }) => {
+    const summary = generateWeeklySummary(workouts, meals);
+    const latestWeight = progress.find(p => p.weight)?.weight || profile.weight || '--';
+    const totalWorkouts = workouts.length;
+    const totalMeals = meals.length;
+    const avgProtein = meals.length > 0
+        ? Math.round(meals.reduce((s, m) => s + (m.protein || 0), 0) / meals.length)
+        : 0;
+
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>IronCore Fitness Report</title>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:700px;margin:0 auto;padding:40px 24px;color:#1a1a1a;background:#fff}
+  h1{font-size:28px;font-weight:900;text-transform:uppercase;letter-spacing:-0.5px;border-bottom:3px solid #dc2626;padding-bottom:8px}
+  h2{font-size:16px;font-weight:800;text-transform:uppercase;color:#dc2626;margin-top:32px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}
+  .card{background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px}
+  .card .label{font-size:11px;font-weight:700;text-transform:uppercase;color:#6b7280}
+  .card .value{font-size:28px;font-weight:900;color:#111}
+  .meta{font-size:12px;color:#9ca3af;margin-top:24px;text-align:center}
+  table{width:100%;border-collapse:collapse;margin:12px 0}
+  th,td{text-align:left;padding:8px 12px;font-size:13px;border-bottom:1px solid #e5e7eb}
+  th{font-weight:700;font-size:11px;text-transform:uppercase;color:#6b7280}
+  @media print{body{padding:20px}}
+</style></head><body>
+<h1>IronCore Fitness Report</h1>
+<p style="color:#6b7280;font-size:13px">${profile.displayName || 'Athlete'} &mdash; Generated ${new Date().toLocaleDateString()}</p>
+
+<h2>Overview</h2>
+<div class="grid">
+  <div class="card"><div class="label">Current Weight</div><div class="value">${latestWeight} kg</div></div>
+  <div class="card"><div class="label">Total XP</div><div class="value">${profile.xp || 0}</div></div>
+  <div class="card"><div class="label">Total Workouts</div><div class="value">${totalWorkouts}</div></div>
+  <div class="card"><div class="label">Meals Logged</div><div class="value">${totalMeals}</div></div>
+</div>
+
+<h2>This Week</h2>
+<div class="grid">
+  <div class="card"><div class="label">Workouts</div><div class="value">${summary.workouts.count}</div></div>
+  <div class="card"><div class="label">Avg Calories/Day</div><div class="value">${summary.nutrition.avgCaloriesPerDay}</div></div>
+  <div class="card"><div class="label">Total Protein</div><div class="value">${summary.nutrition.totalProtein}g</div></div>
+  <div class="card"><div class="label">Net Calories</div><div class="value">${summary.netCalories}</div></div>
+</div>
+
+<h2>Recent Workouts</h2>
+<table>
+  <tr><th>Date</th><th>Name</th><th>Exercises</th></tr>
+  ${workouts.slice(0, 10).map(w => `<tr><td>${w.date || '--'}</td><td>${w.name || 'Workout'}</td><td>${w.exercises?.length || 0}</td></tr>`).join('')}
+</table>
+
+<h2>Weight History</h2>
+<table>
+  <tr><th>Date</th><th>Weight (kg)</th></tr>
+  ${progress.filter(p => p.weight).slice(0, 10).map(p => `<tr><td>${p.date}</td><td>${p.weight}</td></tr>`).join('')}
+</table>
+
+<p class="meta">IronCore AI &mdash; Your Fitness Companion</p>
+</body></html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, '_blank');
+    if (win) {
+        win.addEventListener('load', () => {
+            win.print();
+        });
+    }
+    // Fallback for blocked popups: download the HTML file
+    if (!win) {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `ironcore-report-${new Date().toISOString().split('T')[0]}.html`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    return { success: true };
+};
+
+/**
  * Generate weekly summary data
  */
 export const generateWeeklySummary = (workouts, meals, startDate = null) => {

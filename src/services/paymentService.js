@@ -1,7 +1,9 @@
 // IronCore AI - Payment Service (Razorpay Integration)
 // Handles subscriptions and premium status
 
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getApp } from 'firebase/app';
 import { db } from '../firebase';
 
 // Pricing Plans
@@ -129,46 +131,22 @@ export const openCheckout = async (orderData, userInfo, onSuccess, onFailure) =>
     razorpay.open();
 };
 
-// Activate subscription in Firestore
+// Activate subscription via server-side Cloud Function (validates payment server-side)
 export const activateSubscription = async (userId, planId, paymentResponse) => {
-    const plan = PRICING_PLANS[planId];
-    const now = new Date();
-
-    // Calculate expiry based on plan
-    const expiryDate = new Date(now);
-    if (planId === 'pro_yearly') {
-        expiryDate.setFullYear(expiryDate.getFullYear() + 1);
-    } else {
-        expiryDate.setMonth(expiryDate.getMonth() + 1);
+    try {
+        const functions = getFunctions(getApp());
+        const verifyPayment = httpsCallable(functions, 'verifyPayment');
+        const result = await verifyPayment({
+            paymentId: paymentResponse.razorpay_payment_id,
+            orderId: paymentResponse.razorpay_order_id || null,
+            signature: paymentResponse.razorpay_signature || null,
+            planId,
+        });
+        return result.data.subscription;
+    } catch (e) {
+        console.error('Server-side payment verification failed:', e);
+        throw new Error('Payment verification failed. Contact support if charged.');
     }
-
-    const subscriptionData = {
-        planId,
-        status: 'active',
-        startDate: now.toISOString(),
-        expiryDate: expiryDate.toISOString(),
-        paymentId: paymentResponse.razorpay_payment_id,
-        orderId: paymentResponse.razorpay_order_id || null,
-        signature: paymentResponse.razorpay_signature || null,
-        updatedAt: serverTimestamp()
-    };
-
-    // Update user's subscription in Firestore
-    const userRef = doc(db, 'users', userId);
-    await updateDoc(userRef, {
-        subscription: subscriptionData,
-        isPremium: true
-    });
-
-    // Also store in subscriptions collection for analytics
-    const subRef = doc(db, 'subscriptions', `${userId}_${paymentResponse.razorpay_payment_id}`);
-    await setDoc(subRef, {
-        userId,
-        ...subscriptionData,
-        createdAt: serverTimestamp()
-    });
-
-    return subscriptionData;
 };
 
 // Check if user has active premium subscription
@@ -176,15 +154,16 @@ export const checkPremiumStatus = async (userId) => {
     if (!userId) return { isPremium: false, plan: 'free' };
 
     try {
-        const userRef = doc(db, 'users', userId);
-        const userDoc = await getDoc(userRef);
+        // Read from the same path useFitnessData writes to
+        const profileRef = doc(db, 'users', userId, 'data', 'profile');
+        const profileDoc = await getDoc(profileRef);
 
-        if (!userDoc.exists()) {
+        if (!profileDoc.exists()) {
             return { isPremium: false, plan: 'free' };
         }
 
-        const userData = userDoc.data();
-        const subscription = userData.subscription;
+        const profileData = profileDoc.data();
+        const subscription = profileData.subscription;
 
         if (!subscription || subscription.status !== 'active') {
             return { isPremium: false, plan: 'free' };
@@ -194,7 +173,7 @@ export const checkPremiumStatus = async (userId) => {
         const expiryDate = new Date(subscription.expiryDate);
         if (expiryDate < new Date()) {
             // Subscription expired, update status
-            await updateDoc(userRef, {
+            await updateDoc(profileRef, {
                 'subscription.status': 'expired',
                 isPremium: false
             });
@@ -230,4 +209,4 @@ export const canUseFeature = (feature, isPremium, planId = 'free') => {
     return limit; // Returns the limit number
 };
 
-console.log('✅ Payment Service loaded');
+// Payment Service module

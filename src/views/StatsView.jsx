@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { 
+import {
   ComposedChart, Line, Bar, CartesianGrid, XAxis, YAxis,
-  Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis 
+  Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis
 } from 'recharts';
 import { Trophy, Medal, Crown, Star, Lock, Activity, Zap, Grid, Flame, TrendingUp, Shield } from 'lucide-react';
 import { getLevel } from '../utils/helpers';
 import { LEVELS, EXERCISE_DB } from '../utils/constants';
 import { BodyHeatmap } from '../components/BodyHeatmap';
+import { usePremium } from '../context/PremiumContext';
 
 const LEAGUES = [
     { name: 'Iron', min: 0, color: 'text-gray-400', border: 'border-gray-500', bg: 'bg-gray-500/10' },
@@ -18,6 +19,7 @@ const LEAGUES = [
 ];
 
 export const StatsView = ({ leaderboard, profile, progress, meals, workouts }) => {
+  const { isPremium, requirePremium } = usePremium();
   const currentXP = profile.xp || 0;
   const currentLeague = LEAGUES.slice().reverse().find(l => currentXP >= l.min) || LEAGUES[0];
   const nextLeague = LEAGUES.find(l => l.min > currentXP);
@@ -82,7 +84,8 @@ export const StatsView = ({ leaderboard, profile, progress, meals, workouts }) =
           let score = 0;
           if (hasWorkout) {
               if (hasLoggedFood) {
-                  score = (dayCals > (dailyTarget * 1.1)) ? 3 : 2; 
+                  const withinTarget = dayCals >= (dailyTarget * 0.9) && dayCals <= (dailyTarget * 1.1);
+                  score = withinTarget ? 3 : 2;
               } else score = 1;
           } else {
               if (hasLoggedFood) score = 1;
@@ -135,14 +138,54 @@ export const StatsView = ({ leaderboard, profile, progress, meals, workouts }) =
   }
 
   const archetypeData = useMemo(() => {
+    const now = Date.now();
+    const msPerDay = 86400000;
+
+    // Consistency: % of last 30 days with a workout or meal logged
+    const activeDays = new Set();
+    workouts.forEach(w => {
+        const d = w.createdAt?.seconds ? new Date(w.createdAt.seconds * 1000) : new Date(w.date);
+        if (now - d.getTime() < 30 * msPerDay) activeDays.add(d.toISOString().split('T')[0]);
+    });
+    meals.forEach(m => {
+        if (m.date && now - new Date(m.date).getTime() < 30 * msPerDay) activeDays.add(m.date);
+    });
+    const consistency = Math.min(100, Math.round((activeDays.size / 30) * 100));
+
+    // Intensity: avg RPE over last 14 days scaled to 0-100
+    let totalRpe = 0, rpeCount = 0;
+    workouts.forEach(w => {
+        const d = w.createdAt?.seconds ? new Date(w.createdAt.seconds * 1000) : new Date(w.date);
+        if (now - d.getTime() < 14 * msPerDay && w.exercises) {
+            w.exercises.forEach(ex => {
+                ex.sets?.forEach(s => { totalRpe += parseFloat(s.rpe) || 7; rpeCount++; });
+            });
+        }
+    });
+    const intensity = rpeCount > 0 ? Math.min(100, Math.round((totalRpe / rpeCount) * 10)) : 0;
+
+    // Discipline: % of last 14 days with both workout AND food logged
+    const perfectDays = disciplineGrid.slice(-14).filter(d => d.score >= 2).length;
+    const discipline = Math.min(100, Math.round((perfectDays / 14) * 100));
+
+    // Frequency: workouts per week over last 28 days (5+/wk = 100)
+    const last28Workouts = workouts.filter(w => {
+        const d = w.createdAt?.seconds ? new Date(w.createdAt.seconds * 1000) : new Date(w.date);
+        return now - d.getTime() < 28 * msPerDay;
+    }).length;
+    const frequency = Math.min(100, Math.round((last28Workouts / 4 / 5) * 100));
+
+    // Legacy: total XP scaled (25000 = Diamond = 100)
+    const legacy = Math.min(100, Math.round(((profile.xp || 0) / 25000) * 100));
+
     return [
-        { subject: 'Consistency', A: 80, fullMark: 100 },
-        { subject: 'Intensity', A: 75, fullMark: 100 },
-        { subject: 'Discipline', A: 90, fullMark: 100 },
-        { subject: 'Frequency', A: 70, fullMark: 100 },
-        { subject: 'Legacy', A: 60, fullMark: 100 },
+        { subject: 'Consistency', A: consistency, fullMark: 100 },
+        { subject: 'Intensity', A: intensity, fullMark: 100 },
+        { subject: 'Discipline', A: discipline, fullMark: 100 },
+        { subject: 'Frequency', A: frequency, fullMark: 100 },
+        { subject: 'Legacy', A: legacy, fullMark: 100 },
     ];
-  }, []);
+  }, [workouts, meals, profile.xp, disciplineGrid]);
 
   return (
     <div className="space-y-6 pb-4 animate-in fade-in">
@@ -166,8 +209,15 @@ export const StatsView = ({ leaderboard, profile, progress, meals, workouts }) =
         </div>
 
         {/* LIFTER ARCHETYPE */}
-        <div className="bg-gray-900 border border-gray-800 p-4 rounded-3xl">
-            <h3 className="text-xs font-black uppercase text-gray-500 flex items-center gap-2 mb-4"><Activity size={14} className="text-cyan-500"/> Lifter Archetype</h3>
+        <div className="bg-gray-900 border border-gray-800 p-4 rounded-3xl relative overflow-hidden">
+            <h3 className="text-xs font-black uppercase text-gray-500 flex items-center gap-2 mb-4"><Activity size={14} className="text-cyan-500"/> Lifter Archetype {!isPremium && <Lock size={10} className="text-yellow-400" />}</h3>
+            {!isPremium && (
+                <div className="absolute inset-0 z-10 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center rounded-3xl cursor-pointer" onClick={() => requirePremium('unlimitedHistory')}>
+                    <Lock size={24} className="text-yellow-400 mb-2" />
+                    <p className="text-xs font-bold text-white">Pro Feature</p>
+                    <p className="text-[11px] text-gray-400">Tap to unlock</p>
+                </div>
+            )}
             <div className="h-56 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                     <RadarChart cx="50%" cy="50%" outerRadius="70%" data={archetypeData}>

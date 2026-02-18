@@ -21,19 +21,19 @@ import {
 } from '../components/IronCoreIcons';
 
 // Import all AI components
-// Voice commands removed
 import { FormCoach } from '../components/FormCoach';
 import { SmartRestTimer } from '../components/SmartRestTimer';
 import { SleepRecoveryTracker } from '../components/SleepRecoveryTracker';
 import { PredictiveAnalytics } from '../components/PredictiveAnalytics';
 import { CoachView } from './CoachView';
-// import { useVoiceCommands } from '../hooks/useVoiceCommands'; // REMOVED
+import { useVoiceCommands } from '../hooks/useVoiceCommands';
 import { AchievementsGallery, ChallengeCard, StreakFlame, PowerUpCard } from '../components/Gamification';
 import { generateDailyChallenge, generateWeeklyChallenge, POWER_UPS } from '../data/achievements';
 import { WaterTracker, FastingTimer, SupplementTracker, MacroPieChart } from '../components/NutritionEnhancements';
-import { PersonalRecordsBoard, WorkoutIntensityScore, MuscleGroupRadar } from '../components/AnalyticsDashboard';
+import { PersonalRecordsBoard, WorkoutIntensityScore, MuscleGroupRadar, ExportReportButton } from '../components/AnalyticsDashboard';
+import { exportPDFReport } from '../utils/exportUtils';
 
-console.log('✅ AILabView loaded successfully');
+// AILabView module
 
 /**
  * AI Lab View - Showcase all AI features in one place
@@ -42,11 +42,41 @@ export const AILabView = ({ workouts = [], meals = [], profile = {}, updateData,
     const [labTab, setLabTab] = useState('coach'); // 'coach' or 'vision'
     const [activeFeature, setActiveFeature] = useState(null);
 
-    // Voice commands removed
-    // const { isListening, transcript, isSupported, toggleListening, speak } = useVoiceCommands({
-    //     onCommand: (cmd) => console.log('Voice command:', cmd),
-    //     onLog: (msg) => console.log(msg)
-    // });
+    const handleVoiceCommand = (cmd) => {
+        switch (cmd.action) {
+            case 'water':
+                updateData?.('add', 'meals', { mealName: 'Water', calories: 0, protein: 0, carbs: 0, fat: 0 });
+                break;
+            case 'start':
+                if (cmd.params[0] === 'timer' || cmd.params[0] === 'rest') setActiveFeature('timer');
+                break;
+            case 'go':
+            case 'show':
+            case 'open': {
+                const target = cmd.params[0]?.toLowerCase();
+                if (target?.includes('timer') || target?.includes('rest')) setActiveFeature('timer');
+                else if (target?.includes('form') || target?.includes('coach')) setActiveFeature('form');
+                else if (target?.includes('sleep') || target?.includes('recovery')) setActiveFeature('sleep');
+                else if (target?.includes('nutrition') || target?.includes('food')) setActiveFeature('nutrition');
+                else if (target?.includes('stats') || target?.includes('analytics')) setActiveFeature('stats');
+                break;
+            }
+            case 'weight': {
+                const w = parseFloat(cmd.params[0]);
+                if (w > 0) updateData?.('add', 'progress', { weight: w });
+                break;
+            }
+            default:
+                break;
+        }
+    };
+
+    const { voiceState, transcript, isSupported, manualActivate, speak, VOICE_STATE } = useVoiceCommands({
+        onCommand: handleVoiceCommand,
+        onLog: (msg) => console.log(msg)
+    });
+    const isListening = voiceState === VOICE_STATE.ACTIVE || voiceState === VOICE_STATE.LISTENING;
+    const toggleListening = manualActivate;
 
     // Get challenges
     const dailyChallenge = generateDailyChallenge();
@@ -61,8 +91,8 @@ export const AILabView = ({ workouts = [], meals = [], profile = {}, updateData,
 
     const features = [
         { id: 'form', name: 'Form Coach', icon: IconWrapper(FormCoachIconShape, '#ef4444'), fallback: Camera, color: 'red', desc: 'AI pose detection' },
-        // { id: 'voice', name: 'Voice Commands', icon: Mic, color: 'green', desc: 'Hands-free logging' }, // REMOVED
-        { id: 'analytics', name: 'AI Insights', icon: IconWrapper(BrainIconShape, '#a855f7'), fallback: Brain, color: 'purple', desc: 'Predictive analytics' },
+        { id: 'voice', name: 'Voice', icon: Mic, fallback: Mic, color: 'green', desc: 'Hands-free logging' },
+        { id: 'analytics', name: 'Predictions', icon: IconWrapper(BrainIconShape, '#a855f7'), fallback: Brain, color: 'purple', desc: 'Predictive analytics' },
         { id: 'timer', name: 'Smart Rest', icon: IconWrapper(SmartTimerIconShape, '#f59e0b'), fallback: Timer, color: 'orange', desc: 'Adaptive timing' },
         { id: 'sleep', name: 'Recovery', icon: IconWrapper(MoonIconShape, '#06b6d4'), fallback: Moon, color: 'cyan', desc: 'Sleep tracking' },
         { id: 'gamify', name: 'Achievements', icon: IconWrapper(TrophyIconShape, '#eab308'), fallback: Trophy, color: 'yellow', desc: '50+ badges' },
@@ -86,33 +116,39 @@ export const AILabView = ({ workouts = [], meals = [], profile = {}, updateData,
             case 'form':
                 return <FormCoach exercise="squat" onComplete={() => setActiveFeature(null)} />;
 
-            /* Voice functionality removed
             case 'voice':
                 return (
                     <div className="space-y-4">
                         <div className="text-center p-6">
-                            <motion.button
-                                onClick={toggleListening}
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                className={`w-24 h-24 rounded-full mx-auto flex items-center justify-center ${isListening ? 'bg-red-500 animate-pulse' : 'bg-red-500'
-                                    }`}
-                            >
-                                <Mic className="w-10 h-10 text-white" />
-                            </motion.button>
-                            <p className="mt-4 text-white font-bold">
-                                {isListening ? 'Listening...' : 'Tap to speak'}
-                            </p>
-                            {transcript && (
-                                <p className="mt-2 text-red-400 text-sm">"{transcript}"</p>
+                            {!isSupported ? (
+                                <p className="text-red-400 text-sm">Voice recognition is not supported in this browser.</p>
+                            ) : (
+                                <>
+                                    <motion.button
+                                        onClick={toggleListening}
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        className={`w-24 h-24 rounded-full mx-auto flex items-center justify-center ${isListening ? 'bg-red-500 animate-pulse' : 'bg-red-500/80'}`}
+                                    >
+                                        <Mic className="w-10 h-10 text-white" />
+                                    </motion.button>
+                                    <p className="mt-4 text-white font-bold">
+                                        {isListening ? 'Listening...' : 'Tap to speak'}
+                                    </p>
+                                    {transcript && (
+                                        <p className="mt-2 text-red-400 text-sm">"{transcript}"</p>
+                                    )}
+                                    <div className="mt-6 text-left space-y-1 max-w-xs mx-auto">
+                                        <p className="text-xs text-white/40 uppercase font-bold mb-2">Commands</p>
+                                        {['log water / add water', 'log weight 75.5', 'start timer', 'open form coach', 'show nutrition'].map(c => (
+                                            <p key={c} className="text-xs text-white/60 font-mono bg-white/5 px-3 py-1.5 rounded-lg">"{c}"</p>
+                                        ))}
+                                    </div>
+                                </>
                             )}
-                            <p className="mt-4 text-xs text-white/50">
-                                Try: "Hey IronCore, log 10 reps" or "start timer"
-                            </p>
                         </div>
                     </div>
                 );
-            */
 
             case 'analytics':
                 return <PredictiveAnalytics workouts={workouts} meals={meals} profile={profile} />;
@@ -123,8 +159,7 @@ export const AILabView = ({ workouts = [], meals = [], profile = {}, updateData,
                         exercise="Bench Press"
                         setNumber={3}
                         intensity="heavy"
-                        // onComplete={() => speak('Rest complete')} // Removed speak
-                        onComplete={() => console.log('Rest complete')}
+                        onComplete={() => speak('Rest complete')}
                         onSkip={() => setActiveFeature(null)}
                     />
                 );
@@ -221,6 +256,7 @@ export const AILabView = ({ workouts = [], meals = [], profile = {}, updateData,
                         <PersonalRecordsBoard />
                         <WorkoutIntensityScore workouts={workouts} />
                         <MuscleGroupRadar />
+                        <ExportReportButton onExport={() => exportPDFReport({ workouts, meals, profile })} />
                     </div>
                 );
 
@@ -275,7 +311,7 @@ export const AILabView = ({ workouts = [], meals = [], profile = {}, updateData,
                         exit={{ opacity: 0, x: 20 }}
                         className="flex-grow"
                     >
-                        <CoachView weight={weight} meals={meals} workouts={workouts} profile={profile} />
+                        <CoachView weight={weight} meals={meals} workouts={workouts} profile={profile} updateData={updateData} />
                     </motion.div>
                 ) : (
                     <motion.div

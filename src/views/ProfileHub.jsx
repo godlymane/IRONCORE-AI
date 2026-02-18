@@ -12,7 +12,7 @@ import { TrophyIconShape, ProteinBoltIcon, DumbbellIcon, UtensilsIcon } from '..
 export const ProfileHub = ({
     profile = {},
     progress = [],
-    photos = [], // Legacy prop, might be unused now
+    photos = [],
     meals = [],
     workouts = [],
     burned = [],
@@ -20,7 +20,8 @@ export const ProfileHub = ({
     deleteEntry,
     uploadProfilePic,
     onLogout,
-    isStorageReady
+    isStorageReady,
+    user
 }) => {
     const [subTab, setSubTab] = useState('overview');
     const xp = profile?.xp || 0;
@@ -136,7 +137,7 @@ export const ProfileHub = ({
                 {subTab === 'overview' && <TrackView profile={profile} progress={progress} />}
                 {subTab === 'history' && <ChronicleView meals={meals} burned={burned} workouts={workouts} progress={progress} user={{}} deleteEntry={deleteEntry} profile={profile} />}
                 {subTab === 'stats' && <StatsView leaderboard={leaderboard} profile={profile} progress={progress} meals={meals} workouts={workouts} />}
-                {subTab === 'gallery' && <ProgressPhotos userId={profile.id || 'demo_user_001'} />}
+                {subTab === 'gallery' && <ProgressPhotos userId={user?.uid} />}
             </div>
         </div>
     );

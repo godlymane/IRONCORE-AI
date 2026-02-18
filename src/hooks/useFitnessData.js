@@ -1,7 +1,5 @@
-import { useState, useEffect } from 'react';
-import { initializeApp } from 'firebase/app';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-    getAuth,
     signInWithPopup,
     GoogleAuthProvider,
     signOut,
@@ -9,116 +7,99 @@ import {
     signInWithCredential
 } from 'firebase/auth';
 import {
-    getFirestore, doc, setDoc, collection, addDoc,
-    onSnapshot, query, deleteDoc, orderBy, limit, where
+    doc, setDoc, collection, addDoc, getDoc, runTransaction,
+    onSnapshot, query, deleteDoc, orderBy, limit
 } from 'firebase/firestore';
 import {
-    getStorage,
     ref,
     uploadBytes,
     getDownloadURL
 } from 'firebase/storage';
 import { Capacitor } from '@capacitor/core';
+import { db, auth as firebaseAuth, storage as firebaseStorage, isStorageConfigured } from '../firebase';
+import { runMigrations, CURRENT_SCHEMA_VERSION } from '../utils/migrations';
 
-const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID
+// --- Input validation helpers ---
+const MAX_MESSAGE_LENGTH = 500;
+const MAX_CAPTION_LENGTH = 300;
+const MAX_USERNAME_LENGTH = 50;
+
+const sanitizeText = (text, maxLength = MAX_MESSAGE_LENGTH) => {
+    if (typeof text !== 'string') return '';
+    return text.trim().slice(0, maxLength);
+};
+
+const validatePayload = (payload) => {
+    if (!payload || typeof payload !== 'object') return false;
+    // Reject if payload has any prototype pollution keys
+    const dangerous = ['__proto__', 'constructor', 'prototype'];
+    return !Object.keys(payload).some(k => dangerous.includes(k));
 };
 
 export function useFitnessData() {
     const [user, setUser] = useState(null);
-    const [db, setDb] = useState(null);
-    const [auth, setAuth] = useState(null);
-    const [storage, setStorage] = useState(null);
-    const [isStorageReady, setIsStorageReady] = useState(false);
-    const [profileLoaded, setProfileLoaded] = useState(false); // Track if profile has been fetched from Firestore
-    const [profileExists, setProfileExists] = useState(false); // Track if Firestore doc actually has data
+    const [profileLoaded, setProfileLoaded] = useState(false);
+    const [profileExists, setProfileExists] = useState(false);
+    const listenersRef = useRef([]);
 
     const [data, setData] = useState({
         meals: [], progress: [], burned: [], workouts: [], photos: [],
-        profile: {}, // Start with empty object - will be populated from Firestore
+        profile: {},
         leaderboard: [], chat: [], following: [], posts: [], inbox: [],
         globalFeed: [], battles: []
     });
 
-    const [dataLoaded, setDataLoaded] = useState(false); // True after first Firestore collection snapshot
+    const [dataLoaded, setDataLoaded] = useState(false);
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    // Use singleton instances from firebase.js (no duplicate init)
+    const isStorageReady = isStorageConfigured;
+
     useEffect(() => {
-        if (!firebaseConfig.apiKey) {
-            setError("Missing API Key in .env");
+        if (!db || !firebaseAuth) {
+            setError("Firebase not initialized — check .env");
             setLoading(false);
             return;
         }
 
-        try {
-            const app = initializeApp(firebaseConfig);
-            const authInstance = getAuth(app);
-            const firestore = getFirestore(app);
-
-            let storageInstance = null;
-            if (firebaseConfig.storageBucket) {
+        // Auth state listener — sole source of truth for login state
+        const unsubscribe = onAuthStateChanged(firebaseAuth, (u) => {
+            // Auth state changed
+            // Seed profile from localStorage so onboarding data shows instantly
+            if (u) {
                 try {
-                    storageInstance = getStorage(app);
-                    setIsStorageReady(true);
-                } catch (e) {
-                    console.warn("Storage Init Error:", e);
-                }
+                    const cached = localStorage.getItem('ironai_profile_' + u.uid);
+                    if (cached) {
+                        const parsed = JSON.parse(cached);
+                        setData(prev => ({ ...prev, profile: { ...parsed, ...prev.profile } }));
+                    }
+                } catch (e) { /* ignore */ }
             }
-
-            setAuth(authInstance);
-            setDb(firestore);
-            setStorage(storageInstance);
-
-            // Auth state listener — sole source of truth for login state
-            const unsubscribe = onAuthStateChanged(authInstance, (u) => {
-                console.log('Auth state changed:', u ? u.email : 'null');
-                setUser(u);
-                setLoading(false);
-            });
-
-            return () => unsubscribe();
-        } catch (err) {
-            setError(err.message);
+            setUser(u);
             setLoading(false);
-        }
+        });
+
+        return () => unsubscribe();
     }, []);
 
     const login = async () => {
-        if (!auth) {
-            alert('Auth not initialized');
-            return;
-        }
-
         try {
-            console.log('Attempting Google login...');
             const isNative = Capacitor.isNativePlatform();
 
             if (isNative) {
-                // Native: use Capacitor Firebase Authentication plugin
-                // This opens Google's native sign-in UI (not a WebView redirect)
-                console.log('Native platform — using native Google Sign-In...');
                 const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
                 const result = await FirebaseAuthentication.signInWithGoogle();
-                // Use the credential to sign in with Firebase JS SDK
                 const credential = GoogleAuthProvider.credential(result.credential?.idToken);
-                await signInWithCredential(auth, credential);
-                console.log('Native Google Sign-In successful');
+                await signInWithCredential(firebaseAuth, credential);
             } else {
-                // Web: use popup (works in normal browsers)
-                console.log('Web platform, using popup...');
                 const provider = new GoogleAuthProvider();
-                await signInWithPopup(auth, provider);
+                await signInWithPopup(firebaseAuth, provider);
             }
         } catch (e) {
             console.error('Login error:', e);
             if (e.code === 'auth/popup-closed-by-user' || e.message?.includes('canceled')) {
-                console.log('Login cancelled by user');
+                // Login cancelled by user
             } else {
                 alert('Login Error: ' + (e.message || e.code));
             }
@@ -126,27 +107,52 @@ export function useFitnessData() {
     };
 
     const logout = async () => {
-        if (!auth) return;
         try {
-            // Sign out from native Google if on Capacitor
             if (Capacitor.isNativePlatform()) {
                 try {
                     const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
                     await FirebaseAuthentication.signOut();
                 } catch (e) { /* native signout failed, continue with web signout */ }
             }
-            await signOut(auth);
-            setData(prev => ({ ...prev, meals: [] }));
+            const uid = user?.uid;
+            await signOut(firebaseAuth);
+
+            // Clear ALL in-memory state (privacy: don't leak data to next user)
+            setData({
+                meals: [], progress: [], burned: [], workouts: [], photos: [],
+                profile: {},
+                leaderboard: [], chat: [], following: [], posts: [], inbox: [],
+                globalFeed: [], battles: []
+            });
+            setProfileLoaded(false);
+            setProfileExists(false);
+            setDataLoaded(false);
+
+            // Clear localStorage caches for this user
+            if (uid) {
+                try {
+                    localStorage.removeItem('ironai_profile_' + uid);
+                    localStorage.removeItem('ironai_onboarded_' + uid);
+                } catch (e) { /* ignore */ }
+            }
         } catch (e) { console.error(e); }
     };
 
     const uploadProfilePic = async (file) => {
         if (!isStorageReady || !user) { alert("Storage not configured."); return; }
         try {
-            const storageRef = ref(storage, `users/${user.uid}/profile_${Date.now()}.jpg`);
+            const storageRef = ref(firebaseStorage, 'users/' + user.uid + '/profile_' + Date.now() + '.jpg');
             await uploadBytes(storageRef, file);
             const url = await getDownloadURL(storageRef);
+            // Update Firestore profile
             await updateData('add', 'profile', { photoURL: url });
+            // Also update localStorage cache so pic persists across restarts
+            try {
+                const cached = localStorage.getItem('ironai_profile_' + user.uid);
+                const profile = cached ? JSON.parse(cached) : {};
+                profile.photoURL = url;
+                localStorage.setItem('ironai_profile_' + user.uid, JSON.stringify(profile));
+            } catch (e) { /* ignore */ }
             return url;
         } catch (e) { console.error("Upload failed", e); }
     };
@@ -154,7 +160,7 @@ export function useFitnessData() {
     const uploadProgressPhoto = async (file, note = "") => {
         if (!isStorageReady || !user) return;
         try {
-            const storageRef = ref(storage, `users/${user.uid}/progress/${Date.now()}.jpg`);
+            const storageRef = ref(firebaseStorage, 'users/' + user.uid + '/progress/' + Date.now() + '.jpg');
             await uploadBytes(storageRef, file);
             const url = await getDownloadURL(storageRef);
             await addDoc(collection(db, 'users', user.uid, 'photos'), { url, date: new Date().toISOString().split('T')[0], createdAt: new Date(), note });
@@ -166,8 +172,8 @@ export function useFitnessData() {
         if (!db || !user) return;
         try {
             await addDoc(collection(db, 'global', 'data', 'feed'), {
-                type, message, details,
-                username: user.displayName || "Anonymous",
+                type, message: sanitizeText(message, MAX_MESSAGE_LENGTH), details,
+                username: sanitizeText(user.displayName || "Anonymous", MAX_USERNAME_LENGTH),
                 userId: user.uid,
                 createdAt: new Date()
             });
@@ -175,38 +181,67 @@ export function useFitnessData() {
     };
 
     const buyItem = async (item, cost) => {
-        if (!user || (data.profile.xp || 0) < cost) { alert("Not enough XP!"); return false; }
+        if (!user || !db) return false;
         try {
-            const newXp = (data.profile.xp || 0) - cost;
-            const currentInv = data.profile.inventory || [];
-            await setDoc(doc(db, 'users', user.uid, 'data', 'profile'), { xp: newXp, inventory: [...currentInv, { item, boughtAt: new Date() }] }, { merge: true });
+            const profileRef = doc(db, 'users', user.uid, 'data', 'profile');
+            await runTransaction(db, async (txn) => {
+                const snap = await txn.get(profileRef);
+                const current = snap.exists() ? snap.data() : {};
+                const currentXp = current.xp || 0;
+                if (currentXp < cost) throw new Error("Not enough XP!");
+                txn.set(profileRef, {
+                    xp: currentXp - cost,
+                    inventory: [...(current.inventory || []), { item, boughtAt: new Date() }]
+                }, { merge: true });
+            });
             return true;
-        } catch (e) { console.error("Purchase failed", e); return false; }
+        } catch (e) {
+            console.error("Purchase failed", e);
+            if (e.message === "Not enough XP!") alert("Not enough XP!");
+            return false;
+        }
     };
 
     const completeDailyDrop = async (xpReward) => {
+        if (!user || !db) return;
         const today = new Date().toISOString().split('T')[0];
-        if (data.profile.dailyDrops && data.profile.dailyDrops[today]) return;
-        await updateData('add', 'xp_bonus', { amount: xpReward, reason: "Daily Drop" });
-        await updateData('add', 'profile', { dailyDrops: { ...data.profile.dailyDrops, [today]: true } });
-        broadcastEvent('challenge', 'crushed the Daily Drop!', `+${xpReward} XP`);
+        try {
+            const profileRef = doc(db, 'users', user.uid, 'data', 'profile');
+            await runTransaction(db, async (txn) => {
+                const snap = await txn.get(profileRef);
+                const current = snap.exists() ? snap.data() : {};
+                // Check if already claimed today (inside transaction to prevent double-claim)
+                if (current.dailyDrops && current.dailyDrops[today]) {
+                    throw new Error("already_claimed");
+                }
+                txn.set(profileRef, {
+                    xp: (current.xp || 0) + xpReward,
+                    dailyDrops: { ...(current.dailyDrops || {}), [today]: true }
+                }, { merge: true });
+            });
+            broadcastEvent('challenge', 'crushed the Daily Drop!', '+' + xpReward + ' XP');
+        } catch (e) {
+            if (e.message !== "already_claimed") console.error("Daily drop failed", e);
+        }
     };
 
     // --- SOCIAL ACTIONS ---
     const sendMessage = async (text) => {
-        if (!user || !db || !text.trim()) return;
+        const clean = sanitizeText(text, MAX_MESSAGE_LENGTH);
+        if (!user || !db || !clean) return;
         try {
             await addDoc(collection(db, 'global', 'data', 'chat'), {
-                text: text.trim(), userId: user.uid, username: user.displayName || "Anonymous", photo: user.photoURL, xp: data.profile.xp || 0, createdAt: new Date()
+                text: clean, userId: user.uid, username: sanitizeText(user.displayName || "Anonymous", MAX_USERNAME_LENGTH), photo: user.photoURL, xp: data.profile.xp || 0, createdAt: new Date()
             });
         } catch (e) { console.error("Message failed", e); }
     };
 
     const sendPrivateMessage = async (targetUserId, text) => {
-        if (!user || !db || !text.trim()) return;
+        const clean = sanitizeText(text, MAX_MESSAGE_LENGTH);
+        if (!user || !db || !clean || !targetUserId) return;
         try {
             await addDoc(collection(db, 'users', targetUserId, 'inbox'), {
-                text: text.trim(), fromId: user.uid, fromName: user.displayName || "Anonymous", fromPhoto: user.photoURL, createdAt: new Date(), read: false
+                text: clean, fromId: user.uid, fromName: sanitizeText(user.displayName || "Anonymous", MAX_USERNAME_LENGTH), fromPhoto: user.photoURL, createdAt: new Date(), read: false
             });
             return true;
         } catch (e) { console.error("DM failed", e); return false; }
@@ -223,12 +258,13 @@ export function useFitnessData() {
 
     const createPost = async (file, caption) => {
         if (!isStorageReady || !user || !db) return;
+        const cleanCaption = sanitizeText(caption, MAX_CAPTION_LENGTH);
         try {
-            const storageRef = ref(storage, `posts/${Date.now()}_${user.uid}.jpg`);
+            const storageRef = ref(firebaseStorage, 'posts/' + Date.now() + '_' + user.uid + '.jpg');
             await uploadBytes(storageRef, file);
             const url = await getDownloadURL(storageRef);
             await addDoc(collection(db, 'global', 'data', 'posts'), {
-                imageUrl: url, caption: caption, userId: user.uid, username: user.displayName || "Anonymous", userPhoto: user.photoURL, xp: data.profile.xp || 0, likes: 0, createdAt: new Date()
+                imageUrl: url, caption: cleanCaption, userId: user.uid, username: sanitizeText(user.displayName || "Anonymous", MAX_USERNAME_LENGTH), userPhoto: user.photoURL, xp: data.profile.xp || 0, likes: 0, createdAt: new Date()
             });
             return true;
         } catch (e) { console.error("Post failed", e); return false; }
@@ -236,79 +272,116 @@ export function useFitnessData() {
 
     // --- BATTLES LOGIC ---
     const createBattle = async (opponentId, opponentName) => {
-        if (!user || !db) return;
-        await addDoc(collection(db, 'global', 'data', 'battles'), {
-            challengerId: user.uid,
-            challengerName: user.displayName || "Unknown",
-            opponentId,
-            opponentName,
-            status: 'active', // For this demo, auto-active
-            createdAt: new Date(),
-            expiresAt: new Date(Date.now() + 86400000) // 24h
-        });
+        if (!user || !db || !opponentId) return;
+        try {
+            await addDoc(collection(db, 'global', 'data', 'battles'), {
+                challengerId: user.uid,
+                challengerName: sanitizeText(user.displayName || "Unknown", MAX_USERNAME_LENGTH),
+                opponentId,
+                opponentName: sanitizeText(opponentName || "Unknown", MAX_USERNAME_LENGTH),
+                status: 'active',
+                createdAt: new Date(),
+                expiresAt: new Date(Date.now() + 86400000)
+            });
+        } catch (e) { console.error("Battle creation failed", e); }
     };
 
-    // --- DATA LISTENERS ---
-    useEffect(() => {
-        if (!user || !db) return;
-        const uid = user.uid;
-        const listeners = [];
+    // --- DATA LISTENERS with error handlers + refresh support ---
+    const onListenerError = useCallback((key) => (err) => {
+        console.error('Listener error [' + key + ']:', err.code || err.message);
+    }, []);
 
-        const bind = (key, path, isDoc = false) => {
-            const ref = isDoc ? doc(db, 'users', uid, 'data', key) : query(collection(db, 'users', uid, key));
-            const leaderboardRef = query(collection(db, 'global', 'data', 'leaderboard'));
-            const chatRef = query(collection(db, 'global', 'data', 'chat'), orderBy('createdAt', 'asc'), limit(50));
-            const postsRef = query(collection(db, 'global', 'data', 'posts'), orderBy('createdAt', 'desc'), limit(20));
-            const feedRef = query(collection(db, 'global', 'data', 'feed'), orderBy('createdAt', 'desc'), limit(50));
-            const battlesRef = query(collection(db, 'global', 'data', 'battles'), orderBy('createdAt', 'desc'), limit(20));
+    const subscribeToData = useCallback((uid) => {
+        // Tear down previous listeners
+        listenersRef.current.forEach(u => u());
+        listenersRef.current = [];
 
-            let actualRef = ref;
-            if (key === 'leaderboard') actualRef = leaderboardRef;
-            if (key === 'chat') actualRef = chatRef;
-            if (key === 'posts') actualRef = postsRef;
-            if (key === 'globalFeed') actualRef = feedRef;
-            if (key === 'battles') actualRef = battlesRef;
+        const push = (unsub) => listenersRef.current.push(unsub);
 
-            listeners.push(onSnapshot(actualRef, (snap) => {
+        const bind = (key, isDoc = false) => {
+            let actualRef;
+            if (key === 'leaderboard') actualRef = query(collection(db, 'leaderboard'), orderBy('xp', 'desc'), limit(100));
+            else if (key === 'chat') actualRef = query(collection(db, 'global', 'data', 'chat'), orderBy('createdAt', 'asc'), limit(50));
+            else if (key === 'posts') actualRef = query(collection(db, 'global', 'data', 'posts'), orderBy('createdAt', 'desc'), limit(20));
+            else if (key === 'globalFeed') actualRef = query(collection(db, 'global', 'data', 'feed'), orderBy('createdAt', 'desc'), limit(50));
+            else if (key === 'battles') actualRef = query(collection(db, 'global', 'data', 'battles'), orderBy('createdAt', 'desc'), limit(20));
+            else if (isDoc) actualRef = doc(db, 'users', uid, 'data', key);
+            else actualRef = query(collection(db, 'users', uid, key));
+
+            push(onSnapshot(actualRef, (snap) => {
                 if (isDoc) {
                     const docData = snap.exists() ? snap.data() : {};
                     setData(prev => ({ ...prev, [key]: docData }));
-                    // Mark profile as loaded once Firestore responds
                     if (key === 'profile') {
                         setProfileLoaded(true);
-                        // Track whether the doc exists AND has meaningful data (not just {})
                         setProfileExists(snap.exists() && Object.keys(docData).length > 0);
+                        if (snap.exists() && Object.keys(docData).length > 0) {
+                            try { localStorage.setItem('ironai_profile_' + uid, JSON.stringify(docData)); } catch (_) { /* ignore */ }
+                        }
                     }
-                }
-                else {
+                } else {
                     const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                    // Local sort for collections not sorted by query
-                    if (key !== 'chat' && key !== 'globalFeed' && key !== 'posts' && key !== 'battles') {
+                    if (key !== 'chat' && key !== 'globalFeed' && key !== 'posts' && key !== 'battles' && key !== 'leaderboard') {
                         list.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
                     }
                     setData(prev => ({ ...prev, [key]: list }));
                 }
-                // Mark data as loaded after first snapshot from any binding
                 setDataLoaded(true);
-            }));
+            }, onListenerError(key)));
         };
 
-        bind('meals'); bind('progress'); bind('burned'); bind('workouts'); bind('photos'); bind('profile', [], true);
+        bind('meals'); bind('progress'); bind('burned'); bind('workouts'); bind('photos'); bind('profile', true);
         bind('leaderboard'); bind('chat'); bind('posts'); bind('globalFeed'); bind('battles');
 
-        listeners.push(onSnapshot(collection(db, 'users', uid, 'inbox'), (snap) => {
+        push(onSnapshot(collection(db, 'users', uid, 'inbox'), (snap) => {
             const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.createdAt - a.createdAt);
             setData(prev => ({ ...prev, inbox: msgs }));
-        }));
-        listeners.push(onSnapshot(collection(db, 'users', uid, 'following'), (snap) => {
-            setData(prev => ({ ...prev, following: snap.docs.map(d => d.id) }));
-        }));
+        }, onListenerError('inbox')));
 
-        return () => listeners.forEach(u => u());
-    }, [user, db]);
+        push(onSnapshot(collection(db, 'users', uid, 'following'), (snap) => {
+            setData(prev => ({ ...prev, following: snap.docs.map(d => d.id) }));
+        }, onListenerError('following')));
+    }, [onListenerError]);
+
+    // Re-subscribe for pull-to-refresh
+    const refreshData = useCallback(() => {
+        if (!user || !db) return;
+        subscribeToData(user.uid);
+    }, [user, subscribeToData]);
+
+    useEffect(() => {
+        if (!user || !db) return;
+        subscribeToData(user.uid);
+        return () => listenersRef.current.forEach(u => u());
+    }, [user, subscribeToData]);
+
+    // --- Schema migration runner (runs once after profile + data load) ---
+    const migrationRanRef = useRef(false);
+    useEffect(() => {
+        if (migrationRanRef.current || !user || !db || !profileLoaded || !dataLoaded) return;
+        if ((data.profile.schemaVersion || 0) >= CURRENT_SCHEMA_VERSION) return;
+        migrationRanRef.current = true;
+
+        runMigrations(
+            data.profile,
+            { progress: data.progress, meals: data.meals, workouts: data.workouts },
+            async (patch) => {
+                await setDoc(doc(db, 'users', user.uid, 'data', 'profile'), patch, { merge: true });
+            }
+        ).then(result => {
+            if (result.migrated) {
+                // Migrations applied
+            }
+        }).catch(e => console.error('Migration error:', e));
+    }, [user, db, profileLoaded, dataLoaded, data.profile, data.progress, data.meals, data.workouts]);
 
     const updateData = async (action, col, payload, id) => {
         if (!user || !db) return;
+        // Validate payload to prevent prototype pollution
+        if (payload && !validatePayload(payload)) {
+            console.error('Invalid payload rejected');
+            return;
+        }
         const today = new Date().toISOString().split('T')[0];
         const timestamp = new Date();
         let xpGain = 0;
@@ -322,21 +395,43 @@ export function useFitnessData() {
 
             const docData = { ...payload, date: today, createdAt: timestamp, userId: user.uid };
 
+            // Bounds-check workout volume values
+            if (col === 'workouts' && payload.exercises) {
+                payload.exercises.forEach(ex => {
+                    if (ex.sets) {
+                        ex.sets.forEach(s => {
+                            s.w = Math.max(0, Math.min(2000, parseFloat(s.w) || 0));
+                            s.r = Math.max(0, Math.min(1000, parseFloat(s.r) || 0));
+                        });
+                    }
+                });
+            }
+
             try {
                 if (col === 'xp_bonus') { /* logic */ }
                 else if (col === 'profile') { await setDoc(doc(db, 'users', user.uid, 'data', 'profile'), payload, { merge: true }); }
                 else { await addDoc(collection(db, 'users', user.uid, col), docData); }
 
-                // Update XP and Leaderboard
+                // Update XP atomically via transaction + update leaderboard
                 if (xpGain > 0 || col === 'workouts') {
-                    const currentXp = (data.profile.xp || 0) + xpGain;
+                    const profileRef = doc(db, 'users', user.uid, 'data', 'profile');
+                    let newXp = 0;
+                    let oldXp = 0;
+
                     if (xpGain > 0) {
-                        await setDoc(doc(db, 'users', user.uid, 'data', 'profile'), { xp: currentXp }, { merge: true });
+                        await runTransaction(db, async (txn) => {
+                            const snap = await txn.get(profileRef);
+                            const current = snap.exists() ? snap.data() : {};
+                            oldXp = current.xp || 0;
+                            newXp = oldXp + xpGain;
+                            txn.set(profileRef, { xp: newXp }, { merge: true });
+                        });
+                    } else {
+                        newXp = data.profile.xp || 0;
+                        oldXp = newXp;
                     }
 
-                    // Calculate Today's Volume for Leaderboard (Simple Approximation based on just this workout + previous today)
-                    // Note: Real-world apps might use Cloud Functions for this.
-                    // Here we update it optimistically.
+                    // Leaderboard volume calculation
                     let workoutVolume = 0;
                     if (col === 'workouts' && payload.exercises) {
                         payload.exercises.forEach(ex => {
@@ -348,20 +443,25 @@ export function useFitnessData() {
                     const currentVolume = currentEntry?.todayVolume || 0;
 
                     const leaderboardData = {
-                        username: user.displayName || "Anonymous",
-                        xp: currentXp,
+                        username: sanitizeText(user.displayName || "Anonymous", MAX_USERNAME_LENGTH),
+                        xp: newXp,
                         userId: user.uid,
-                        photo: user.photoURL,
+                        photo: data.profile.photoURL || user.photoURL,
                         todayVolume: col === 'workouts' ? currentVolume + workoutVolume : currentVolume
                     };
-                    if (data.profile.photoURL) leaderboardData.photo = data.profile.photoURL;
-                    await setDoc(doc(db, 'global', 'data', 'leaderboard', user.uid), leaderboardData, { merge: true });
+                    await setDoc(doc(db, 'leaderboard', user.uid), leaderboardData, { merge: true });
 
-                    if (xpGain > 0 && Math.floor((currentXp - xpGain) / 500) < Math.floor(currentXp / 500)) {
-                        broadcastEvent('level', 'leveled up!', `Reached ${currentXp} XP`);
+                    if (xpGain > 0 && Math.floor(oldXp / 500) < Math.floor(newXp / 500)) {
+                        broadcastEvent('level', 'leveled up!', 'Reached ' + newXp + ' XP');
                     }
                 }
             } catch (e) { console.error("Write Error", e); }
+        } else if (action === 'update') {
+            // Update an existing document (merge)
+            if (!id) return;
+            try {
+                await setDoc(doc(db, 'users', user.uid, col, id), payload, { merge: true });
+            } catch (e) { console.error("Update Error", e); }
         } else if (action === 'delete') { await deleteDoc(doc(db, 'users', user.uid, col, id)); }
     };
 
@@ -371,8 +471,6 @@ export function useFitnessData() {
         sendMessage, toggleFollow, sendPrivateMessage, createPost,
         buyItem, completeDailyDrop, broadcastEvent, createBattle, isStorageReady,
         ...data, updateData, deleteEntry: (col, id) => updateData('delete', col, null, id),
-        error
+        refreshData, error
     };
 }
-
-

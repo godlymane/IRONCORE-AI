@@ -8,6 +8,8 @@ import {
     query,
     where,
     orderBy,
+    limit,
+    startAfter,
     serverTimestamp
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
@@ -50,20 +52,31 @@ export const uploadPhoto = async (file, userId, note = '', type = 'front') => {
 };
 
 /**
- * Get user's progress photos
- * @param {string} userId 
+ * Get user's progress photos with pagination
+ * @param {string} userId
+ * @param {number} pageSize - Number of photos per page (default 20)
+ * @param {object|null} lastDoc - Last document snapshot for cursor-based pagination
+ * @returns {{ photos: Array, lastDoc: object|null, hasMore: boolean }}
  */
-export const getPhotos = async (userId) => {
+export const getPhotos = async (userId, pageSize = 20, lastDoc = null) => {
     try {
-        const q = query(
+        const constraints = [
             collection(db, `users/${userId}/photos`),
-            orderBy('date', 'desc')
-        );
+            orderBy('date', 'desc'),
+            limit(pageSize)
+        ];
+        if (lastDoc) constraints.push(startAfter(lastDoc));
+        const q = query(...constraints);
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
+        const photos = snapshot.docs.map(d => ({
+            id: d.id,
+            ...d.data()
         }));
+        return {
+            photos,
+            lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
+            hasMore: snapshot.docs.length === pageSize
+        };
     } catch (error) {
         console.error('Error fetching photos:', error);
         throw error;

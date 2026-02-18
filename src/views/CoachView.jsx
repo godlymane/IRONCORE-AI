@@ -1,18 +1,36 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Sparkles, RotateCcw, Mic, MicOff, Brain } from 'lucide-react';
+import { Send, RotateCcw, Zap, Lock } from 'lucide-react';
 import { callGemini, cleanAIResponse } from '../utils/helpers';
-import { Button, GlassCard } from '../components/UIComponents';
-import { useVoiceCommands } from '../hooks/useVoiceCommands';
-import { PredictiveAnalytics } from '../components/PredictiveAnalytics';
+import { checkRateLimit } from '../utils/rateLimiter';
+import { Button, useToast } from '../components/UIComponents';
 import { PremiumIcon } from '../components/PremiumIcon';
-import { FlameIcon, ChatIcon, DumbbellIcon, ProteinBoltIcon, TargetIcon, SmartTimerIconShape, PlateIcon } from '../components/IronCoreIcons';
+import { DumbbellIcon, ProteinBoltIcon, TargetIcon, SmartTimerIconShape, PlateIcon } from '../components/IronCoreIcons';
+import { usePremium } from '../context/PremiumContext';
+import { doc, getDoc, setDoc, increment } from 'firebase/firestore';
+import { db } from '../firebase';
 
-export const CoachView = ({ weight, meals, workouts, profile }) => {
+const SYSTEM_PROMPT = `You are IronCore — the most elite AI fitness coach on the planet. You are NOT a generic chatbot. You are a world-class strength & nutrition coach with 20+ years of experience training pro athletes.
+
+PERSONALITY:
+- Direct, intense, no-nonsense — like a drill sergeant who actually cares
+- Short punchy answers (2-4 sentences max unless user asks for detail)
+- Use fitness slang naturally: "gains", "PR", "DOMS", "cut", "bulk", "progressive overload"
+- Motivational but realistic — never give generic advice
+- When user is vague, ask ONE sharp follow-up question
+
+RULES:
+- NEVER say "I'm just an AI" or "consult a doctor for medical advice" — you ARE the expert
+- Give SPECIFIC numbers: exact sets, reps, weights, macros, calories — not ranges
+- Tailor every answer to the user's profile data provided below
+- If they share a meal, estimate macros quickly and tell them if they're on/off track
+- For workout questions, give exercise NAMES, not categories
+- Be brutally honest about bad habits but frame it as "here's how to fix it"
+- Remember the conversation context — don't repeat yourself`;
+
+export const CoachView = ({ weight, meals, workouts, profile, updateData }) => {
     const [mode, setMode] = useState('chat');
-    const [messages, setMessages] = useState([
-        { role: 'ai', text: `Hey! I'm your AI coach. I see you're aiming to ${profile?.goal || 'improve your fitness'}. What can I help you with today?` }
-    ]);
+    const [messages, setMessages] = useState([]);
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
 
@@ -21,29 +39,71 @@ export const CoachView = ({ weight, meals, workouts, profile }) => {
     const [genFocus, setGenFocus] = useState('Push');
     const [customFocus, setCustomFocus] = useState("");
     const [generatedPlan, setGeneratedPlan] = useState(null);
+    const [missionStarted, setMissionStarted] = useState(false);
 
     const scrollRef = useRef(null);
+    const { isPremium } = usePremium();
+    const { addToast } = useToast();
 
-    // Voice Commands Integration
-    const handleVoiceCommand = (result) => {
-        if (result.action === 'query') {
-            setInput(result.params[0]);
-            sendMessage(result.params[0]);
-        }
-    };
-
-    const { isListening, transcript, isSupported, toggleListening, speak } = useVoiceCommands({
-        onCommand: handleVoiceCommand,
-        onLog: (msg) => console.log(msg)
-    });
+    // Build personalized welcome message
+    useEffect(() => {
+        const goal = profile?.goal || 'improve fitness';
+        const name = profile?.name || '';
+        const greeting = name ? `${name}, ` : '';
+        setMessages([{
+            role: 'ai',
+            text: `${greeting}ready to work. Goal: ${goal}. What do you need — training, nutrition, or recovery?`
+        }]);
+    }, []);
 
     useEffect(() => {
-        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }, [messages]);
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [messages, loading]);
+
+    // Build rich context for the AI from user data
+    const buildContext = () => {
+        const today = new Date().toISOString().split('T')[0];
+        const todayMeals = meals.filter(m => m.date === today);
+        const todayCals = todayMeals.reduce((s, m) => s + (m.calories || 0), 0);
+        const todayProtein = todayMeals.reduce((s, m) => s + (m.protein || 0), 0);
+        const todayCarbs = todayMeals.reduce((s, m) => s + (m.carbs || 0), 0);
+        const todayFat = todayMeals.reduce((s, m) => s + (m.fat || 0), 0);
+
+        const recentWorkouts = workouts.slice(0, 5).map(w => {
+            const exNames = (w.exercises || []).map(e => e.name).join(', ');
+            return `${w.title || w.focus || 'Workout'}: ${exNames}`;
+        }).join(' | ');
+
+        const dailyTarget = profile?.dailyCalories || 'not set';
+        const proteinTarget = profile?.proteinGoal || 'not set';
+
+        return `
+USER PROFILE: Weight: ${weight || profile?.weight || '?'}kg, Height: ${profile?.height || '?'}cm, Age: ${profile?.age || '?'}, Goal: ${profile?.goal || '?'}, Experience: ${profile?.experience || 'unknown'}, Daily Calorie Target: ${dailyTarget}kcal, Protein Target: ${proteinTarget}g
+
+TODAY'S INTAKE: ${todayCals}kcal consumed (P:${Math.round(todayProtein)}g C:${Math.round(todayCarbs)}g F:${Math.round(todayFat)}g) from ${todayMeals.length} meals
+
+RECENT WORKOUTS (last 5): ${recentWorkouts || 'None logged yet'}
+TOTAL WORKOUTS: ${workouts.length}, XP: ${profile?.xp || 0}`;
+    };
+
+    // Build conversation history for the AI (last 8 messages for context window)
+    const buildConversationHistory = () => {
+        return messages.slice(-8).map(m =>
+            `${m.role === 'user' ? 'User' : 'Coach'}: ${m.text}`
+        ).join('\n');
+    };
 
     const sendMessage = async (textOverride) => {
         const text = textOverride || input;
-        if (!text.trim()) return;
+        if (!text.trim() || loading) return;
+
+        const limit = checkRateLimit(isPremium);
+        if (!limit.allowed) {
+            setMessages(prev => [...prev, { role: 'ai', text: limit.reason }]);
+            return;
+        }
 
         const newMsg = { role: 'user', text };
         setMessages(prev => [...prev, newMsg]);
@@ -51,31 +111,34 @@ export const CoachView = ({ weight, meals, workouts, profile }) => {
         setLoading(true);
 
         try {
-            const today = new Date().toISOString().split('T')[0];
-            const todayMeals = meals.filter(m => m.date === today);
-            const cals = todayMeals.reduce((s, m) => s + (m.calories || 0), 0);
+            const context = buildContext();
+            const history = buildConversationHistory();
 
-            const context = `User Profile: ${weight || 'Unknown'}kg, Goal: ${profile?.goal}. Cals Today: ${cals}.`;
+            const fullPrompt = `${SYSTEM_PROMPT}
 
-            const response = await callGemini(
-                text,
-                `You are an expert fitness coach with expertise in nutrition and training. Be motivating, concise, and actionable. Context: ${context}. Keep answers short and intense. No JSON.`,
-                null,
-                false
-            );
+${context}
 
-            if (response) {
+CONVERSATION SO FAR:
+${history}
+User: ${text}
+
+Coach (respond in character — short, specific, intense):`;
+
+            const response = await callGemini(text, fullPrompt, null, false);
+
+            if (response && !response.startsWith('Error:')) {
                 let displayText = response;
                 try {
-                    const possibleJson = JSON.parse(response);
-                    if (possibleJson.message) displayText = possibleJson.message;
-                } catch (e) { }
+                    const j = JSON.parse(response);
+                    if (j.message) displayText = j.message;
+                } catch (_) {}
                 setMessages(prev => [...prev, { role: 'ai', text: displayText }]);
             } else {
-                setMessages(prev => [...prev, { role: 'ai', text: "Connection issue. Try again." }]);
+                const errMsg = response?.replace('Error: ', '') || 'Connection issue.';
+                setMessages(prev => [...prev, { role: 'ai', text: `Connection dropped. ${errMsg}` }]);
             }
         } catch (e) {
-            setMessages(prev => [...prev, { role: 'ai', text: "Network error. Check your connection." }]);
+            setMessages(prev => [...prev, { role: 'ai', text: "Network error. Check your connection and try again." }]);
         } finally {
             setLoading(false);
         }
@@ -84,310 +147,174 @@ export const CoachView = ({ weight, meals, workouts, profile }) => {
     const generateWorkout = async () => {
         setLoading(true);
         const focus = genFocus === 'Custom' ? customFocus : genFocus;
-        const prompt = `Create a ${genDuration} minute ${focus} workout using ${genEquipment}. Return JSON: { "title": "string", "exercises": [ { "name": "string", "sets": "string", "reps": "string", "rest": "string" } ] }`;
+        const ctx = buildContext();
+        const prompt = `Based on this user's profile and recent workouts, create a ${genDuration} minute ${focus} workout using ${genEquipment}. Consider their experience level and goals. Avoid repeating exercises from their recent workouts if possible.
+
+${ctx}
+
+Return ONLY valid JSON: { "title": "string", "exercises": [ { "name": "string", "sets": "string", "reps": "string", "rest": "string" } ] }`;
 
         try {
-            const res = await callGemini(prompt, "You are a strict personal trainer. JSON only.", null, true);
-            const plan = cleanAIResponse(res);
-            if (plan) setGeneratedPlan(plan);
-            else alert("AI failed to generate plan. Try again.");
+            const res = await callGemini(prompt, "You are an expert strength coach. Return only valid JSON, no markdown.", null, true);
+            if (res?.startsWith('Error:')) {
+                addToast(res.replace('Error: ', ''), 'error');
+            } else {
+                const plan = cleanAIResponse(res);
+                if (plan) setGeneratedPlan(plan);
+                else addToast("AI failed to generate plan. Try again.", 'error');
+            }
         } catch (e) {
-            alert("Coach is busy. Try again.");
+            addToast("Coach is busy. Try again.", 'error');
         } finally {
             setLoading(false);
         }
     };
 
-    const SPLITS = ['Push', 'Pull', 'Legs', 'Arnold Split', 'Upper', 'Lower', 'Full Body', 'Bro Split', 'Custom'];
+    const SPLITS = ['Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full Body', 'Arnold', 'Bro Split', 'Custom'];
 
     return (
-        <div className="h-[calc(100vh-180px)] flex flex-col animate-in fade-in overflow-x-hidden">
+        <div className="flex flex-col overflow-hidden" style={{ height: 'calc(100dvh - 230px)' }}>
 
-            {/* Header */}
-            <div className="flex items-center justify-between mb-5">
-                <div className="flex items-center gap-3">
-                    <div
-                        className="p-3 rounded-2xl relative overflow-hidden"
-                        style={{
-                            background: 'linear-gradient(135deg, rgba(220, 38, 38, 1) 0%, rgba(127, 29, 29, 1) 100%)',
-                            boxShadow: '0 10px 40px rgba(220, 38, 38, 0.6), inset 0 1px 0 rgba(255,255,255,0.2)',
-                        }}
-                    >
-                        <PremiumIcon src={FlameIcon} size="md" className="!w-8 !h-8 relative z-10" fallback={null} />
-                        {/* Pulse animation */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-transparent to-red-400/30 animate-pulse" />
-                    </div>
-                    <div>
-                        <h2 className="text-2xl font-black uppercase tracking-tighter italic text-white">IRONCORE AI</h2>
-                        <p className="text-[11px] text-red-400 font-black uppercase tracking-widest flex items-center gap-1">
-                            <PremiumIcon src={ProteinBoltIcon} size="xs" className="!w-3 !h-3 animate-pulse" fallback={null} />
-                            NEURAL ENGINE ACTIVE
-                        </p>
-                    </div>
-                </div>
-
-                {/* Mode Toggle */}
-                <div
-                    className="flex p-1 rounded-2xl"
-                    style={{
-                        background: 'linear-gradient(145deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                    }}
+            {/* Compact Mode Toggle */}
+            <div className="flex p-1 rounded-xl mb-3 shrink-0" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <button
+                    onClick={() => setMode('chat')}
+                    className={`flex-1 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${mode === 'chat' ? 'bg-red-600 text-white shadow-lg' : 'text-gray-500'}`}
                 >
-                    <button
-                        onClick={() => setMode('chat')}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all ${mode === 'chat'
-                            ? 'text-white'
-                            : 'text-gray-500 hover:text-gray-300'
-                            }`}
-                        style={mode === 'chat' ? {
-                            background: 'linear-gradient(145deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
-                            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1)',
-                        } : {}}
-                    >
-                        <PremiumIcon src={ChatIcon} size="xs" className="!w-4 !h-4" fallback={null} />
-                        <span className="text-xs font-bold">Chat</span>
-                    </button>
-                    <button
-                        onClick={() => setMode('generator')}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all ${mode === 'generator'
-                            ? 'text-white'
-                            : 'text-gray-500 hover:text-gray-300'
-                            }`}
-                        style={mode === 'generator' ? {
-                            background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.8) 0%, rgba(185, 28, 28, 0.8) 100%)',
-                            boxShadow: '0 4px 15px rgba(220, 38, 38, 0.3), inset 0 1px 0 rgba(255,255,255,0.2)',
-                        } : {}}
-                    >
-                        <PremiumIcon src={DumbbellIcon} size="xs" className="!w-4 !h-4" fallback={null} />
-                        <span className="text-xs font-bold">Generate</span>
-                    </button>
-                </div>
+                    Chat Coach
+                </button>
+                <button
+                    onClick={() => setMode('generator')}
+                    className={`flex-1 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${mode === 'generator' ? 'bg-red-600 text-white shadow-lg' : 'text-gray-500'}`}
+                >
+                    Generate
+                </button>
             </div>
 
             {mode === 'generator' ? (
-                <div className="flex-grow overflow-y-auto custom-scrollbar space-y-5 pb-4">
+                <div className="flex-1 overflow-y-auto pb-6">
                     {!generatedPlan ? (
-                        <div className="space-y-6 animate-in slide-in-from-bottom-4">
-                            {/* Tactical Hero */}
-                            <div className="relative overflow-hidden rounded-3xl p-6 text-center border border-red-500/30">
-                                <div className="absolute inset-0 bg-gradient-to-br from-red-900/40 to-black z-0" />
-                                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 z-0" />
-
-                                <div className="relative z-10">
-                                    <div className="w-16 h-16 mx-auto bg-red-600/20 rounded-2xl flex items-center justify-center border border-red-500/30 mb-3 shadow-[0_0_30px_rgba(220,38,38,0.3)]">
-                                        <PremiumIcon src={ProteinBoltIcon} size="lg" className="!w-12 !h-12" fallback={null} />
-                                    </div>
-                                    <h3 className="text-2xl font-black italic text-white uppercase tracking-tighter">
-                                        Mission Configurator
-                                    </h3>
-                                    <p className="text-xs text-red-400 font-bold uppercase tracking-widest mt-1">
-                                        // Classified Training Protocol
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* FOCUS SELECTION */}
-                            <div className="space-y-2">
-                                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2 px-1">
-                                    <PremiumIcon src={TargetIcon} size="xs" className="!w-3 !h-3" fallback={null} />
-                                    Phase 1: Target Objective
-                                </label>
-                                <div className="grid grid-cols-3 gap-2">
+                        <div className="space-y-4">
+                            {/* Focus */}
+                            <div>
+                                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 block px-1">Target</label>
+                                <div className="grid grid-cols-3 gap-1.5">
                                     {SPLITS.map(f => (
-                                        <button
-                                            key={f}
-                                            onClick={() => setGenFocus(f)}
-                                            className={`relative overflow-hidden py-3 rounded-xl border transition-all duration-300 ${genFocus === f
-                                                ? 'border-red-500 bg-red-900/20 shadow-[0_0_15px_rgba(220,38,38,0.3)]'
-                                                : 'border-white/5 bg-white/5 hover:bg-white/10'
-                                                }`}
-                                        >
-                                            <p className={`text-[11px] font-black uppercase tracking-wider ${genFocus === f ? 'text-white' : 'text-gray-400'}`}>
-                                                {f}
-                                            </p>
-                                            {genFocus === f && (
-                                                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-500 shadow-[0_0_10px_#ef4444]" />
-                                            )}
-                                        </button>
+                                        <button key={f} onClick={() => setGenFocus(f)}
+                                            className={`py-2.5 rounded-xl border text-[11px] font-black uppercase transition-all ${genFocus === f ? 'border-red-500 bg-red-900/30 text-white' : 'border-white/5 bg-white/5 text-gray-400'}`}
+                                        >{f}</button>
                                     ))}
                                 </div>
                                 {genFocus === 'Custom' && (
-                                    <input
-                                        value={customFocus}
-                                        onChange={e => setCustomFocus(e.target.value)}
-                                        placeholder="ENTER CUSTOM OBJECTIVE..."
-                                        className="w-full mt-2 p-3 rounded-xl bg-black/50 border border-red-500/30 text-white text-xs font-mono outline-none focus:border-red-500 transition-colors uppercase placeholder:text-gray-700"
-                                    />
+                                    <input value={customFocus} onChange={e => setCustomFocus(e.target.value)}
+                                        placeholder="Custom focus..." className="w-full mt-2 p-3 rounded-xl bg-black/50 border border-red-500/30 text-white text-xs outline-none focus:border-red-500" />
                                 )}
                             </div>
 
-                            {/* EQUIPMENT SELECTION */}
-                            <div className="space-y-2">
-                                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2 px-1">
-                                    <PremiumIcon src={DumbbellIcon} size="xs" className="!w-3 !h-3" fallback={null} />
-                                    Phase 2: Available Gear
-                                </label>
-                                <div className="grid grid-cols-2 gap-2">
+                            {/* Equipment */}
+                            <div>
+                                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 block px-1">Equipment</label>
+                                <div className="grid grid-cols-2 gap-1.5">
                                     {[
-                                        { id: 'gym', label: 'Full Gym', icon: <PremiumIcon src={DumbbellIcon} size="xs" className="!w-4 !h-4" fallback={null} /> },
-                                        { id: 'dumbbells', label: 'DB Only', icon: <PremiumIcon src={DumbbellIcon} size="xs" className="!w-4 !h-4" fallback={null} /> },
-                                        { id: 'bodyweight', label: 'Bodyweight', icon: <PremiumIcon src={ProteinBoltIcon} size="xs" className="!w-4 !h-4" fallback={null} /> },
-                                        { id: 'home', label: 'Home Gym', icon: <PremiumIcon src={PlateIcon} size="xs" className="!w-4 !h-4" fallback={null} /> },
+                                        { id: 'gym', label: 'Full Gym' },
+                                        { id: 'dumbbells', label: 'DB Only' },
+                                        { id: 'bodyweight', label: 'Bodyweight' },
+                                        { id: 'home', label: 'Home Gym' },
                                     ].map(eq => (
-                                        <button
-                                            key={eq.id}
-                                            onClick={() => setGenEquipment(eq.id)}
-                                            className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${genEquipment === eq.id
-                                                ? 'border-red-500 bg-red-900/20'
-                                                : 'border-white/5 bg-white/5 hover:bg-white/10'
-                                                }`}
-                                        >
-                                            <div className={`p-2 rounded-lg ${genEquipment === eq.id ? 'bg-red-500 text-white' : 'bg-white/10 text-gray-400'}`}>
-                                                {eq.icon}
-                                            </div>
-                                            <span className={`text-xs font-bold uppercase ${genEquipment === eq.id ? 'text-white' : 'text-gray-400'}`}>
-                                                {eq.label}
-                                            </span>
-                                        </button>
+                                        <button key={eq.id} onClick={() => setGenEquipment(eq.id)}
+                                            className={`p-2.5 rounded-xl border text-xs font-bold uppercase transition-all ${genEquipment === eq.id ? 'border-red-500 bg-red-900/30 text-white' : 'border-white/5 bg-white/5 text-gray-400'}`}
+                                        >{eq.label}</button>
                                     ))}
                                 </div>
                             </div>
 
-                            {/* DURATION SELECTION */}
-                            <div className="space-y-2">
-                                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2 px-1">
-                                    <PremiumIcon src={SmartTimerIconShape} size="xs" className="!w-3 !h-3" fallback={null} />
-                                    Phase 3: Time Limit
-                                </label>
+                            {/* Duration */}
+                            <div>
+                                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 block px-1">Duration</label>
                                 <div className="flex p-1 bg-white/5 rounded-xl border border-white/5">
                                     {['15', '30', '45', '60'].map(m => (
-                                        <button
-                                            key={m}
-                                            onClick={() => setGenDuration(m)}
-                                            className={`flex-1 py-2 rounded-lg text-xs font-black transition-all ${genDuration === m
-                                                ? 'bg-red-600 text-white shadow-lg shadow-red-900/50'
-                                                : 'text-gray-500 hover:text-gray-300'
-                                                }`}
-                                        >
-                                            {m}m
-                                        </button>
+                                        <button key={m} onClick={() => setGenDuration(m)}
+                                            className={`flex-1 py-2 rounded-lg text-xs font-black transition-all ${genDuration === m ? 'bg-red-600 text-white' : 'text-gray-500'}`}
+                                        >{m}m</button>
                                     ))}
                                 </div>
                             </div>
 
-                            <Button
+                            {/* GENERATE BUTTON — always visible */}
+                            <button
                                 onClick={generateWorkout}
-                                loading={loading}
-                                className="w-full !py-5 text-sm uppercase tracking-widest font-black"
-                                style={{
-                                    background: 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)',
-                                    boxShadow: '0 0 30px rgba(220,38,38,0.4)'
-                                }}
+                                disabled={loading}
+                                className="w-full py-4 rounded-2xl text-sm font-black uppercase tracking-widest text-white disabled:opacity-50 active:scale-[0.98] transition-transform"
+                                style={{ background: 'linear-gradient(135deg, #dc2626, #991b1b)', boxShadow: '0 0 30px rgba(220,38,38,0.4)' }}
                             >
-                                {loading ? (
-                                    <span className="flex items-center gap-2">
-                                        <PremiumIcon src={ProteinBoltIcon} size="xs" className="!w-4 !h-4 animate-spin" fallback={null} />
-                                        Infiltrating Mainframe...
-                                    </span>
-                                ) : (
-                                    "INITIATE GENERATION PROTOCOL"
-                                )}
-                            </Button>
+                                {loading ? 'Generating...' : 'GENERATE WORKOUT'}
+                            </button>
                         </div>
                     ) : (
-                        <div className="space-y-5 animate-in slide-in-from-bottom-8 pb-8">
-                            {/* Generated Plan Header */}
-                            <div className="relative overflow-hidden rounded-3xl p-6 border border-white/10 bg-black/40">
-                                <div className="absolute top-0 right-0 p-4 opacity-20">
-                                    <PremiumIcon src={ProteinBoltIcon} size="xl" className="!w-24 !h-24 text-white" fallback={null} />
-                                </div>
-
-                                <div className="relative z-10">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div className="px-2 py-1 bg-red-500/20 border border-red-500/30 rounded text-[11px] font-bold text-red-500 uppercase tracking-widest">
-                                            Classified
-                                        </div>
-                                        <button
-                                            onClick={() => setGeneratedPlan(null)}
-                                            className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/50 hover:text-white"
-                                        >
-                                            <RotateCcw size={16} />
-                                        </button>
+                        <div className="space-y-4">
+                            {/* Plan Header */}
+                            <div className="rounded-2xl p-4 border border-white/10 bg-white/5">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <h3 className="text-xl font-black italic text-white uppercase tracking-tight">{generatedPlan.title}</h3>
+                                        <p className="text-[11px] font-mono text-gray-400 mt-1">{genDuration} MIN // {genFocus.toUpperCase()}</p>
                                     </div>
-
-                                    <h3 className="text-3xl font-black italic text-white uppercase tracking-tighter mb-1">
-                                        {generatedPlan.title}
-                                    </h3>
-                                    <p className="text-xs font-mono text-gray-400">
-                                        DURATION: <span className="text-white">{genDuration} MIN</span> // FOCUS: <span className="text-white uppercase">{genFocus}</span>
-                                    </p>
+                                    <button onClick={() => { setGeneratedPlan(null); setMissionStarted(false); }} className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white">
+                                        <RotateCcw size={16} />
+                                    </button>
                                 </div>
                             </div>
 
-                            {/* Exercise List */}
-                            <div className="space-y-3">
-                                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest px-1">Mission Directives</h4>
-                                {generatedPlan.exercises.map((ex, i) => (
-                                    <div key={i} className="relative overflow-hidden rounded-2xl bg-white/5 border border-white/5 p-4 group hover:border-red-500/30 transition-colors">
-                                        <div className="flex justify-between items-center relative z-10">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-xl bg-black/50 flex items-center justify-center border border-white/10 text-sm font-black text-gray-400">
-                                                    0{i + 1}
-                                                </div>
-                                                <div>
-                                                    <p className="font-black text-white text-sm uppercase tracking-wide">{ex.name}</p>
-                                                    <p className="text-[11px] font-mono text-gray-500 flex items-center gap-2">
-                                                        <PremiumIcon src={SmartTimerIconShape} size="xs" className="!w-3 !h-3" fallback={null} />
-                                                        REST: {ex.rest}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="text-xl font-black text-white italic">{ex.sets}</div>
-                                                <div className="text-[11px] font-bold text-gray-500 uppercase">SETS</div>
-                                            </div>
-                                        </div>
-                                        {/* Reps overlay */}
-                                        <div className="absolute right-16 top-1/2 -translate-y-1/2 text-[40px] font-black text-white/5 pointer-events-none">
-                                            {ex.reps}
+                            {/* Exercises */}
+                            {generatedPlan.exercises.map((ex, i) => (
+                                <div key={i} className="rounded-xl bg-white/5 border border-white/5 p-3 flex justify-between items-center">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-black/50 flex items-center justify-center border border-white/10 text-xs font-black text-gray-400">{i + 1}</div>
+                                        <div>
+                                            <p className="font-bold text-white text-sm">{ex.name}</p>
+                                            <p className="text-[11px] text-gray-500">{ex.reps} reps · {ex.rest} rest</p>
                                         </div>
                                     </div>
-                                ))}
-                            </div>
+                                    <div className="text-right">
+                                        <div className="text-lg font-black text-white">{ex.sets}</div>
+                                        <div className="text-[10px] text-gray-500 uppercase">sets</div>
+                                    </div>
+                                </div>
+                            ))}
 
-                            <Button
-                                className="w-full !py-4 text-sm font-black uppercase tracking-widest"
-                                style={{
-                                    background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
-                                    boxShadow: '0 4px 20px rgba(22,163,74,0.4)'
+                            <button
+                                onClick={async () => {
+                                    if (!updateData || !generatedPlan || missionStarted) return;
+                                    setMissionStarted(true);
+                                    try {
+                                        const exercises = generatedPlan.exercises.map(ex => ({
+                                            name: ex.name,
+                                            sets: Array.from({ length: parseInt(ex.sets) || 3 }, () => ({ w: '', r: ex.reps?.replace(/[^0-9]/g, '') || '10' })),
+                                        }));
+                                        await updateData('add', 'workouts', { title: generatedPlan.title, exercises, duration: parseInt(genDuration) || 45, focus: genFocus, equipment: genEquipment, source: 'ai-coach' });
+                                    } catch (e) { setMissionStarted(false); }
                                 }}
+                                disabled={missionStarted}
+                                className="w-full py-4 rounded-2xl text-sm font-black uppercase tracking-widest text-white transition-all active:scale-[0.98]"
+                                style={{ background: missionStarted ? 'rgba(34,197,94,0.2)' : 'linear-gradient(135deg, #16a34a, #15803d)', boxShadow: missionStarted ? 'none' : '0 4px 20px rgba(22,163,74,0.4)' }}
                             >
-                                START MISSION
-                            </Button>
+                                {missionStarted ? 'MISSION LOGGED' : 'START MISSION'}
+                            </button>
                         </div>
                     )}
                 </div>
             ) : (
                 <>
                     {/* Chat Messages */}
-                    <div ref={scrollRef} className="flex-grow overflow-y-auto space-y-4 p-1 custom-scrollbar pb-4">
+                    <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-3 pb-2 min-h-0">
                         {messages.map((msg, i) => (
                             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                 <div
-                                    className={`max-w-[85%] p-4 text-sm leading-relaxed break-words overflow-hidden ${msg.role === 'user'
-                                        ? 'rounded-2xl rounded-br-sm'
-                                        : 'rounded-2xl rounded-bl-sm'
-                                        }`}
-                                    style={msg.role === 'user' ? {
-                                        background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.9) 0%, rgba(185, 28, 28, 0.9) 100%)',
-                                        color: 'white',
-                                        boxShadow: '0 8px 25px rgba(220, 38, 38, 0.3)',
-                                    } : {
-                                        background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%)',
-                                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                                        color: '#e5e7eb',
-                                    }}
+                                    className={`max-w-[85%] px-4 py-3 text-sm leading-relaxed break-words ${msg.role === 'user' ? 'rounded-2xl rounded-br-sm' : 'rounded-2xl rounded-bl-sm'}`}
+                                    style={msg.role === 'user'
+                                        ? { background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color: 'white' }
+                                        : { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#e5e7eb' }
+                                    }
                                 >
                                     {msg.text}
                                 </div>
@@ -395,55 +322,37 @@ export const CoachView = ({ weight, meals, workouts, profile }) => {
                         ))}
                         {loading && (
                             <div className="flex justify-start">
-                                <div
-                                    className="px-4 py-3 rounded-2xl rounded-bl-sm flex items-center gap-2"
-                                    style={{
-                                        background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%)',
-                                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                                    }}
-                                >
-                                    <div className="flex gap-1">
-                                        <div className="w-2 h-2 rounded-full bg-red-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                                        <div className="w-2 h-2 rounded-full bg-red-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                                        <div className="w-2 h-2 rounded-full bg-red-400 animate-bounce" style={{ animationDelay: '300ms' }} />
-                                    </div>
+                                <div className="px-4 py-3 rounded-2xl rounded-bl-sm flex gap-1" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                    <div className="w-2 h-2 rounded-full bg-red-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                                    <div className="w-2 h-2 rounded-full bg-red-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                                    <div className="w-2 h-2 rounded-full bg-red-400 animate-bounce" style={{ animationDelay: '300ms' }} />
                                 </div>
                             </div>
                         )}
                     </div>
 
-                    {/* Chat Input */}
-                    <div
-                        className="flex gap-2 mt-3 p-2 rounded-2xl"
-                        style={{
-                            background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%)',
-                            border: '1px solid rgba(255, 255, 255, 0.1)',
-                        }}
-                    >
-                        <input
-                            value={input}
-                            onChange={e => setInput(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && sendMessage()}
-                            placeholder="Ask your coach..."
-                            className="flex-grow bg-transparent px-4 py-3 text-white outline-none placeholder:text-gray-600 text-sm"
-                        />
-                        <button
-                            onClick={() => sendMessage()}
-                            disabled={loading}
-                            className="p-3 rounded-xl text-white transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
-                            style={{
-                                background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.9) 0%, rgba(185, 28, 28, 0.9) 100%)',
-                                boxShadow: '0 4px 15px rgba(220, 38, 38, 0.4)',
-                            }}
-                        >
-                            <Send size={18} />
-                        </button>
+                    {/* Chat Input — sticky at bottom */}
+                    <div className="flex gap-2 pt-2 shrink-0">
+                        <div className="flex-1 flex gap-2 p-1.5 rounded-2xl" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <input
+                                value={input}
+                                onChange={e => setInput(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && sendMessage()}
+                                placeholder="Ask your coach..."
+                                className="flex-grow bg-transparent px-3 py-2 text-white outline-none placeholder:text-gray-600 text-sm"
+                            />
+                            <button
+                                onClick={() => sendMessage()}
+                                disabled={loading || !input.trim()}
+                                className="p-2.5 rounded-xl text-white transition-all active:scale-95 disabled:opacity-30"
+                                style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)' }}
+                            >
+                                <Send size={16} />
+                            </button>
+                        </div>
                     </div>
                 </>
             )}
         </div>
     );
 };
-
-
-

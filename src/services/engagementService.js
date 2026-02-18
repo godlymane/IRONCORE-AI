@@ -380,7 +380,7 @@ export const subscribeToGuild = (db, guildId, callback) => {
         } else {
             callback(null);
         }
-    });
+    }, (err) => console.error('Guild listener error:', err.code || err.message));
 };
 
 /**
@@ -398,7 +398,7 @@ export const subscribeToGuildLeaderboard = (db, limit_count = 20, callback) => {
     return onSnapshot(q, (snapshot) => {
         const guilds = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         callback(guilds);
-    });
+    }, (err) => console.error('Guild leaderboard listener error:', err.code || err.message));
 };
 
 // ============================================
@@ -438,7 +438,7 @@ export const subscribeToTournament = (db, callback) => {
         } else {
             callback(null);
         }
-    });
+    }, (err) => console.error('Tournament listener error:', err.code || err.message));
 };
 
 /**
@@ -513,7 +513,7 @@ export const subscribeToNotifications = (db, userId, callback) => {
             ...doc.data()
         }));
         callback(notifications);
-    });
+    }, (err) => console.error('Notifications listener error:', err.code || err.message));
 };
 
 export default {

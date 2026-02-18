@@ -183,7 +183,7 @@ export const subscribeToGuild = (guildId, callback) => {
         } else {
             callback(null);
         }
-    });
+    }, (err) => console.error('Guild listener error:', err.code || err.message));
 };
 
 /**
@@ -236,7 +236,7 @@ export const subscribeToGuildChat = (guildId, callback) => {
     );
     return onSnapshot(q, snapshot => {
         callback(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).reverse());
-    });
+    }, (err) => console.error('Guild chat listener error:', err.code || err.message));
 };
 
 

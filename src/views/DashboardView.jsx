@@ -119,11 +119,26 @@ export const DashboardView = ({
   }, [meals, profile, today]);
 
   useEffect(() => {
-    const dates = [...new Set(meals.map(m => m.date))].sort();
+    const dates = [...new Set(meals.map(m => m.date))].sort().reverse();
     let currentStreak = 0;
-    if (dates.includes(today)) currentStreak = 1;
+    const todayDate = new Date(today);
+    // Count consecutive days backwards from today (or yesterday if no meals today yet)
+    let checkDate = new Date(todayDate);
+    if (!dates.includes(today)) {
+      // If no meals today, check if streak was alive yesterday
+      checkDate.setDate(checkDate.getDate() - 1);
+    }
+    for (let i = 0; i < 365; i++) {
+      const dateStr = checkDate.toISOString().split('T')[0];
+      if (dates.includes(dateStr)) {
+        currentStreak++;
+        checkDate.setDate(checkDate.getDate() - 1);
+      } else {
+        break;
+      }
+    }
     setStreak(currentStreak);
-  }, [meals]);
+  }, [meals, today]);
 
   const handleDropComplete = () => {
     if (completeDailyDrop) {
@@ -132,12 +147,18 @@ export const DashboardView = ({
     }
   };
 
-  const handleBuy = async (item, cost) => {
-    if (confirm(`Buy ${item} for ${cost} XP?`)) {
-      const success = await buyItem(item, cost);
-      if (success) addToast("Purchase Successful!", "success");
-      else addToast("Not enough XP", "error");
-    }
+  const [pendingBuy, setPendingBuy] = useState(null);
+
+  const handleBuy = (item, cost) => {
+    setPendingBuy({ item, cost });
+  };
+
+  const confirmBuy = async () => {
+    if (!pendingBuy) return;
+    const success = await buyItem(pendingBuy.item, pendingBuy.cost);
+    setPendingBuy(null);
+    if (success) addToast("Purchase Successful!", "success");
+    else addToast("Not enough XP", "error");
   };
 
   const toggleSupp = async (item) => {
@@ -147,12 +168,14 @@ export const DashboardView = ({
     await updateData('add', 'profile', { supps: { ...(profile?.supps || {}), [today]: newSupps } });
   };
 
-  const spotMacros = async () => {
-    if (!mealText) return;
+  const spotMacros = async (imageBase64 = null) => {
+    if (!mealText && !imageBase64) return;
     setAiStatus("Analyzing...");
     try {
-      const prompt = `Return JSON: { "mealName": "string", "calories": number, "protein": number, "carbs": number, "fat": number } for "${mealText}"`;
-      const res = await callGemini(prompt, "Nutrition API. JSON Only.", null, true);
+      const prompt = imageBase64
+        ? `Identify the food in this image and return JSON: { "mealName": "string", "calories": number, "protein": number, "carbs": number, "fat": number }. Estimate realistic macros for a typical serving.`
+        : `Return JSON: { "mealName": "string", "calories": number, "protein": number, "carbs": number, "fat": number } for "${mealText}"`;
+      const res = await callGemini(prompt, "Nutrition API. JSON Only.", imageBase64, true);
       const result = cleanAIResponse(res);
       if (result && result.mealName) {
         await updateData('add', 'meals', result);
@@ -160,13 +183,34 @@ export const DashboardView = ({
         setAiStatus("");
         addToast(`Logged: ${result.mealName}`, 'success');
       } else {
-        setAiStatus("Failed");
+        setAiStatus("");
+        addToast("AI couldn't identify food. Try manual entry.", "error");
         setShowManual(true);
       }
     } catch (e) {
-      setAiStatus("Net Error");
+      setAiStatus("");
+      addToast("Network error. Try manual entry.", "error");
       setShowManual(true);
     }
+  };
+
+  const handleFoodScan = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAiStatus("Scanning...");
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64 = reader.result.split(',')[1];
+        await spotMacros(base64);
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      setAiStatus("");
+      addToast("Failed to read image", "error");
+    }
+    // Reset input so the same file can be selected again
+    e.target.value = '';
   };
 
   // Show skeleton while waiting for first Firestore data
@@ -438,7 +482,7 @@ export const DashboardView = ({
             >
               <ScanLine size={20} className="text-white" />
             </button>
-            <input type="file" ref={foodInputRef} onChange={() => addToast("Scanning...", "info")} className="hidden" accept="image/*" />
+            <input type="file" ref={foodInputRef} onChange={handleFoodScan} className="hidden" accept="image/*" capture="environment" />
           </div>
         )}
 
@@ -537,6 +581,21 @@ export const DashboardView = ({
         </div>
       )}
 
+      {/* Buy Confirm Dialog */}
+      {pendingBuy && (
+        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6">
+          <div className="w-full max-w-xs rounded-3xl p-6 space-y-4" style={{ background: 'linear-gradient(145deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <p className="text-white font-bold text-center">Buy {pendingBuy.item}?</p>
+            <p className="text-yellow-400 text-sm font-black text-center">{pendingBuy.cost} XP</p>
+            <p className="text-gray-500 text-xs text-center">You have {xp} XP</p>
+            <div className="flex gap-3">
+              <button onClick={() => setPendingBuy(null)} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-gray-400 bg-white/5 border border-white/10">Cancel</button>
+              <button onClick={confirmBuy} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white" style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)' }}>Buy</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Profile Settings Modal */}
       {showSettings && (
         <ProfileSettingsModal
@@ -548,6 +607,7 @@ export const DashboardView = ({
           uploadingPhoto={uploadingPhoto}
           setUploadingPhoto={setUploadingPhoto}
           onClose={() => setShowSettings(false)}
+          updateData={updateData}
         />
       )}
 
@@ -694,8 +754,19 @@ const MotivationCard = () => {
     </GlassCard>
   );
 };
-// Profile Settings Modal — lightweight profile viewer (replaces old Goal Architect)
-const ProfileSettingsModal = ({ profile, userPhoto, user, uploadProfilePic, fileInputRef, uploadingPhoto, setUploadingPhoto, onClose }) => {
+// Profile Settings Modal — editable profile viewer (replaces old Goal Architect)
+const ProfileSettingsModal = ({ profile, userPhoto, user, uploadProfilePic, fileInputRef, uploadingPhoto, setUploadingPhoto, onClose, updateData }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState({
+    weight: profile?.weight || '',
+    height: profile?.height || '',
+    goal: profile?.goal || 'maintain',
+    dailyCalories: profile?.dailyCalories || 2000,
+    dailyProtein: profile?.dailyProtein || 150,
+    dailyCarbs: profile?.dailyCarbs || 200,
+    dailyFat: profile?.dailyFat || 60,
+  });
+
   const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !uploadProfilePic) return;
@@ -708,15 +779,32 @@ const ProfileSettingsModal = ({ profile, userPhoto, user, uploadProfilePic, file
     setUploadingPhoto(false);
   };
 
-  const dailyCalories = profile?.dailyCalories || 2000;
-  const dailyProtein = profile?.dailyProtein || 150;
-  const dailyCarbs = profile?.dailyCarbs || 200;
-  const dailyFat = profile?.dailyFat || 60;
+  const handleSave = async () => {
+    if (updateData) {
+      await updateData('add', 'profile', {
+        weight: parseFloat(editData.weight) || undefined,
+        height: parseFloat(editData.height) || undefined,
+        goal: editData.goal,
+        dailyCalories: parseInt(editData.dailyCalories) || 2000,
+        dailyProtein: parseInt(editData.dailyProtein) || 150,
+        dailyCarbs: parseInt(editData.dailyCarbs) || 200,
+        dailyFat: parseInt(editData.dailyFat) || 60,
+      });
+    }
+    setIsEditing(false);
+  };
+
+  const dailyCalories = isEditing ? editData.dailyCalories : (profile?.dailyCalories || 2000);
+  const dailyProtein = isEditing ? editData.dailyProtein : (profile?.dailyProtein || 150);
+  const dailyCarbs = isEditing ? editData.dailyCarbs : (profile?.dailyCarbs || 200);
+  const dailyFat = isEditing ? editData.dailyFat : (profile?.dailyFat || 60);
+
+  const goals = ['cut', 'maintain', 'bulk'];
 
   return (
     <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 animate-in fade-in">
       <div
-        className="w-full max-w-sm rounded-3xl relative overflow-hidden"
+        className="w-full max-w-sm rounded-3xl relative overflow-hidden max-h-[90vh] overflow-y-auto"
         style={{
           background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%)',
           border: '1px solid rgba(255, 255, 255, 0.1)',
@@ -759,64 +847,135 @@ const ProfileSettingsModal = ({ profile, userPhoto, user, uploadProfilePic, file
             <p className="text-[11px] text-gray-500">{user?.email}</p>
           </div>
 
-          {/* Current Protocol Summary */}
-          <div
-            className="p-4 rounded-2xl text-center mb-4"
-            style={{
-              background: 'linear-gradient(145deg, rgba(220, 38, 38, 0.12) 0%, rgba(185, 28, 28, 0.06) 100%)',
-              border: '1px solid rgba(239, 68, 68, 0.2)',
-            }}
-          >
-            <p className="text-[11px] text-gray-400 uppercase mb-1">Daily Target</p>
-            <p className="text-3xl font-black italic text-white">{dailyCalories}</p>
-            <p className="text-[11px] text-red-400 font-bold uppercase">Calories</p>
-            <div className="flex justify-center gap-5 mt-3">
-              <div className="text-center">
-                <p className="text-sm font-black text-amber-400">{dailyProtein}g</p>
-                <p className="text-[10px] text-gray-500 uppercase">Protein</p>
+          {isEditing ? (
+            <>
+              {/* Goal Selector */}
+              <div className="mb-4">
+                <p className="text-[10px] text-gray-500 uppercase font-bold mb-2">Goal</p>
+                <div className="flex gap-2">
+                  {goals.map(g => (
+                    <button
+                      key={g}
+                      onClick={() => setEditData({ ...editData, goal: g })}
+                      className={`flex-1 py-2 rounded-xl text-xs font-bold uppercase transition-all ${
+                        editData.goal === g
+                          ? 'bg-red-600 text-white'
+                          : 'bg-white/5 text-gray-400 border border-white/10'
+                      }`}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="text-center">
-                <p className="text-sm font-black text-yellow-400">{dailyCarbs}g</p>
-                <p className="text-[10px] text-gray-500 uppercase">Carbs</p>
-              </div>
-              <div className="text-center">
-                <p className="text-sm font-black text-pink-400">{dailyFat}g</p>
-                <p className="text-[10px] text-gray-500 uppercase">Fat</p>
-              </div>
-            </div>
-          </div>
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 gap-2 mb-4">
-            {[
-              { label: 'Goal', value: (profile?.goal || 'maintain').toUpperCase() },
-              { label: 'TDEE', value: `${profile?.tdee || '—'} kcal` },
-              { label: 'Weight', value: profile?.weight ? `${profile.weight} kg` : '—' },
-              { label: 'Height', value: profile?.height ? `${profile.height} cm` : '—' },
-            ].map(stat => (
+              {/* Editable Stats */}
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                {[
+                  { key: 'weight', label: 'Weight (kg)' },
+                  { key: 'height', label: 'Height (cm)' },
+                  { key: 'dailyCalories', label: 'Calories' },
+                  { key: 'dailyProtein', label: 'Protein (g)' },
+                  { key: 'dailyCarbs', label: 'Carbs (g)' },
+                  { key: 'dailyFat', label: 'Fat (g)' },
+                ].map(field => (
+                  <div key={field.key} className="p-3 rounded-xl" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">{field.label}</p>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      value={editData[field.key]}
+                      onChange={e => setEditData({ ...editData, [field.key]: e.target.value })}
+                      className="w-full bg-transparent text-sm font-bold text-white outline-none"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="flex-1 py-3 rounded-xl font-bold text-sm text-gray-400 bg-white/5 border border-white/10 transition-all active:scale-95"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  className="flex-1 py-3 rounded-xl font-bold text-sm text-white transition-all hover:scale-[1.02] active:scale-95"
+                  style={{ background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)' }}
+                >
+                  Save
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Current Protocol Summary */}
               <div
-                key={stat.label}
-                className="p-3 rounded-xl text-center"
+                className="p-4 rounded-2xl text-center mb-4"
                 style={{
-                  background: 'linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
-                  border: '1px solid rgba(255,255,255,0.06)',
+                  background: 'linear-gradient(145deg, rgba(220, 38, 38, 0.12) 0%, rgba(185, 28, 28, 0.06) 100%)',
+                  border: '1px solid rgba(239, 68, 68, 0.2)',
                 }}
               >
-                <p className="text-[10px] text-gray-500 uppercase font-bold">{stat.label}</p>
-                <p className="text-sm font-bold text-white">{stat.value}</p>
+                <p className="text-[11px] text-gray-400 uppercase mb-1">Daily Target</p>
+                <p className="text-3xl font-black italic text-white">{dailyCalories}</p>
+                <p className="text-[11px] text-red-400 font-bold uppercase">Calories</p>
+                <div className="flex justify-center gap-5 mt-3">
+                  <div className="text-center">
+                    <p className="text-sm font-black text-amber-400">{dailyProtein}g</p>
+                    <p className="text-[10px] text-gray-500 uppercase">Protein</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-black text-yellow-400">{dailyCarbs}g</p>
+                    <p className="text-[10px] text-gray-500 uppercase">Carbs</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-black text-pink-400">{dailyFat}g</p>
+                    <p className="text-[10px] text-gray-500 uppercase">Fat</p>
+                  </div>
+                </div>
               </div>
-            ))}
-          </div>
 
-          <button
-            onClick={onClose}
-            className="w-full py-3 rounded-xl font-bold text-sm text-white transition-all hover:scale-[1.02] active:scale-95"
-            style={{
-              background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.8) 0%, rgba(185, 28, 28, 0.8) 100%)',
-            }}
-          >
-            Close
-          </button>
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                {[
+                  { label: 'Goal', value: (profile?.goal || 'maintain').toUpperCase() },
+                  { label: 'TDEE', value: `${profile?.tdee || '—'} kcal` },
+                  { label: 'Weight', value: profile?.weight ? `${profile.weight} kg` : '—' },
+                  { label: 'Height', value: profile?.height ? `${profile.height} cm` : '—' },
+                ].map(stat => (
+                  <div
+                    key={stat.label}
+                    className="p-3 rounded-xl text-center"
+                    style={{
+                      background: 'linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                    }}
+                  >
+                    <p className="text-[10px] text-gray-500 uppercase font-bold">{stat.label}</p>
+                    <p className="text-sm font-bold text-white">{stat.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="flex-1 py-3 rounded-xl font-bold text-sm text-red-400 bg-red-500/10 border border-red-500/20 transition-all active:scale-95"
+                >
+                  Edit Profile
+                </button>
+                <button
+                  onClick={onClose}
+                  className="flex-1 py-3 rounded-xl font-bold text-sm text-white transition-all hover:scale-[1.02] active:scale-95"
+                  style={{ background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.8) 0%, rgba(185, 28, 28, 0.8) 100%)' }}
+                >
+                  Close
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

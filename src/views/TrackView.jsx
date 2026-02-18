@@ -29,13 +29,15 @@ export const TrackView = ({ progress, profile }) => {
         return !isNaN(ffmi) ? ffmi.toFixed(1) : "--";
     };
 
-    // Progress Calculation
+    // Progress Calculation — use earliest recorded weight as starting point
     let goalPercent = 0;
     if (targetWeight && currentWeight !== "--") {
-        const startWeight = 80;
+        const earliestEntry = [...progress]
+            .filter(p => p.weight)
+            .sort((a, b) => new Date(a.date) - new Date(b.date))[0];
+        const startWeight = earliestEntry?.weight || profile.startingWeight || currentWeight;
         const totalDiff = Math.abs(startWeight - targetWeight);
         const currentDiff = Math.abs(currentWeight - targetWeight);
-        // SAFETY CHECK: Avoid division by zero if startWeight == targetWeight
         if (totalDiff > 0) {
             goalPercent = Math.min(Math.max(100 - ((currentDiff / totalDiff) * 100), 0), 100);
         }

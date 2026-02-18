@@ -1,8 +1,9 @@
 // Firebase Configuration for IronCore AI
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
+
 
 const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -16,13 +17,23 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize services
-export const db = getFirestore(app);
+// Initialize services — persistentLocalCache supports multi-tab (replaces deprecated enableIndexedDbPersistence)
+export const db = initializeFirestore(app, {
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+});
 export const auth = getAuth(app);
-export const storage = getStorage(app);
 
-// Log connection status
-console.log('✅ Firebase connected');
+// Storage — may fail if bucket not configured
+let storageInstance = null;
+try {
+    if (firebaseConfig.storageBucket) {
+        storageInstance = getStorage(app);
+    }
+} catch (e) {
+    console.warn('Storage init skipped:', e.message);
+}
+export const storage = storageInstance;
+export const isStorageConfigured = !!storageInstance;
 
 export default app;
 
