@@ -47,6 +47,7 @@ export const PremiumPaywall = () => {
         paywallFeature,
         closePaywall,
         purchasePlan,
+        restorePurchase,
         plans
     } = usePremium();
 
@@ -231,7 +232,15 @@ export const PremiumPaywall = () => {
                                 MAYBE LATER
                             </button>
                             <span className="text-white/10">|</span>
-                            <button className="text-xs text-white/40 hover:text-white/60 transition-colors">
+                            <button
+                                onClick={async () => {
+                                    const result = await restorePurchase();
+                                    if (!result.restored) {
+                                        setError(result.message);
+                                    }
+                                }}
+                                className="text-xs text-white/40 hover:text-white/60 transition-colors"
+                            >
                                 RESTORE PURCHASE
                             </button>
                         </div>

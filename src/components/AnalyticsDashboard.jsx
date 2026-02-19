@@ -59,7 +59,7 @@ export const BodyCompositionGraph = ({ data = [], metric = 'weight' }) => {
                     {change.trend === 'up' ? <TrendingUp className="w-4 h-4" /> :
                         change.trend === 'down' ? <TrendingDown className="w-4 h-4" /> :
                             <Minus className="w-4 h-4" />}
-                    {change.value} lbs
+                    {change.value} kg
                 </div>
             </div>
 
@@ -123,16 +123,6 @@ export const BodyCompositionGraph = ({ data = [], metric = 'weight' }) => {
  * Personal Records Board
  */
 export const PersonalRecordsBoard = ({ records = [] }) => {
-    const defaultRecords = [
-        { exercise: 'Bench Press', weight: 225, date: '2024-01-15', isNew: true },
-        { exercise: 'Squat', weight: 315, date: '2024-01-10', isNew: false },
-        { exercise: 'Deadlift', weight: 405, date: '2024-01-05', isNew: false },
-        { exercise: 'Overhead Press', weight: 135, date: '2024-01-12', isNew: true },
-        { exercise: 'Barbell Row', weight: 185, date: '2024-01-08', isNew: false },
-    ];
-
-    const prs = records.length > 0 ? records : defaultRecords;
-
     return (
         <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -144,32 +134,40 @@ export const PersonalRecordsBoard = ({ records = [] }) => {
                 <span className="font-bold text-white">Personal Records</span>
             </div>
 
-            <div className="space-y-2">
-                {prs.slice(0, 5).map((pr, i) => (
-                    <motion.div
-                        key={i}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: i * 0.05 }}
-                        className={`flex items-center justify-between p-3 rounded-xl ${pr.isNew ? 'bg-yellow-500/10 border border-yellow-500/30' : 'bg-white/5'
-                            }`}
-                    >
-                        <div className="flex items-center gap-3">
-                            {pr.isNew && <Award className="w-4 h-4 text-yellow-400 animate-pulse" />}
-                            <div>
-                                <p className="text-sm font-medium text-white">{pr.exercise}</p>
-                                <p className="text-[11px] text-white/40">{pr.date}</p>
+            {records.length === 0 ? (
+                <div className="text-center py-8">
+                    <Trophy className="w-10 h-10 text-yellow-500/30 mx-auto mb-3" />
+                    <p className="text-sm text-white/50 font-medium">No PRs yet</p>
+                    <p className="text-[11px] text-white/30 mt-1">Complete your first workout to see records here.</p>
+                </div>
+            ) : (
+                <div className="space-y-2">
+                    {records.slice(0, 5).map((pr, i) => (
+                        <motion.div
+                            key={i}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: i * 0.05 }}
+                            className={`flex items-center justify-between p-3 rounded-xl ${pr.isNew ? 'bg-yellow-500/10 border border-yellow-500/30' : 'bg-white/5'
+                                }`}
+                        >
+                            <div className="flex items-center gap-3">
+                                {pr.isNew && <Award className="w-4 h-4 text-yellow-400 animate-pulse" />}
+                                <div>
+                                    <p className="text-sm font-medium text-white">{pr.exercise}</p>
+                                    <p className="text-[11px] text-white/40">{pr.date}</p>
+                                </div>
                             </div>
-                        </div>
-                        <div className="text-right">
-                            <p className={`text-lg font-black ${pr.isNew ? 'text-yellow-400' : 'text-white'}`}>
-                                {pr.weight}
-                            </p>
-                            <p className="text-[11px] text-white/40">lbs</p>
-                        </div>
-                    </motion.div>
-                ))}
-            </div>
+                            <div className="text-right">
+                                <p className={`text-lg font-black ${pr.isNew ? 'text-yellow-400' : 'text-white'}`}>
+                                    {pr.weight}
+                                </p>
+                                <p className="text-[11px] text-white/40">kg</p>
+                            </div>
+                        </motion.div>
+                    ))}
+                </div>
+            )}
         </motion.div>
     );
 };
@@ -191,17 +189,11 @@ export const WorkoutIntensityScore = ({ workouts = [], weeklyData = [] }) => {
 
     const todayScore = workouts.length > 0 ? getIntensity(workouts[0]) : 0;
 
-    const weekData = weeklyData.length > 0 ? weeklyData : [
-        { day: 'Mon', score: 75 },
-        { day: 'Tue', score: 60 },
-        { day: 'Wed', score: 85 },
-        { day: 'Thu', score: 0 },
-        { day: 'Fri', score: 90 },
-        { day: 'Sat', score: 45 },
-        { day: 'Sun', score: todayScore },
-    ];
+    const weekData = weeklyData.length > 0 ? weeklyData : [];
 
-    const avgScore = Math.round(weekData.reduce((a, d) => a + d.score, 0) / weekData.filter(d => d.score > 0).length || 0);
+    const avgScore = weekData.length > 0
+        ? Math.round(weekData.reduce((a, d) => a + d.score, 0) / weekData.filter(d => d.score > 0).length || 0)
+        : 0;
 
     return (
         <motion.div
@@ -214,28 +206,37 @@ export const WorkoutIntensityScore = ({ workouts = [], weeklyData = [] }) => {
                     <Activity className="w-5 h-5 text-orange-400" />
                     <span className="font-bold text-white">Intensity Score</span>
                 </div>
-                <div className="text-2xl font-black text-orange-400">{avgScore}</div>
+                {weekData.length > 0 && <div className="text-2xl font-black text-orange-400">{avgScore}</div>}
             </div>
 
-            <div className="h-24">
-                <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={weekData}>
-                        <XAxis
-                            dataKey="day"
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }}
-                        />
-                        <Bar
-                            dataKey="score"
-                            fill="#f97316"
-                            radius={[4, 4, 0, 0]}
-                        />
-                    </BarChart>
-                </ResponsiveContainer>
-            </div>
-
-            <p className="text-xs text-white/40 text-center mt-2">Weekly intensity pattern</p>
+            {weekData.length === 0 ? (
+                <div className="text-center py-6">
+                    <Activity className="w-10 h-10 text-orange-400/30 mx-auto mb-3" />
+                    <p className="text-sm text-white/50 font-medium">No intensity data yet</p>
+                    <p className="text-[11px] text-white/30 mt-1">Train this week to see your intensity pattern.</p>
+                </div>
+            ) : (
+                <>
+                    <div className="h-24">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={weekData}>
+                                <XAxis
+                                    dataKey="day"
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }}
+                                />
+                                <Bar
+                                    dataKey="score"
+                                    fill="#f97316"
+                                    radius={[4, 4, 0, 0]}
+                                />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <p className="text-xs text-white/40 text-center mt-2">Weekly intensity pattern</p>
+                </>
+            )}
         </motion.div>
     );
 };
@@ -244,17 +245,6 @@ export const WorkoutIntensityScore = ({ workouts = [], weeklyData = [] }) => {
  * Muscle Group Training Radar
  */
 export const MuscleGroupRadar = ({ trainingData = [] }) => {
-    const defaultData = [
-        { muscle: 'Chest', volume: 85, frequency: 2 },
-        { muscle: 'Back', volume: 90, frequency: 2 },
-        { muscle: 'Shoulders', volume: 70, frequency: 2 },
-        { muscle: 'Arms', volume: 65, frequency: 3 },
-        { muscle: 'Legs', volume: 75, frequency: 2 },
-        { muscle: 'Core', volume: 50, frequency: 3 },
-    ];
-
-    const data = trainingData.length > 0 ? trainingData : defaultData;
-
     return (
         <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -266,30 +256,38 @@ export const MuscleGroupRadar = ({ trainingData = [] }) => {
                 <span className="font-bold text-white">Training Balance</span>
             </div>
 
-            <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart cx="50%" cy="50%" outerRadius="70%" data={data}>
-                        <PolarGrid stroke="rgba(255,255,255,0.1)" />
-                        <PolarAngleAxis
-                            dataKey="muscle"
-                            tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 10 }}
-                        />
-                        <PolarRadiusAxis
-                            angle={30}
-                            domain={[0, 100]}
-                            tick={false}
-                            axisLine={false}
-                        />
-                        <Radar
-                            name="Volume"
-                            dataKey="volume"
-                            stroke="#06b6d4"
-                            fill="#06b6d4"
-                            fillOpacity={0.3}
-                        />
-                    </RadarChart>
-                </ResponsiveContainer>
-            </div>
+            {trainingData.length === 0 ? (
+                <div className="text-center py-8">
+                    <Target className="w-10 h-10 text-cyan-400/30 mx-auto mb-3" />
+                    <p className="text-sm text-white/50 font-medium">No training data yet</p>
+                    <p className="text-[11px] text-white/30 mt-1">Log a few workouts to see your muscle balance.</p>
+                </div>
+            ) : (
+                <div className="h-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <RadarChart cx="50%" cy="50%" outerRadius="70%" data={trainingData}>
+                            <PolarGrid stroke="rgba(255,255,255,0.1)" />
+                            <PolarAngleAxis
+                                dataKey="muscle"
+                                tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 10 }}
+                            />
+                            <PolarRadiusAxis
+                                angle={30}
+                                domain={[0, 100]}
+                                tick={false}
+                                axisLine={false}
+                            />
+                            <Radar
+                                name="Volume"
+                                dataKey="volume"
+                                stroke="#06b6d4"
+                                fill="#06b6d4"
+                                fillOpacity={0.3}
+                            />
+                        </RadarChart>
+                    </ResponsiveContainer>
+                </div>
+            )}
         </motion.div>
     );
 };

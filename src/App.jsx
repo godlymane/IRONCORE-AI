@@ -186,7 +186,22 @@ const MainContent = () => {
     }
   };
 
-  if (error) return <div className="p-10 text-red-500 text-center font-mono">System Error: {error}</div>;
+  if (error) return (
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center p-8 text-center">
+      <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center mb-4">
+        <span className="text-2xl">!</span>
+      </div>
+      <h3 className="text-lg font-black text-white uppercase mb-2">Connection Error</h3>
+      <p className="text-xs text-gray-500 max-w-xs mb-4">{error}</p>
+      <button
+        onClick={() => { clearError(); refreshData(); }}
+        className="px-6 py-2 rounded-xl text-xs font-bold text-white"
+        style={{ background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)', boxShadow: '0 4px 15px rgba(220, 38, 38, 0.4)' }}
+      >
+        Retry
+      </button>
+    </div>
+  );
 
   // Show splash screen first
   if (showSplash) {
@@ -410,7 +425,32 @@ class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
-      return <div className="p-10 text-red-500"><h1>Something went wrong.</h1><pre>{this.state.error.toString()}</pre></div>;
+      return (
+        <div className="min-h-screen bg-black flex flex-col items-center justify-center p-8 text-center">
+          <div className="w-20 h-20 rounded-3xl bg-red-500/10 border border-red-500/30 flex items-center justify-center mb-6"
+            style={{ boxShadow: '0 0 40px rgba(220, 38, 38, 0.2)' }}
+          >
+            <span className="text-4xl font-black text-red-500">!</span>
+          </div>
+          <h1 className="text-2xl font-black text-white uppercase tracking-tight mb-2">Something Broke</h1>
+          <p className="text-sm text-gray-400 max-w-xs mb-6">
+            IronCore hit an unexpected error. This has been noted. Restart the app to get back on track.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-8 py-3 rounded-2xl font-bold text-sm text-white transition-all hover:scale-105 active:scale-95"
+            style={{
+              background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+              boxShadow: '0 10px 30px rgba(220, 38, 38, 0.4)',
+            }}
+          >
+            Restart App
+          </button>
+          <p className="text-[11px] text-gray-600 mt-4">
+            If this keeps happening, contact support.
+          </p>
+        </div>
+      );
     }
 
     return this.props.children;

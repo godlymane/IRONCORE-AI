@@ -9,6 +9,9 @@ import { LEVELS } from '../data/constants';
 import { getLevel } from '../utils/helpers';
 import { usePremium } from '../context/PremiumContext';
 
+// Season config — single source of truth (move to Firestore config when dynamic seasons launch)
+export const CURRENT_SEASON = 'Season 1';
+
 // ArenaView — Live leaderboard, global chat, and battles
 
 export const ArenaView = ({
@@ -63,7 +66,7 @@ export const ArenaView = ({
                     </div>
                     <div>
                         <h1 className="text-2xl font-black text-white italic tracking-tighter uppercase">Arena</h1>
-                        <p className="text-[11px] text-gray-500 font-bold uppercase tracking-widest">Season 1 — Live</p>
+                        <p className="text-[11px] text-gray-500 font-bold uppercase tracking-widest">{CURRENT_SEASON} — Live</p>
                     </div>
                 </div>
                 {userRank && (

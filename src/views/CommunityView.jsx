@@ -40,8 +40,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
     }, [workouts]);
 
     const BOSS_TARGET = 100000;
-    const BASE_DAMAGE = 45200;
-    const currentDamage = BASE_DAMAGE + userDamage;
+    const currentDamage = userDamage;
     const progress = Math.min((currentDamage / BOSS_TARGET) * 100, 100);
     const filteredLeaderboard = leaderboard.filter(u => u.username?.toLowerCase().includes(searchTerm.toLowerCase()));
 
@@ -320,7 +319,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                                 >
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-full overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
-                                            {u.photo ? <img src={u.photo} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[11px] text-gray-500 bg-gray-800">?</div>}
+                                            {u.photo ? <img src={u.photo} alt={u.username || 'User'} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[11px] text-gray-500 bg-gray-800">{(u.username || '?')[0].toUpperCase()}</div>}
                                         </div>
                                         <p className="text-sm font-bold text-gray-300">{u.username}</p>
                                     </div>
@@ -362,19 +361,26 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                         )}
                     </div>
                     {!isStorageReady && <p className="text-xs text-red-400 text-center py-2">Media storage unavailable.</p>}
+                    {posts.length === 0 ? (
+                        <div className="text-center py-16 rounded-3xl" style={{ background: 'linear-gradient(145deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)', border: '2px dashed rgba(255,255,255,0.1)' }}>
+                            <ImageIcon size={48} className="mx-auto mb-3 text-gray-600" />
+                            <p className="text-sm text-gray-400 font-medium">No posts yet</p>
+                            <p className="text-xs text-gray-600 mt-1">Complete a workout and share your progress.</p>
+                        </div>
+                    ) : (
                     <div className="grid grid-cols-1 gap-4">
                         {posts.map(post => (
                             <GlassCard key={post.id} className="!p-0 overflow-hidden">
                                 <div className="flex items-center gap-3 p-4">
                                     <div className="w-10 h-10 rounded-full overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
-                                        {post.userPhoto ? <img src={post.userPhoto} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[11px] text-gray-500 bg-gray-800">?</div>}
+                                        {post.userPhoto ? <img src={post.userPhoto} alt={post.username || 'User'} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[11px] text-gray-500 bg-gray-800">{(post.username || '?')[0].toUpperCase()}</div>}
                                     </div>
                                     <div>
                                         <p className="text-sm font-bold text-white">{post.username}</p>
                                         <p className="text-[11px] text-red-400 uppercase font-bold">{getLevel(post.xp, LEVELS).name}</p>
                                     </div>
                                 </div>
-                                <img src={post.imageUrl} className="w-full aspect-square object-cover bg-black" />
+                                <img src={post.imageUrl} alt={post.caption || 'Progress photo'} className="w-full aspect-square object-cover bg-black" />
                                 <div className="p-4">
                                     <p className="text-sm text-gray-300"><span className="font-bold text-white">{post.username}</span> {post.caption}</p>
                                     <p className="text-[11px] text-gray-600 mt-2">{new Date(post.createdAt?.seconds * 1000).toLocaleDateString()}</p>
@@ -382,6 +388,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                             </GlassCard>
                         ))}
                     </div>
+                    )}
                 </div>
             )}
 
@@ -391,7 +398,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                         {chat.map(msg => (
                             <div key={msg.id} className={`flex items-start gap-3 ${msg.userId === user.uid ? 'flex-row-reverse' : ''}`}>
                                 <div className="w-8 h-8 rounded-full flex-shrink-0 overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
-                                    {msg.photo ? <img src={msg.photo} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[8px] text-gray-500 bg-gray-800">?</div>}
+                                    {msg.photo ? <img src={msg.photo} alt={msg.username || 'User'} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[8px] text-gray-500 bg-gray-800">{(msg.username || '?')[0].toUpperCase()}</div>}
                                 </div>
                                 <div
                                     className={`p-3 text-xs max-w-[200px] ${msg.userId === user.uid ? 'rounded-2xl rounded-tr-sm' : 'rounded-2xl rounded-tl-sm'}`}
@@ -417,7 +424,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                         <input
                             value={msgInput}
                             onChange={e => setMsgInput(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && (sendMessage(msgInput), setMsgInput(""))}
+                            onKeyDown={e => e.key === 'Enter' && msgInput.trim() && (sendMessage(msgInput), setMsgInput(""))}
                             placeholder="Talk trash..."
                             maxLength={500}
                             className="flex-grow rounded-xl px-4 py-3 text-xs text-white outline-none"
@@ -427,7 +434,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                             }}
                         />
                         <button
-                            onClick={() => { sendMessage(msgInput); setMsgInput(""); }}
+                            onClick={() => { if (!msgInput.trim()) return; sendMessage(msgInput); setMsgInput(""); }}
                             className="p-3 rounded-xl text-white transition-all hover:scale-105"
                             style={{
                                 background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.9) 0%, rgba(185, 28, 28, 0.9) 100%)',
@@ -449,7 +456,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                             <div className="flex justify-between items-start mb-2">
                                 <div className="flex items-center gap-2">
                                     <div className="w-8 h-8 rounded-full overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
-                                        {msg.fromPhoto && <img src={msg.fromPhoto} className="w-full h-full object-cover" />}
+                                        {msg.fromPhoto ? <img src={msg.fromPhoto} alt={msg.fromName || 'User'} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[8px] text-gray-500 bg-gray-800">{(msg.fromName || '?')[0].toUpperCase()}</div>}
                                     </div>
                                     <span className="text-xs font-bold text-white">{msg.fromName}</span>
                                 </div>
@@ -474,7 +481,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                                     boxShadow: '0 0 30px rgba(220, 38, 38, 0.3)',
                                 }}
                             >
-                                {selectedPlayer.photo ? <img src={selectedPlayer.photo} className="w-full h-full object-cover" /> : <UserPlus size={32} className="m-auto mt-6 text-gray-600" />}
+                                {selectedPlayer.photo ? <img src={selectedPlayer.photo} alt={selectedPlayer.username || 'Player'} className="w-full h-full object-cover" /> : <UserPlus size={32} className="m-auto mt-6 text-gray-600" />}
                             </div>
                             <h3 className="text-2xl font-black italic text-white uppercase">{selectedPlayer.username}</h3>
                             <p className="text-xs font-bold text-red-400 uppercase tracking-widest mt-1">{getLevel(selectedPlayer.xp, LEVELS).name}</p>

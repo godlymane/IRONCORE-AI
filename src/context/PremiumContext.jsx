@@ -113,6 +113,22 @@ export const PremiumProvider = ({ children, user }) => {
         setPaywallFeature(null);
     }, []);
 
+    // Restore purchase — re-checks Firestore for active subscription
+    const restorePurchase = useCallback(async () => {
+        if (!user?.uid) return { restored: false, message: 'Not signed in.' };
+
+        const status = await checkPremiumStatus(user.uid);
+        if (status.isPremium) {
+            setIsPremium(true);
+            setPlan(status.plan);
+            setFeatures(status.features || PRICING_PLANS.free.features);
+            setExpiryDate(status.expiryDate || null);
+            setShowPaywall(false);
+            return { restored: true };
+        }
+        return { restored: false, message: 'No active subscription found. Contact support if you believe this is wrong.' };
+    }, [user]);
+
     const value = {
         // State
         isPremium,
@@ -130,6 +146,7 @@ export const PremiumProvider = ({ children, user }) => {
         requirePremium,
         checkFeature,
         purchasePlan,
+        restorePurchase,
 
         // Plans info
         plans: PRICING_PLANS

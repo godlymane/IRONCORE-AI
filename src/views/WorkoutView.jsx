@@ -421,6 +421,13 @@ export const WorkoutView = ({ workouts, updateData, deleteEntry }) => {
                     </div>
                 </div>
                 {showTools && <IronToolsModal onClose={() => setShowTools(false)} />}
+                <PostWorkoutUpsell
+                    show={showUpsell}
+                    onDismiss={() => setShowUpsell(false)}
+                    workoutData={lastWorkoutData}
+                    totalWorkouts={workouts.length}
+                    hasArenaHistory={false}
+                />
             </div>
         );
     }
@@ -509,6 +516,13 @@ export const WorkoutView = ({ workouts, updateData, deleteEntry }) => {
                 )}
             </div>
             {showTools && <IronToolsModal onClose={() => setShowTools(false)} />}
+            <PostWorkoutUpsell
+                show={showUpsell}
+                onDismiss={() => setShowUpsell(false)}
+                workoutData={lastWorkoutData}
+                totalWorkouts={workouts.length}
+                hasArenaHistory={false}
+            />
         </div>
     );
 };
@@ -690,14 +704,6 @@ const IronToolsModal = ({ onClose }) => {
                 )}
             </div>
 
-            {/* Post-Workout Upsell — shown after finishing a session */}
-            <PostWorkoutUpsell
-                show={showUpsell}
-                onDismiss={() => setShowUpsell(false)}
-                workoutData={lastWorkoutData}
-                totalWorkouts={workouts.length}
-                hasArenaHistory={false}
-            />
         </div>
     );
 };

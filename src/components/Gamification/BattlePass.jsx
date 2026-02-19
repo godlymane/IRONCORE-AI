@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Shield, Lock, Star, ChevronRight, Gift, Zap } from 'lucide-react';
+import { CURRENT_SEASON } from '../../views/ArenaView';
 
 export const BattlePass = ({ level = 1, xp = 0, isPremium = false }) => {
     const currentProgress = (xp % 1000) / 10; // Percentage of current level
@@ -13,7 +14,7 @@ export const BattlePass = ({ level = 1, xp = 0, isPremium = false }) => {
                 <div className="relative z-10">
                     <div className="flex justify-between items-start mb-4">
                         <div>
-                            <h2 className="text-2xl font-black text-white italic tracking-tighter uppercase">Season 1</h2>
+                            <h2 className="text-2xl font-black text-white italic tracking-tighter uppercase">{CURRENT_SEASON}</h2>
                             <p className="text-sm text-red-300">Rise of the Machines</p>
                         </div>
                         <div className={`px-3 py-1 rounded-full text-xs font-bold ${isPremium ? 'bg-yellow-500 text-black' : 'bg-gray-700 text-white'}`}>

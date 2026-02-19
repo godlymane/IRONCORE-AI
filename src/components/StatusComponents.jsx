@@ -33,8 +33,8 @@ export const ErrorCard = ({ message, onRetry, className = '' }) => {
     return (
         <div className={`bg-red-900/20 border border-red-500/30 rounded-2xl p-6 text-center ${className}`}>
             <AlertTriangle size={32} className="mx-auto text-red-400 mb-3" />
-            <p className="text-white font-bold mb-2">Something went wrong</p>
-            <p className="text-sm text-red-300 mb-4">{message || 'Please try again later'}</p>
+            <p className="text-white font-bold mb-2">Hit a wall</p>
+            <p className="text-sm text-red-300 mb-4">{message || 'Something didn\'t load right. Give it another shot.'}</p>
             {onRetry && (
                 <button
                     onClick={onRetry}
