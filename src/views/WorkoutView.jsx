@@ -3,6 +3,7 @@ import { Plus, Trash2, Play, Dumbbell, Trophy, Edit2, List, Calculator, X, Ghost
 import { Card, Button, GlassCard } from '../components/UIComponents';
 import { EXERCISE_DB } from '../utils/constants';
 import { SFX } from '../utils/audio';
+import { PostWorkoutUpsell } from '../components/PostWorkoutUpsell';
 
 export const WorkoutView = ({ workouts, updateData, deleteEntry }) => {
     const [isSessionActive, setIsSessionActive] = useState(false);
@@ -10,6 +11,8 @@ export const WorkoutView = ({ workouts, updateData, deleteEntry }) => {
     const [sessionExercises, setSessionExercises] = useState([]);
     const [elapsed, setElapsed] = useState(0);
     const [showTools, setShowTools] = useState(false);
+    const [showUpsell, setShowUpsell] = useState(false);
+    const [lastWorkoutData, setLastWorkoutData] = useState(null);
 
     // REST TIMER STATE
     const [restTimer, setRestTimer] = useState(0);
@@ -153,6 +156,10 @@ export const WorkoutView = ({ workouts, updateData, deleteEntry }) => {
 
         setIsSessionActive(false);
         SFX.levelUp();
+
+        // Trigger post-workout upsell (component handles all frequency/suppression rules)
+        setLastWorkoutData({ exercises: sessionExercises, duration: elapsed });
+        setShowUpsell(true);
     };
 
     const cancelRest = () => {
@@ -682,10 +689,16 @@ const IronToolsModal = ({ onClose }) => {
                     </div>
                 )}
             </div>
+
+            {/* Post-Workout Upsell — shown after finishing a session */}
+            <PostWorkoutUpsell
+                show={showUpsell}
+                onDismiss={() => setShowUpsell(false)}
+                workoutData={lastWorkoutData}
+                totalWorkouts={workouts.length}
+                hasArenaHistory={false}
+            />
         </div>
     );
 };
-
-
-
 

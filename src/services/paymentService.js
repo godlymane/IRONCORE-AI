@@ -25,8 +25,8 @@ export const PRICING_PLANS = {
     pro_monthly: {
         id: 'pro_monthly',
         name: 'Pro Monthly',
-        price: 5.99, // USD
-        priceINR: 499,
+        price: 3.49, // USD
+        priceINR: 299,
         razorpayPlanId: null, // Set after creating plan in Razorpay dashboard
         features: {
             aiCoachCalls: Infinity,
@@ -40,8 +40,8 @@ export const PRICING_PLANS = {
     pro_yearly: {
         id: 'pro_yearly',
         name: 'Pro Yearly',
-        price: 49.99, // USD
-        priceINR: 3999,
+        price: 23.99, // USD
+        priceINR: 1999,
         razorpayPlanId: null, // Set after creating plan in Razorpay dashboard
         features: {
             aiCoachCalls: Infinity,
