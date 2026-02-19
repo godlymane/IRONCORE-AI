@@ -3,14 +3,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Users, Shield, MessageSquare, Plus, Search, Crown, LogOut, Send, Trophy } from 'lucide-react';
 import { useArena } from '../../context/ArenaContext';
 import { createGuild, joinGuild, leaveGuild, getGuilds, subscribeToGuild, sendGuildMessage, subscribeToGuildChat } from '../../services/guildService';
-import { Button } from '../UIComponents';
+import { Button, useToast } from '../UIComponents';
 
 const Guilds = () => {
     const { currentUser, refreshUser } = useArena();
+    const { addToast } = useToast();
     const [guildId, setGuildId] = useState(currentUser?.guildId || null);
     const [currentGuild, setCurrentGuild] = useState(null);
     const [loading, setLoading] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
     useEffect(() => {
         setGuildId(currentUser?.guildId);
@@ -44,7 +46,7 @@ const Guilds = () => {
             setShowCreateModal(false);
         } catch (error) {
             console.error('Failed to create guild:', error);
-            alert(error.message);
+            addToast(error.message, 'error');
         }
     };
 
@@ -58,18 +60,22 @@ const Guilds = () => {
             await refreshUser();
             setGuildId(id);
         } catch (error) {
-            alert(error.message);
+            addToast(error.message, 'error');
         }
     };
 
     const handleLeaveGuild = async () => {
-        if (!confirm('Are you sure you want to leave this guild?')) return;
+        setShowLeaveConfirm(true);
+    };
+
+    const confirmLeaveGuild = async () => {
+        setShowLeaveConfirm(false);
         try {
             await leaveGuild(guildId, currentUser.id);
             await refreshUser();
             setGuildId(null);
         } catch (error) {
-            alert(error.message);
+            addToast(error.message, 'error');
         }
     };
 
@@ -97,6 +103,28 @@ const Guilds = () => {
                         onClose={() => setShowCreateModal(false)}
                         onSubmit={handleCreateGuild}
                     />
+                )}
+            </AnimatePresence>
+
+            {/* Leave Confirmation */}
+            <AnimatePresence>
+                {showLeaveConfirm && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowLeaveConfirm(false)} />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            className="relative bg-gray-900 rounded-2xl border border-white/10 p-6 max-w-sm w-full shadow-2xl text-center"
+                        >
+                            <h3 className="text-lg font-bold text-white mb-2">Leave Guild?</h3>
+                            <p className="text-sm text-white/50 mb-6">Are you sure you want to leave this guild?</p>
+                            <div className="flex gap-3">
+                                <Button onClick={() => setShowLeaveConfirm(false)} variant="secondary" className="flex-1">Cancel</Button>
+                                <Button onClick={confirmLeaveGuild} variant="primary" className="flex-1 !bg-red-600">Leave</Button>
+                            </div>
+                        </motion.div>
+                    </div>
                 )}
             </AnimatePresence>
         </div>

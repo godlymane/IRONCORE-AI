@@ -78,7 +78,7 @@ export const AILabView = ({ workouts = [], meals = [], profile = {}, updateData,
 
     const { voiceState, transcript, isSupported, manualActivate, speak, VOICE_STATE } = useVoiceCommands({
         onCommand: handleVoiceCommand,
-        onLog: (msg) => console.log(msg)
+        onLog: () => {}
     });
     const isListening = voiceState === VOICE_STATE.ACTIVE || voiceState === VOICE_STATE.LISTENING;
     const toggleListening = manualActivate;

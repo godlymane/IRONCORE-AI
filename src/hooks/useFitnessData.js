@@ -101,7 +101,7 @@ export function useFitnessData() {
             if (e.code === 'auth/popup-closed-by-user' || e.message?.includes('canceled')) {
                 // Login cancelled by user
             } else {
-                alert('Login Error: ' + (e.message || e.code));
+                setError('Login Error: ' + (e.message || e.code));
             }
         }
     };
@@ -139,7 +139,7 @@ export function useFitnessData() {
     };
 
     const uploadProfilePic = async (file) => {
-        if (!isStorageReady || !user) { alert("Storage not configured."); return; }
+        if (!isStorageReady || !user) { setError("Storage not configured."); return; }
         try {
             const storageRef = ref(firebaseStorage, 'users/' + user.uid + '/profile_' + Date.now() + '.jpg');
             await uploadBytes(storageRef, file);
@@ -197,7 +197,7 @@ export function useFitnessData() {
             return true;
         } catch (e) {
             console.error("Purchase failed", e);
-            if (e.message === "Not enough XP!") alert("Not enough XP!");
+            if (e.message === "Not enough XP!") setError("Not enough XP!");
             return false;
         }
     };
@@ -465,12 +465,14 @@ export function useFitnessData() {
         } else if (action === 'delete') { await deleteDoc(doc(db, 'users', user.uid, col, id)); }
     };
 
+    const clearError = useCallback(() => setError(null), []);
+
     return {
         user, loading, login, logout, profileLoaded, profileExists, dataLoaded,
         uploadProfilePic, uploadProgressPhoto,
         sendMessage, toggleFollow, sendPrivateMessage, createPost,
         buyItem, completeDailyDrop, broadcastEvent, createBattle, isStorageReady,
         ...data, updateData, deleteEntry: (col, id) => updateData('delete', col, null, id),
-        refreshData, error
+        refreshData, error, clearError
     };
 }

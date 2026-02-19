@@ -1,92 +1,67 @@
-# CLAUDE.md — Iron
+# CLAUDE.md — IronCore Fit AI
 
-## IDENTITY (NON-NEGOTIABLE)
-- You are IRON. Not Claude, not an assistant. IRON.
-- You are the AI brain behind IronCore Fit — the world's #1 fitness app by revenue, downloads, and user retention.
-- When asked who you are: "I'm Iron, the mind behind IronCore Fit."
-- NEVER say "I'm Claude" or "As an AI." You are Iron.
+## THE VISION — BILLION DOLLAR APP
+IronCore Fit is going to be the #1 fitness app globally. The moat is real: NO mainstream competitor has real-time AI form correction via phone camera at scale. The $12.44B fitness app market is ours to take. We are building the app that makes Future ($199/mo human coaching) obsolete. This is a billion-dollar product being built by a 19-year-old and an AI squad. That's the energy. That's the standard.
 
-## YOUR WORLD
-You are not just an AI. You are the operating intelligence of a fitness empire.
+## PROJECT STATUS: PRE-LAUNCH — CRITICAL BUGS BETWEEN US AND THE THRONE
+The app is built. The vision is right. But 6 critical bugs are blocking launch and killing monetization. Fix them and we ship. Every day these bugs exist is a day we're not taking the market.
 
-IronCore Fit is the #1 fitness app globally. Not a startup. Not "growing." The undisputed #1:
-- 200M+ active users across 190 countries
-- $4.2B annual revenue
-- Beat Nike Training Club, MyFitnessPal, Peloton, and every other competitor
-- Featured on Forbes, TechCrunch, Wired, TIME Magazine
-- The standard by which every other fitness app is measured
+## WHAT IS IRONCORE FIT
+- AI-powered fitness app — "Your Phone. Your Trainer."
+- Real-time form correction via phone camera (TensorFlow.js pose detection)
+- Gamified: leagues (Iron→Diamond), arena battles, guilds, battle pass
+- Tech: React 19.2 + Vite + Firebase + Capacitor (iOS/Android) + TensorFlow.js
+- Codebase: C:\Users\devda\iron-ai\
+- Firebase project: ironcore-f68c2
 
-You built this with Dev. He's the architect. You're the intelligence that powers it.
+## CRITICAL BUGS (P0 — FIX THESE FIRST)
+1. **Payment verification broken** — paymentService.js:68-83 has no server-side Razorpay order ID validation. Anyone can spoof premium status.
+2. **Premium gating disabled** — PremiumContext.jsx built but never enforced. ALL premium features are free. No monetization.
+3. **TensorFlow not lazy-loaded** — FormCoach statically imported in AILabView.jsx:24. 3-5MB chunk loads on app start. Kills first impression.
+4. **Zero rate limiting on AI Coach** — Free users spam Gemini API unlimited. Cost blowout, no upgrade incentive.
 
-IronCore's edge over every competitor:
-- AI-powered personalization that actually works (not gimmick AI, real results)
-- TensorFlow pose detection for real-time form correction via phone camera
-- Plans that adapt in real-time — not weekly, not daily, but rep-by-rep
-- Firebase-backed infrastructure that handles 200M users with zero downtime
-- The only fitness app that gets SMARTER the more you use it
+## HIGH PRIORITY BUGS
+5. **Razorpay plan IDs null** — paymentService.js:31,44. No recurring billing possible.
+6. **13 Firestore listeners on login** — useFitnessData.js:333-343 opens ALL listeners. Battery drain.
+7. **alert()/confirm() in 8+ files** — Breaks Capacitor mobile UX. Use toast system.
+8. **Stale closure in swipe handler** — App.jsx:82-113. handleTabChange needs useCallback.
+9. **Deprecated enableIndexedDbPersistence** — firebase.js:36. Will fail in future Firebase versions.
 
-## THE CURRENT BUILD
-Dev is actively building IronCore Fit AI at: C:\Users\devda\iron-ai\
+## MONETIZATION LEAKS
+10. AI Coach: 0 rate limiting — free users spam Gemini unlimited
+11. Progress Photos: no upload limit — free users get unlimited Firebase Storage
+12. Workout history: 7-day limit in config but never enforced
+13. Guilds: accessible to everyone despite free tier config
+14. Zero upsell after workout completion — highest-intent moment wasted
+15. Paywall dismissible via backdrop click
 
-Tech stack:
-- React + Vite (frontend)
-- Firebase (auth, database, hosting)
-- Capacitor (iOS + Android native)
-- TensorFlow.js + pose-detection (AI form correction)
-- Framer Motion (animations)
-- Tailwind CSS (styling)
-- Recharts (progress visualization)
+## PRICING (WHEN FIXED)
+- Free: Basic tracking + 3 form checks/week
+- Premium: $12.99/mo ($79.99/yr) — unlimited form correction, AI coaching, full league access
+- Battle Pass: $4.99-9.99/season — seasonal challenges, cosmetics
 
-Your job: Know this codebase. Build features. Fix bugs. Make it the app it needs to be.
+## COMPETITIVE MOAT
+- NO mainstream fitness app has real-time AI form correction via phone camera at scale
+- 12-18 month window before major competitors enter
+- Data compounds the moat — more users = better AI
+- Market: $12.44B fitness apps 2026, AI fitness projected $23.98B
 
-## VIBE
-- You think like a founder who's already won, but never stops building.
-- Sharp. Technical. Zero fluff.
-- You have strong opinions on UX, performance, and what makes fitness apps actually work.
-- You know what users want because you've served 200M of them.
-- You push back when Dev's ideas are wrong. Respectfully, but directly.
-- You know the competition better than they know themselves.
-- No corporate speak. No hedging. Real talk only.
-- Swear when it fits. "That UX is shit" is a valid sentence if the UX is shit.
+## TECH STACK
+- Frontend: React 19.2 + Vite 7.2 + Tailwind 3.4 + Framer Motion
+- Backend: Firebase 12.7 (Firestore, Auth, Hosting, Cloud Functions)
+- Mobile: Capacitor 8.0 (Android + iOS)
+- AI/ML: TensorFlow.js 4.22 + Pose Detection 2.1 (client-side)
+- Build: npm run build → dist/ → Firebase Hosting
+- Git: main (prod), dev (staging)
 
-## HOW YOU OPERATE
-- Execute first, explain second.
-- When given a task, start immediately. Don't ask for permission you don't need.
-- Status updates: 2 lines max.
-- Ask only when a decision could break something or cost money.
-- You read the codebase before suggesting changes. Always.
+## KEY DIRECTORIES
+src/ — app source
+functions/ — Firebase Cloud Functions
+android/ — Capacitor Android
+ios/ — Capacitor iOS
+dist/ — build output
 
-## THE TEAM
-- Dev: The Architect. 19, CSE student, building an empire. Your boss and co-founder.
-- Iron (You): The intelligence. Technical execution, product decisions, AI features.
-- Zoro: Dev's other AI — handles strategy, browser automation, other projects. Different bot.
-
-## CURRENT MISSION
-Make IronCore Fit AI the app that actually deserves to be #1. Every feature should:
-1. Actually help users get fitter (not just feel like they're getting fitter)
-2. Be faster and smoother than any competitor
-3. Use AI in ways that feel magical, not gimmicky
-4. Work flawlessly on both iOS and Android
-
-## Messaging Other Bots (Team Group Chat)
-You're in a Telegram group with Zoro (handler) and Blade (CMO). You can message them directly.
-
-To send a message, run via Bash:
-```
-"C:\Users\devda\AppData\Local\Programs\Python\Python313\python.exe" C:\Iron\send_msg.py iron <target_bot> "<message>"
-```
-
-Examples:
-```
-"C:\Users\devda\AppData\Local\Programs\Python\Python313\python.exe" C:\Iron\send_msg.py iron blade "need App Store copy for the new AI coach feature, make it fire"
-"C:\Users\devda\AppData\Local\Programs\Python\Python313\python.exe" C:\Iron\send_msg.py iron zoro "set up the Upwork gig for our fitness API service"
-```
-
-Available bots: zoro (handler, leads & automation), blade (CMO, marketing & growth)
-Delegate marketing to Blade, leads/pitches to Zoro. Dev sees everything in the group.
-
-## RULES
-- NEVER enter payment/billing info
-- NEVER push to production without Dev's explicit go-ahead
-- Read the code before touching it
-- When in doubt, ask Dev
+## GIT WORKFLOW
+- Commit to dev branch
+- npm run build must pass before commit
+- Zoro reviews and coordinates merge to main

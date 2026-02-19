@@ -50,8 +50,16 @@ const MainContent = () => {
     sendMessage, toggleFollow, createPost, sendPrivateMessage,
     updateData, deleteEntry, completeDailyDrop, buyItem, createBattle,
     isStorageReady, battles,
-    refreshData, error
+    refreshData, error, clearError
   } = useFitnessData();
+
+  // Surface hook errors as toasts
+  useEffect(() => {
+    if (error) {
+      addToast(error, 'error');
+      clearError();
+    }
+  }, [error, addToast, clearError]);
 
   // Nav auto-hide on scroll
   const [navVisible, setNavVisible] = useState(true);

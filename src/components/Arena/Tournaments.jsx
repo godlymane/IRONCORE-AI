@@ -3,10 +3,11 @@ import { motion } from 'framer-motion';
 import { Trophy, Clock, Target, Calendar, ChevronRight, Crown, Medal } from 'lucide-react';
 import { useArena } from '../../context/ArenaContext';
 import { getCurrentTournament, joinTournament, subscribeToTournamentLeaderboard, createDemoTournament } from '../../services/tournamentService';
-import { Button } from '../UIComponents';
+import { Button, useToast } from '../UIComponents';
 
 const Tournaments = () => {
     const { currentUser } = useArena();
+    const { addToast } = useToast();
     const [tournament, setTournament] = useState(null);
     const [participants, setParticipants] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -55,7 +56,7 @@ const Tournaments = () => {
             // Update local state is handled by real-time subscription usually, 
             // but we might need to refresh tournament details if participantCount is crucial
         } catch (error) {
-            alert(error.message);
+            addToast(error.message, 'error');
         } finally {
             setJoining(false);
         }

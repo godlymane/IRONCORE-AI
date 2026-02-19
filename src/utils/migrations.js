@@ -59,7 +59,6 @@ export async function runMigrations(profile, collections, updateProfile) {
     let combinedPatch = {};
 
     for (const migration of pending) {
-        console.log(`Running migration v${migration.version}: ${migration.description}`);
         const patch = migration.up(
             { ...profile, ...combinedPatch },
             collections

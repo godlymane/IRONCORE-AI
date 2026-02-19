@@ -43,6 +43,9 @@ firebase-debug.log
 # Claude worktrees
 .claude/worktrees/
 
+# Debug screenshots
+1 (*.png
+
 # Python cache
 __pycache__/
 *.pyc

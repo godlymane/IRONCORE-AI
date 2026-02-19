@@ -66,11 +66,8 @@ export const PremiumPaywall = () => {
                 className="fixed inset-0 z-[100] flex items-center justify-center p-4"
                 style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}
             >
-                {/* Backdrop */}
-                <div
-                    className="absolute inset-0"
-                    onClick={closePaywall}
-                />
+                {/* Backdrop — no dismiss on click to prevent paywall bypass */}
+                <div className="absolute inset-0" />
 
                 {/* Modal */}
                 <motion.div

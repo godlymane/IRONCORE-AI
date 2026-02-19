@@ -112,7 +112,11 @@ export const openCheckout = async (orderData, userInfo, onSuccess, onFailure) =>
     }
 
     const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_YOUR_KEY',
+        key: (() => {
+            const k = import.meta.env.VITE_RAZORPAY_KEY_ID;
+            if (!k) throw new Error('VITE_RAZORPAY_KEY_ID is not set — cannot initialize payment.');
+            return k;
+        })(),
         order_id: orderData.orderId, // Server-generated Razorpay order ID — required for signature verification
         amount: orderData.amount,
         currency: orderData.currency,

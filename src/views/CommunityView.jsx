@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Trophy, Users, Flame, Crown, Sword, Search, X, BarChart2, MessageSquare, Send, UserPlus, UserCheck, Heart, Image as ImageIcon, Camera, Mail, Swords, Skull, Sparkles } from 'lucide-react';
-import { Button, GlassCard } from '../components/UIComponents';
+import { Button, GlassCard, useToast } from '../components/UIComponents';
 import { getLevel } from '../utils/helpers';
 import { LEVELS } from '../utils/constants';
 import { SFX } from '../utils/audio';
 
 export const CommunityView = ({ leaderboard, profile, updateData, workouts, setActiveTab, chat, sendMessage, following, toggleFollow, user, posts, createPost, sendPrivateMessage, inbox, globalFeed, isStorageReady, battles = [], createBattle, acceptBattle }) => {
+    const { addToast } = useToast();
     const [subTab, setSubTab] = useState('arena');
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedPlayer, setSelectedPlayer] = useState(null);
@@ -14,6 +15,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
     const [caption, setCaption] = useState("");
     const [showPostModal, setShowPostModal] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [challengeTarget, setChallengeTarget] = useState(null);
 
     const chatEndRef = useRef(null);
 
@@ -50,15 +52,19 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
         setUploading(true); await createPost(file, caption); setUploading(false); setShowPostModal(false); setCaption("");
     };
 
-    const handleSendDM = async () => { if (!dmInput.trim() || !selectedPlayer) return; await sendPrivateMessage(selectedPlayer.userId, dmInput); setDmInput(""); alert("Message Sent!"); };
+    const handleSendDM = async () => { if (!dmInput.trim() || !selectedPlayer) return; await sendPrivateMessage(selectedPlayer.userId, dmInput); setDmInput(""); addToast("Message Sent!", "success"); };
 
-    const handleChallenge = async (opponent) => {
+    const handleChallenge = (opponent) => {
         if (!createBattle) return;
-        if (confirm(`Challenge ${opponent.username} to a Volume Duel?`)) {
-            await createBattle(opponent.userId, opponent.username);
-            SFX.battleStart();
-            alert("Challenge sent!");
-        }
+        setChallengeTarget(opponent);
+    };
+
+    const confirmChallenge = async () => {
+        if (!challengeTarget) return;
+        await createBattle(challengeTarget.userId, challengeTarget.username);
+        SFX.battleStart();
+        addToast("Challenge sent!", "success");
+        setChallengeTarget(null);
     };
 
     return (
@@ -578,6 +584,33 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                                 }}
                             >
                                 {uploading ? 'Posting...' : 'Share'}
+                            </button>
+                        </div>
+                    </GlassCard>
+                </div>
+            )}
+
+            {/* Challenge Confirmation */}
+            {challengeTarget && (
+                <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xl flex items-center justify-center p-6 animate-in zoom-in-95">
+                    <GlassCard className="w-full max-w-sm !p-6 text-center">
+                        <Swords size={32} className="mx-auto text-red-400 mb-3" />
+                        <h3 className="text-lg font-black italic text-white uppercase mb-2">Volume Duel</h3>
+                        <p className="text-sm text-white/50 mb-6">Challenge <span className="text-white font-bold">{challengeTarget.username}</span> to a 24h Volume War?</p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setChallengeTarget(null)}
+                                className="flex-1 py-3 rounded-xl text-gray-400 text-xs font-bold"
+                                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={confirmChallenge}
+                                className="flex-1 py-3 rounded-xl text-white text-xs font-black uppercase"
+                                style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)', boxShadow: '0 4px 15px rgba(220,38,38,0.3)' }}
+                            >
+                                Fight
                             </button>
                         </div>
                     </GlassCard>
