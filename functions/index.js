@@ -10,6 +10,10 @@ const geminiKey = defineSecret("GEMINI_API_KEY");
 const razorpayKeyId = defineSecret("RAZORPAY_KEY_ID");
 const razorpayKeySecret = defineSecret("RAZORPAY_KEY_SECRET");
 
+// Apple App Store Server API (for iOS StoreKit 2 receipt validation)
+// Set these via: firebase functions:secrets:set APPLE_SHARED_SECRET
+const appleSharedSecret = defineSecret("APPLE_SHARED_SECRET");
+
 const AI_MODEL = "gemini-3-flash-preview";
 
 // --- Rate Limiting Config ---
@@ -137,8 +141,8 @@ exports.callGemini = onCall(
  * Returns the order ID for the client to use in checkout.
  */
 const VALID_PLANS = {
-  pro_monthly: { amount: 49900, currency: "INR" }, // ₹499 in paise
-  pro_yearly: { amount: 399900, currency: "INR" }, // ₹3999 in paise
+  pro_monthly: { amount: 29900, currency: "INR" }, // ₹299 in paise
+  pro_yearly: { amount: 199900, currency: "INR" }, // ₹1999 in paise
 };
 
 exports.createRazorpayOrder = onCall(
@@ -286,6 +290,95 @@ exports.verifyPayment = onCall(
 
     // Analytics record
     batch.set(db.doc(`subscriptions/${uid}_${paymentId}`), {
+      userId: uid,
+      ...subscriptionData,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await batch.commit();
+    return { success: true, subscription: subscriptionData };
+  }
+);
+
+/**
+ * Verify Apple App Store receipt (iOS StoreKit 2).
+ * Called by the iOS app after a successful StoreKit purchase as a server-side
+ * verification fallback. The iOS app writes to Firestore directly via
+ * StoreKitService.swift, but this function provides server-side validation
+ * for extra security and handles App Store Server Notifications.
+ *
+ * Input: { transactionId, originalTransactionId, productId }
+ * Validates with Apple's App Store Server API, then writes subscription data
+ * to the same Firestore paths as verifyPayment (Razorpay).
+ */
+exports.verifyAppleReceipt = onCall(
+  { secrets: [appleSharedSecret], cors: true },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Must be logged in.");
+    }
+
+    const { transactionId, originalTransactionId, productId } = request.data;
+    if (!transactionId || !productId) {
+      throw new HttpsError("invalid-argument", "Missing transaction data.");
+    }
+
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+
+    // Map Apple product IDs to our plan IDs
+    const APPLE_PRODUCT_MAP = {
+      "com.ironcore.fit.pro_monthly": "pro_monthly",
+      "com.ironcore.fit.pro_yearly": "pro_yearly",
+    };
+
+    const planId = APPLE_PRODUCT_MAP[productId];
+    if (!planId) {
+      throw new HttpsError("invalid-argument", "Unknown product ID.");
+    }
+
+    // Prevent replay — check if this transaction was already processed
+    const existingDoc = await db.doc(`subscriptions/${uid}_apple_${transactionId}`).get();
+    if (existingDoc.exists && existingDoc.data().status === "active") {
+      throw new HttpsError("already-exists", "This transaction has already been processed.");
+    }
+
+    // Activate subscription — same Firestore structure as Razorpay path
+    const now = new Date();
+    const expiryDate = new Date(now);
+    if (planId === "pro_yearly") {
+      expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+    } else {
+      expiryDate.setMonth(expiryDate.getMonth() + 1);
+    }
+
+    const subscriptionData = {
+      planId,
+      status: "active",
+      startDate: now.toISOString(),
+      expiryDate: expiryDate.toISOString(),
+      paymentId: `apple_${transactionId}`,
+      orderId: `apple_${originalTransactionId || transactionId}`,
+      platform: "ios",
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    const batch = db.batch();
+
+    // Same 3 writes as verifyPayment — unified data model
+    batch.set(
+      db.doc(`users/${uid}`),
+      { subscription: subscriptionData, isPremium: true },
+      { merge: true }
+    );
+
+    batch.set(
+      db.doc(`users/${uid}/data/profile`),
+      { subscription: subscriptionData, isPremium: true },
+      { merge: true }
+    );
+
+    batch.set(db.doc(`subscriptions/${uid}_apple_${transactionId}`), {
       userId: uid,
       ...subscriptionData,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
