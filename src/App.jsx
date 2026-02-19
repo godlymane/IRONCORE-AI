@@ -74,14 +74,14 @@ const MainContent = () => {
   }, []);
 
   // Direction-aware tab switching
-  const handleTabChange = (newTab) => {
+  const handleTabChange = useCallback((newTab) => {
     const d = (TAB_ORDER[newTab] ?? 0) - (TAB_ORDER[prevTabRef.current] ?? 0);
     setDirection(d > 0 ? 1 : d < 0 ? -1 : 0);
     prevTabRef.current = newTab;
     setActiveTab(newTab);
     setNavVisible(true);
     SFX.pageTransition();
-  };
+  }, []);
 
   // Lightweight touch-based swipe navigation (no Framer drag overhead)
   const touchRef = useRef({ startX: 0, startY: 0, startTime: 0 });
@@ -118,7 +118,7 @@ const MainContent = () => {
       el.removeEventListener('touchstart', onTouchStart);
       el.removeEventListener('touchend', onTouchEnd);
     };
-  }, [activeTab]);
+  }, [activeTab, handleTabChange]);
 
   // Configure status bar on native platforms
   useEffect(() => {
