@@ -65,21 +65,38 @@ export const initializeRazorpay = () => {
     });
 };
 
-// Create a payment order
+// Create a payment order via Cloud Function (server-side Razorpay order creation)
 export const createPaymentOrder = async (planId, userId) => {
     const plan = PRICING_PLANS[planId];
     if (!plan || plan.price === 0) {
         throw new Error('Invalid plan selected');
     }
 
-    // In production, this should call your backend to create a Razorpay order
-    // For now, we'll use client-side checkout (test mode)
-    return {
-        planId,
-        amount: plan.priceINR * 100, // Razorpay expects paise
-        currency: 'INR',
-        userId
-    };
+    try {
+        const functions = getFunctions(getApp());
+        const createOrder = httpsCallable(functions, 'createRazorpayOrder');
+        const result = await createOrder({
+            planId,
+            amount: plan.priceINR * 100, // Razorpay expects paise
+            currency: 'INR',
+            userId,
+        });
+
+        if (!result.data?.orderId) {
+            throw new Error('Server did not return a valid order ID');
+        }
+
+        return {
+            planId,
+            orderId: result.data.orderId,
+            amount: result.data.amount || plan.priceINR * 100,
+            currency: result.data.currency || 'INR',
+            userId,
+        };
+    } catch (e) {
+        console.error('Failed to create Razorpay order:', e);
+        throw new Error('Could not create payment order. Try again later.');
+    }
 };
 
 // Open Razorpay checkout
@@ -93,23 +110,33 @@ export const openCheckout = async (orderData, userInfo, onSuccess, onFailure) =>
 
     const plan = PRICING_PLANS[orderData.planId];
 
+    if (!orderData.orderId) {
+        onFailure(new Error('Missing order ID — payment cannot be verified securely.'));
+        return;
+    }
+
     const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_YOUR_KEY', // Replace with your key
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_YOUR_KEY',
+        order_id: orderData.orderId, // Server-generated Razorpay order ID — required for signature verification
         amount: orderData.amount,
         currency: orderData.currency,
         name: 'IronCore AI',
         description: `${plan.name} Subscription`,
-        image: '/icon-192.png', // Your app logo
+        image: '/icon-192.png',
         prefill: {
             name: userInfo.displayName || '',
             email: userInfo.email || '',
             contact: userInfo.phone || ''
         },
         theme: {
-            color: '#DC2626' // Your brand red
+            color: '#DC2626'
         },
         handler: async function (response) {
-            // Payment successful
+            // Payment successful — verify server-side with order_id + signature
+            if (!response.razorpay_order_id || !response.razorpay_signature) {
+                onFailure(new Error('Payment response missing verification data.'));
+                return;
+            }
             try {
                 await activateSubscription(orderData.userId, orderData.planId, response);
                 onSuccess(response);

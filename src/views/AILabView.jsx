@@ -6,8 +6,9 @@ import {
 } from 'lucide-react';
 import { Button, Card } from '../components/UIComponents';
 import { PremiumIcon } from '../components/PremiumIcon';
+import { usePremium } from '../context/PremiumContext';
+import { Lock } from 'lucide-react';
 
-// Import Icons
 // Import Icons
 import {
     FormCoachIconShape,
@@ -41,6 +42,10 @@ import { exportPDFReport } from '../utils/exportUtils';
 export const AILabView = ({ workouts = [], meals = [], profile = {}, updateData, weight }) => {
     const [labTab, setLabTab] = useState('coach'); // 'coach' or 'vision'
     const [activeFeature, setActiveFeature] = useState(null);
+    const { isPremium, requirePremium } = usePremium();
+
+    // Premium-gated features — free users get paywall
+    const PREMIUM_FEATURES = new Set(['form', 'analytics', 'stats']);
 
     const handleVoiceCommand = (cmd) => {
         switch (cmd.action) {
@@ -90,15 +95,26 @@ export const AILabView = ({ workouts = [], meals = [], profile = {}, updateData,
     );
 
     const features = [
-        { id: 'form', name: 'Form Coach', icon: IconWrapper(FormCoachIconShape, '#ef4444'), fallback: Camera, color: 'red', desc: 'AI pose detection' },
-        { id: 'voice', name: 'Voice', icon: Mic, fallback: Mic, color: 'green', desc: 'Hands-free logging' },
-        { id: 'analytics', name: 'Predictions', icon: IconWrapper(BrainIconShape, '#a855f7'), fallback: Brain, color: 'purple', desc: 'Predictive analytics' },
-        { id: 'timer', name: 'Smart Rest', icon: IconWrapper(SmartTimerIconShape, '#f59e0b'), fallback: Timer, color: 'orange', desc: 'Adaptive timing' },
-        { id: 'sleep', name: 'Recovery', icon: IconWrapper(MoonIconShape, '#06b6d4'), fallback: Moon, color: 'cyan', desc: 'Sleep tracking' },
-        { id: 'gamify', name: 'Achievements', icon: IconWrapper(TrophyIconShape, '#eab308'), fallback: Trophy, color: 'yellow', desc: '50+ badges' },
-        { id: 'nutrition', name: 'Nutrition', icon: IconWrapper(NutritionIconShape, '#22c55e'), fallback: Droplets, color: 'red', desc: 'Macro tracking' },
-        { id: 'stats', name: 'Analytics', icon: IconWrapper(AnalyticsIconShape, '#ec4899'), fallback: TrendingUp, color: 'pink', desc: 'Progress graphs' },
+        { id: 'form', name: 'Form Coach', icon: IconWrapper(FormCoachIconShape, '#ef4444'), fallback: Camera, color: 'red', desc: 'AI pose detection', premium: true },
+        { id: 'voice', name: 'Voice', icon: Mic, fallback: Mic, color: 'green', desc: 'Hands-free logging', premium: false },
+        { id: 'analytics', name: 'Predictions', icon: IconWrapper(BrainIconShape, '#a855f7'), fallback: Brain, color: 'purple', desc: 'Predictive analytics', premium: true },
+        { id: 'timer', name: 'Smart Rest', icon: IconWrapper(SmartTimerIconShape, '#f59e0b'), fallback: Timer, color: 'orange', desc: 'Adaptive timing', premium: false },
+        { id: 'sleep', name: 'Recovery', icon: IconWrapper(MoonIconShape, '#06b6d4'), fallback: Moon, color: 'cyan', desc: 'Sleep tracking', premium: false },
+        { id: 'gamify', name: 'Achievements', icon: IconWrapper(TrophyIconShape, '#eab308'), fallback: Trophy, color: 'yellow', desc: '50+ badges', premium: false },
+        { id: 'nutrition', name: 'Nutrition', icon: IconWrapper(NutritionIconShape, '#22c55e'), fallback: Droplets, color: 'red', desc: 'Macro tracking', premium: false },
+        { id: 'stats', name: 'Analytics', icon: IconWrapper(AnalyticsIconShape, '#ec4899'), fallback: TrendingUp, color: 'pink', desc: 'Progress graphs', premium: true },
     ];
+
+    // Handle feature selection with premium gating
+    const handleFeatureSelect = (feature) => {
+        if (feature.premium && !isPremium) {
+            const featureKey = feature.id === 'form' ? 'aiCoachCalls' :
+                               feature.id === 'stats' ? 'unlimitedHistory' : 'aiCoachCalls';
+            requirePremium(featureKey);
+            return;
+        }
+        setActiveFeature(feature.id);
+    };
 
     const colorMap = {
         red: 'from-red-500/20 to-red-600/10 border-red-500/30',
@@ -348,9 +364,15 @@ export const AILabView = ({ workouts = [], meals = [], profile = {}, updateData,
                                         animate={{ opacity: 1, y: 0, transition: { delay: i * 0.05 } }}
                                         whileHover={{ scale: 1.02 }}
                                         whileTap={{ scale: 0.98 }}
-                                        onClick={() => setActiveFeature(feature.id)}
+                                        onClick={() => handleFeatureSelect(feature)}
                                         className={`p-4 rounded-2xl border bg-gradient-to-br ${colorMap[feature.color]} text-left transition-all relative overflow-hidden group`}
                                     >
+                                        {/* Premium lock badge */}
+                                        {feature.premium && !isPremium && (
+                                            <div className="absolute top-3 right-3 z-10 w-7 h-7 rounded-full bg-yellow-500/20 border border-yellow-500/40 flex items-center justify-center">
+                                                <Lock size={12} className="text-yellow-400" />
+                                            </div>
+                                        )}
                                         <div className="mb-4">
                                             <PremiumIcon
                                                 src={feature.icon}
@@ -362,7 +384,9 @@ export const AILabView = ({ workouts = [], meals = [], profile = {}, updateData,
                                         </div>
                                         <div className="relative z-10">
                                             <p className="font-bold text-white text-lg">{feature.name}</p>
-                                            <p className="text-xs text-white/60">{feature.desc}</p>
+                                            <p className="text-xs text-white/60">
+                                                {feature.premium && !isPremium ? 'PRO' : feature.desc}
+                                            </p>
                                         </div>
                                         <ChevronRight className="w-5 h-5 text-white/20 absolute top-4 right-4" />
                                     </motion.button>

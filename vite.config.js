@@ -13,7 +13,8 @@ export default defineConfig({
           'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
           'vendor-motion': ['framer-motion'],
           'vendor-charts': ['recharts'],
-          'vendor-tensorflow': ['@tensorflow/tfjs', '@tensorflow-models/pose-detection'],
+          // TensorFlow removed from manualChunks — it's dynamically imported in FormCoach
+          // so Vite will auto-split it into a lazy chunk that only loads when FormCoach mounts
         }
       }
     },

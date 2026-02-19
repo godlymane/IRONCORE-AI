@@ -6,7 +6,7 @@
  */
 
 const STORAGE_KEY = 'ironcore_ai_usage';
-const DAILY_CAP_FREE = 20;
+const DAILY_CAP_FREE = 5;
 const DAILY_CAP_PREMIUM = 100;
 const MIN_REQUEST_GAP_MS = 1500; // 1.5s minimum between requests
 
@@ -57,7 +57,7 @@ export const checkRateLimit = (isPremium = false) => {
   }
 
   if (count >= cap) {
-    const reset = isPremium ? 'Resets at midnight.' : 'Upgrade to Elite for 100 daily requests.';
+    const reset = isPremium ? 'Resets at midnight.' : 'Upgrade to Pro for 100 daily requests.';
     return {
       allowed: false,
       reason: `Daily AI limit reached (${cap} requests). ${reset}`,
