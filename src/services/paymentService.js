@@ -66,6 +66,7 @@ export const initializeRazorpay = () => {
 };
 
 // Create a payment order via Cloud Function (server-side Razorpay order creation)
+// Amount is determined server-side only — client never sends price
 export const createPaymentOrder = async (planId, userId) => {
     const plan = PRICING_PLANS[planId];
     if (!plan || plan.price === 0) {
@@ -75,12 +76,7 @@ export const createPaymentOrder = async (planId, userId) => {
     try {
         const functions = getFunctions(getApp());
         const createOrder = httpsCallable(functions, 'createRazorpayOrder');
-        const result = await createOrder({
-            planId,
-            amount: plan.priceINR * 100, // Razorpay expects paise
-            currency: 'INR',
-            userId,
-        });
+        const result = await createOrder({ planId });
 
         if (!result.data?.orderId) {
             throw new Error('Server did not return a valid order ID');
@@ -89,8 +85,8 @@ export const createPaymentOrder = async (planId, userId) => {
         return {
             planId,
             orderId: result.data.orderId,
-            amount: result.data.amount || plan.priceINR * 100,
-            currency: result.data.currency || 'INR',
+            amount: result.data.amount,
+            currency: result.data.currency,
             userId,
         };
     } catch (e) {
@@ -159,14 +155,19 @@ export const openCheckout = async (orderData, userInfo, onSuccess, onFailure) =>
 };
 
 // Activate subscription via server-side Cloud Function (validates payment server-side)
+// All three Razorpay fields are REQUIRED — server rejects if any are missing
 export const activateSubscription = async (userId, planId, paymentResponse) => {
+    if (!paymentResponse.razorpay_payment_id || !paymentResponse.razorpay_order_id || !paymentResponse.razorpay_signature) {
+        throw new Error('Incomplete payment response — cannot verify.');
+    }
+
     try {
         const functions = getFunctions(getApp());
         const verifyPayment = httpsCallable(functions, 'verifyPayment');
         const result = await verifyPayment({
             paymentId: paymentResponse.razorpay_payment_id,
-            orderId: paymentResponse.razorpay_order_id || null,
-            signature: paymentResponse.razorpay_signature || null,
+            orderId: paymentResponse.razorpay_order_id,
+            signature: paymentResponse.razorpay_signature,
             planId,
         });
         return result.data.subscription;

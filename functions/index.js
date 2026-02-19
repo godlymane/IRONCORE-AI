@@ -1,12 +1,14 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
+const crypto = require("crypto");
 const admin = require("firebase-admin");
 
 admin.initializeApp();
 
-// Store the Gemini key as a Firebase secret (not in code):
-//   firebase functions:secrets:set GEMINI_API_KEY
+// Store secrets via: firebase functions:secrets:set <SECRET_NAME>
 const geminiKey = defineSecret("GEMINI_API_KEY");
+const razorpayKeyId = defineSecret("RAZORPAY_KEY_ID");
+const razorpayKeySecret = defineSecret("RAZORPAY_KEY_SECRET");
 
 const AI_MODEL = "gemini-3-flash-preview";
 
@@ -131,64 +133,165 @@ exports.callGemini = onCall(
 );
 
 /**
- * Server-side payment verification.
- * Validates Razorpay signature and activates subscription.
+ * Create a Razorpay order server-side.
+ * Returns the order ID for the client to use in checkout.
  */
-exports.verifyPayment = onCall({ cors: true }, async (request) => {
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "Must be logged in.");
+const VALID_PLANS = {
+  pro_monthly: { amount: 49900, currency: "INR" }, // ₹499 in paise
+  pro_yearly: { amount: 399900, currency: "INR" }, // ₹3999 in paise
+};
+
+exports.createRazorpayOrder = onCall(
+  { secrets: [razorpayKeyId, razorpayKeySecret], cors: true },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Must be logged in.");
+    }
+
+    const { planId } = request.data;
+    const plan = VALID_PLANS[planId];
+    if (!plan) {
+      throw new HttpsError("invalid-argument", "Invalid plan.");
+    }
+
+    const auth = Buffer.from(
+      `${razorpayKeyId.value()}:${razorpayKeySecret.value()}`
+    ).toString("base64");
+
+    const response = await fetch("https://api.razorpay.com/v1/orders", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Basic ${auth}`,
+      },
+      body: JSON.stringify({
+        amount: plan.amount,
+        currency: plan.currency,
+        receipt: `${request.auth.uid}_${planId}_${Date.now()}`,
+        notes: { userId: request.auth.uid, planId },
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new HttpsError(
+        "internal",
+        `Razorpay order creation failed: ${err.error?.description || response.statusText}`
+      );
+    }
+
+    const order = await response.json();
+
+    // Store order in Firestore for verification later
+    const db = admin.firestore();
+    await db.doc(`orders/${order.id}`).set({
+      userId: request.auth.uid,
+      planId,
+      amount: plan.amount,
+      currency: plan.currency,
+      razorpayOrderId: order.id,
+      status: "created",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return {
+      orderId: order.id,
+      amount: plan.amount,
+      currency: plan.currency,
+    };
   }
+);
 
-  const { paymentId, orderId, signature, planId } = request.data;
-  if (!paymentId || !planId) {
-    throw new HttpsError("invalid-argument", "Missing payment data.");
+/**
+ * Server-side payment verification.
+ * Validates Razorpay HMAC-SHA256 signature, then activates subscription.
+ */
+exports.verifyPayment = onCall(
+  { secrets: [razorpayKeySecret], cors: true },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Must be logged in.");
+    }
+
+    const { paymentId, orderId, signature, planId } = request.data;
+    if (!paymentId || !orderId || !signature || !planId) {
+      throw new HttpsError("invalid-argument", "Missing payment verification data.");
+    }
+
+    // 1. Verify Razorpay signature (HMAC-SHA256)
+    const expectedSig = crypto
+      .createHmac("sha256", razorpayKeySecret.value())
+      .update(`${orderId}|${paymentId}`)
+      .digest("hex");
+
+    if (expectedSig !== signature) {
+      throw new HttpsError("permission-denied", "Invalid payment signature.");
+    }
+
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+
+    // 2. Verify the order belongs to this user
+    const orderDoc = await db.doc(`orders/${orderId}`).get();
+    if (!orderDoc.exists || orderDoc.data().userId !== uid) {
+      throw new HttpsError("permission-denied", "Order does not belong to this user.");
+    }
+
+    // 3. Prevent replay — check order hasn't already been activated
+    if (orderDoc.data().status === "paid") {
+      throw new HttpsError("already-exists", "This payment has already been processed.");
+    }
+
+    // 4. Activate subscription
+    const now = new Date();
+    const expiryDate = new Date(now);
+    if (planId === "pro_yearly") {
+      expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+    } else {
+      expiryDate.setMonth(expiryDate.getMonth() + 1);
+    }
+
+    const subscriptionData = {
+      planId,
+      status: "active",
+      startDate: now.toISOString(),
+      expiryDate: expiryDate.toISOString(),
+      paymentId,
+      orderId,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    const batch = db.batch();
+
+    // Mark order as paid
+    batch.update(db.doc(`orders/${orderId}`), {
+      status: "paid",
+      paymentId,
+      paidAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Update user profile with subscription
+    batch.set(
+      db.doc(`users/${uid}`),
+      { subscription: subscriptionData, isPremium: true },
+      { merge: true }
+    );
+
+    // Also update the nested profile doc that useFitnessData reads
+    batch.set(
+      db.doc(`users/${uid}/data/profile`),
+      { subscription: subscriptionData, isPremium: true },
+      { merge: true }
+    );
+
+    // Analytics record
+    batch.set(db.doc(`subscriptions/${uid}_${paymentId}`), {
+      userId: uid,
+      ...subscriptionData,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await batch.commit();
+    return { success: true, subscription: subscriptionData };
   }
-
-  const uid = request.auth.uid;
-  const db = admin.firestore();
-
-  // In production: verify Razorpay signature using HMAC-SHA256
-  // const crypto = require("crypto");
-  // const razorpaySecret = defineSecret("RAZORPAY_SECRET");
-  // const expectedSig = crypto.createHmac("sha256", razorpaySecret.value())
-  //   .update(orderId + "|" + paymentId).digest("hex");
-  // if (expectedSig !== signature) throw new HttpsError("permission-denied", "Invalid signature");
-
-  const now = new Date();
-  const expiryDate = new Date(now);
-  if (planId === "pro_yearly") {
-    expiryDate.setFullYear(expiryDate.getFullYear() + 1);
-  } else {
-    expiryDate.setMonth(expiryDate.getMonth() + 1);
-  }
-
-  const subscriptionData = {
-    planId,
-    status: "active",
-    startDate: now.toISOString(),
-    expiryDate: expiryDate.toISOString(),
-    paymentId,
-    orderId: orderId || null,
-    signature: signature || null,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  };
-
-  const batch = db.batch();
-
-  // Update user doc
-  batch.set(
-    db.doc(`users/${uid}`),
-    { subscription: subscriptionData, isPremium: true },
-    { merge: true }
-  );
-
-  // Analytics record
-  batch.set(db.doc(`subscriptions/${uid}_${paymentId}`), {
-    userId: uid,
-    ...subscriptionData,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
-
-  await batch.commit();
-  return { success: true, subscription: subscriptionData };
-});
+);
