@@ -36,11 +36,18 @@ const validatePayload = (payload) => {
     return !Object.keys(payload).some(k => dangerous.includes(k));
 };
 
-export function useFitnessData() {
+// Tabs that need social listeners (leaderboard, chat, posts, globalFeed, battles, inbox, following)
+const SOCIAL_TABS = new Set(['arena', 'profile']);
+// Tabs that need photos listener
+const PHOTOS_TABS = new Set(['profile']);
+
+export function useFitnessData(activeTab = 'dashboard') {
     const [user, setUser] = useState(null);
     const [profileLoaded, setProfileLoaded] = useState(false);
     const [profileExists, setProfileExists] = useState(false);
     const listenersRef = useRef([]);
+    const socialUnsubs = useRef([]);
+    const photosUnsub = useRef(null);
 
     const [data, setData] = useState({
         meals: [], progress: [], burned: [], workouts: [], photos: [],
@@ -127,6 +134,11 @@ export function useFitnessData() {
             setProfileLoaded(false);
             setProfileExists(false);
             setDataLoaded(false);
+
+            // Tear down deferred listeners
+            socialUnsubs.current.forEach(u => u());
+            socialUnsubs.current = [];
+            if (photosUnsub.current) { photosUnsub.current(); photosUnsub.current = null; }
 
             // Clear localStorage caches for this user
             if (uid) {
@@ -291,69 +303,126 @@ export function useFitnessData() {
         console.error('Listener error [' + key + ']:', err.code || err.message);
     }, []);
 
-    const subscribeToData = useCallback((uid) => {
-        // Tear down previous listeners
-        listenersRef.current.forEach(u => u());
-        listenersRef.current = [];
+    // Shared bind helper — creates a Firestore listener and returns the unsub function
+    const bindListener = useCallback((uid, key, isDoc = false) => {
+        let actualRef;
+        if (key === 'leaderboard') actualRef = query(collection(db, 'leaderboard'), orderBy('xp', 'desc'), limit(100));
+        else if (key === 'chat') actualRef = query(collection(db, 'global', 'data', 'chat'), orderBy('createdAt', 'asc'), limit(50));
+        else if (key === 'posts') actualRef = query(collection(db, 'global', 'data', 'posts'), orderBy('createdAt', 'desc'), limit(20));
+        else if (key === 'globalFeed') actualRef = query(collection(db, 'global', 'data', 'feed'), orderBy('createdAt', 'desc'), limit(50));
+        else if (key === 'battles') actualRef = query(collection(db, 'global', 'data', 'battles'), orderBy('createdAt', 'desc'), limit(20));
+        else if (isDoc) actualRef = doc(db, 'users', uid, 'data', key);
+        else actualRef = query(collection(db, 'users', uid, key));
 
-        const push = (unsub) => listenersRef.current.push(unsub);
-
-        const bind = (key, isDoc = false) => {
-            let actualRef;
-            if (key === 'leaderboard') actualRef = query(collection(db, 'leaderboard'), orderBy('xp', 'desc'), limit(100));
-            else if (key === 'chat') actualRef = query(collection(db, 'global', 'data', 'chat'), orderBy('createdAt', 'asc'), limit(50));
-            else if (key === 'posts') actualRef = query(collection(db, 'global', 'data', 'posts'), orderBy('createdAt', 'desc'), limit(20));
-            else if (key === 'globalFeed') actualRef = query(collection(db, 'global', 'data', 'feed'), orderBy('createdAt', 'desc'), limit(50));
-            else if (key === 'battles') actualRef = query(collection(db, 'global', 'data', 'battles'), orderBy('createdAt', 'desc'), limit(20));
-            else if (isDoc) actualRef = doc(db, 'users', uid, 'data', key);
-            else actualRef = query(collection(db, 'users', uid, key));
-
-            push(onSnapshot(actualRef, (snap) => {
-                if (isDoc) {
-                    const docData = snap.exists() ? snap.data() : {};
-                    setData(prev => ({ ...prev, [key]: docData }));
-                    if (key === 'profile') {
-                        setProfileLoaded(true);
-                        setProfileExists(snap.exists() && Object.keys(docData).length > 0);
-                        if (snap.exists() && Object.keys(docData).length > 0) {
-                            try { localStorage.setItem('ironai_profile_' + uid, JSON.stringify(docData)); } catch (_) { /* ignore */ }
-                        }
+        return onSnapshot(actualRef, (snap) => {
+            if (isDoc) {
+                const docData = snap.exists() ? snap.data() : {};
+                setData(prev => ({ ...prev, [key]: docData }));
+                if (key === 'profile') {
+                    setProfileLoaded(true);
+                    setProfileExists(snap.exists() && Object.keys(docData).length > 0);
+                    if (snap.exists() && Object.keys(docData).length > 0) {
+                        try { localStorage.setItem('ironai_profile_' + uid, JSON.stringify(docData)); } catch (_) { /* ignore */ }
                     }
-                } else {
-                    const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                    if (key !== 'chat' && key !== 'globalFeed' && key !== 'posts' && key !== 'battles' && key !== 'leaderboard') {
-                        list.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-                    }
-                    setData(prev => ({ ...prev, [key]: list }));
                 }
-                setDataLoaded(true);
-            }, onListenerError(key)));
-        };
-
-        bind('meals'); bind('progress'); bind('burned'); bind('workouts'); bind('photos'); bind('profile', true);
-        bind('leaderboard'); bind('chat'); bind('posts'); bind('globalFeed'); bind('battles');
-
-        push(onSnapshot(collection(db, 'users', uid, 'inbox'), (snap) => {
-            const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.createdAt - a.createdAt);
-            setData(prev => ({ ...prev, inbox: msgs }));
-        }, onListenerError('inbox')));
-
-        push(onSnapshot(collection(db, 'users', uid, 'following'), (snap) => {
-            setData(prev => ({ ...prev, following: snap.docs.map(d => d.id) }));
-        }, onListenerError('following')));
+            } else {
+                const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                if (key !== 'chat' && key !== 'globalFeed' && key !== 'posts' && key !== 'battles' && key !== 'leaderboard') {
+                    list.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+                }
+                setData(prev => ({ ...prev, [key]: list }));
+            }
+            setDataLoaded(true);
+        }, onListenerError(key));
     }, [onListenerError]);
 
-    // Re-subscribe for pull-to-refresh
-    const refreshData = useCallback(() => {
-        if (!user || !db) return;
-        subscribeToData(user.uid);
-    }, [user, subscribeToData]);
-
+    // CORE listeners (5): always active when logged in — meals, progress, burned, workouts, profile
     useEffect(() => {
         if (!user || !db) return;
-        subscribeToData(user.uid);
-        return () => listenersRef.current.forEach(u => u());
-    }, [user, subscribeToData]);
+        const unsubs = [
+            bindListener(user.uid, 'meals'),
+            bindListener(user.uid, 'progress'),
+            bindListener(user.uid, 'burned'),
+            bindListener(user.uid, 'workouts'),
+            bindListener(user.uid, 'profile', true),
+        ];
+        listenersRef.current = unsubs;
+        return () => unsubs.forEach(u => u());
+    }, [user, bindListener]);
+
+    // SOCIAL listeners (7): only when on arena or profile tabs
+    useEffect(() => {
+        if (!user || !db || !SOCIAL_TABS.has(activeTab)) {
+            // Tear down social listeners when leaving social tabs
+            socialUnsubs.current.forEach(u => u());
+            socialUnsubs.current = [];
+            return;
+        }
+        // Already subscribed? Don't re-subscribe
+        if (socialUnsubs.current.length > 0) return;
+
+        socialUnsubs.current = [
+            bindListener(user.uid, 'leaderboard'),
+            bindListener(user.uid, 'chat'),
+            bindListener(user.uid, 'posts'),
+            bindListener(user.uid, 'globalFeed'),
+            bindListener(user.uid, 'battles'),
+            onSnapshot(collection(db, 'users', user.uid, 'inbox'), (snap) => {
+                const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.createdAt - a.createdAt);
+                setData(prev => ({ ...prev, inbox: msgs }));
+            }, onListenerError('inbox')),
+            onSnapshot(collection(db, 'users', user.uid, 'following'), (snap) => {
+                setData(prev => ({ ...prev, following: snap.docs.map(d => d.id) }));
+            }, onListenerError('following')),
+        ];
+        return () => {
+            socialUnsubs.current.forEach(u => u());
+            socialUnsubs.current = [];
+        };
+    }, [user, activeTab, bindListener, onListenerError]);
+
+    // PHOTOS listener (1): only when on profile tab
+    useEffect(() => {
+        if (!user || !db || !PHOTOS_TABS.has(activeTab)) {
+            if (photosUnsub.current) { photosUnsub.current(); photosUnsub.current = null; }
+            return;
+        }
+        if (photosUnsub.current) return; // already subscribed
+        photosUnsub.current = bindListener(user.uid, 'photos');
+        return () => { if (photosUnsub.current) { photosUnsub.current(); photosUnsub.current = null; } };
+    }, [user, activeTab, bindListener]);
+
+    // Re-subscribe core listeners for pull-to-refresh
+    const refreshData = useCallback(() => {
+        if (!user || !db) return;
+        // Tear down and rebuild core listeners
+        listenersRef.current.forEach(u => u());
+        listenersRef.current = [
+            bindListener(user.uid, 'meals'),
+            bindListener(user.uid, 'progress'),
+            bindListener(user.uid, 'burned'),
+            bindListener(user.uid, 'workouts'),
+            bindListener(user.uid, 'profile', true),
+        ];
+        // Also refresh social if on a social tab
+        if (SOCIAL_TABS.has(activeTab)) {
+            socialUnsubs.current.forEach(u => u());
+            socialUnsubs.current = [
+                bindListener(user.uid, 'leaderboard'),
+                bindListener(user.uid, 'chat'),
+                bindListener(user.uid, 'posts'),
+                bindListener(user.uid, 'globalFeed'),
+                bindListener(user.uid, 'battles'),
+                onSnapshot(collection(db, 'users', user.uid, 'inbox'), (snap) => {
+                    const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.createdAt - a.createdAt);
+                    setData(prev => ({ ...prev, inbox: msgs }));
+                }, onListenerError('inbox')),
+                onSnapshot(collection(db, 'users', user.uid, 'following'), (snap) => {
+                    setData(prev => ({ ...prev, following: snap.docs.map(d => d.id) }));
+                }, onListenerError('following')),
+            ];
+        }
+    }, [user, activeTab, bindListener, onListenerError]);
 
     // --- Schema migration runner (runs once after profile + data load) ---
     const migrationRanRef = useRef(false);

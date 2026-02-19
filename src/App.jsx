@@ -51,7 +51,7 @@ const MainContent = () => {
     updateData, deleteEntry, completeDailyDrop, buyItem, createBattle,
     isStorageReady, battles,
     refreshData, error, clearError
-  } = useFitnessData();
+  } = useFitnessData(activeTab);
 
   // Surface hook errors as toasts
   useEffect(() => {
