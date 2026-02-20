@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Main tab navigation — matches App.jsx tab structure
-/// 6 tabs: Home, Arena, Lift, AI, Pulse, Me
+/// 6 tabs: Home, Arena, Lift, AI, Feed, Me
 struct MainTabView: View {
     @EnvironmentObject var authVM: AuthViewModel
     @State private var selectedTab = 0
@@ -20,9 +20,9 @@ struct MainTabView: View {
                     .tag(2)
                 AILabPlaceholder()
                     .tag(3)
-                CardioPlaceholder()
+                SocialFeedView(uid: authVM.uid ?? "")
                     .tag(4)
-                ProfilePlaceholder()
+                ProfileView(profile: authVM.profile, uid: authVM.uid ?? "")
                     .tag(5)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
@@ -94,7 +94,7 @@ enum TabItem: Int, CaseIterable, Identifiable {
         case .arena: return "Arena"
         case .workout: return "Lift"
         case .aiLab: return "AI"
-        case .cardio: return "Pulse"
+        case .cardio: return "Feed"
         case .profile: return "Me"
         }
     }
@@ -105,7 +105,7 @@ enum TabItem: Int, CaseIterable, Identifiable {
         case .arena: return "shield.lefthalf.filled"
         case .workout: return "dumbbell.fill"
         case .aiLab: return "brain.head.profile"
-        case .cardio: return "heart.fill"
+        case .cardio: return "bubble.left.and.bubble.right.fill"
         case .profile: return "crown.fill"
         }
     }
@@ -116,40 +116,6 @@ enum TabItem: Int, CaseIterable, Identifiable {
 struct AILabPlaceholder: View {
     var body: some View {
         PlaceholderTab(icon: "brain.head.profile", title: "AI Lab", subtitle: "Form Coach • AI Chat • Recovery")
-    }
-}
-
-struct CardioPlaceholder: View {
-    var body: some View {
-        PlaceholderTab(icon: "heart.fill", title: "Cardio", subtitle: "Running • Cycling • Steps")
-    }
-}
-
-struct ProfilePlaceholder: View {
-    @EnvironmentObject var authVM: AuthViewModel
-
-    var body: some View {
-        VStack(spacing: 24) {
-            PlaceholderTab(icon: "crown.fill", title: "Profile", subtitle: "Stats • Progress • Settings")
-
-            Button {
-                authVM.signOut()
-            } label: {
-                Text("Sign Out")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.ironRedLight)
-                    .padding(.horizontal, 32)
-                    .padding(.vertical, 12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.ironRed.opacity(0.1))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.ironRedLight.opacity(0.3), lineWidth: 1)
-                    )
-            }
-        }
     }
 }
 

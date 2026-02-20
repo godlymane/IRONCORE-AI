@@ -35,6 +35,10 @@
 		A10026 /* LeagueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10026; };
 		A10027 /* ArenaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10027; };
 		A10028 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B10028; };
+		A10029 /* SocialFeedViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10029; };
+		A10030 /* SocialFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10030; };
+		A10031 /* ProfileViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10031; };
+		A10032 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10032; };
 		A20001 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = C20001; };
 		A20002 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = C20002; };
 		A20003 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = C20003; };
@@ -71,6 +75,10 @@
 		B10026 /* LeagueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeagueView.swift; sourceTree = "<group>"; };
 		B10027 /* ArenaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArenaView.swift; sourceTree = "<group>"; };
 		B10028 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		B10029 /* SocialFeedViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialFeedViewModel.swift; sourceTree = "<group>"; };
+		B10030 /* SocialFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialFeedView.swift; sourceTree = "<group>"; };
+		B10031 /* ProfileViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileViewModel.swift; sourceTree = "<group>"; };
+		B10032 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -163,6 +171,8 @@
 				B10017 /* DashboardView.swift */,
 				B10020 /* WorkoutView.swift */,
 				B10022 /* NutritionView.swift */,
+				B10030 /* SocialFeedView.swift */,
+				B10032 /* ProfileView.swift */,
 			);
 			path = Main;
 			sourceTree = "<group>";
@@ -178,6 +188,8 @@
 				B10021 /* NutritionViewModel.swift */,
 				B10024 /* LeagueViewModel.swift */,
 				B10025 /* ArenaViewModel.swift */,
+				B10029 /* SocialFeedViewModel.swift */,
+				B10031 /* ProfileViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -332,6 +344,10 @@
 				A10025 /* ArenaViewModel.swift in Sources */,
 				A10026 /* LeagueView.swift in Sources */,
 				A10027 /* ArenaView.swift in Sources */,
+				A10029 /* SocialFeedViewModel.swift in Sources */,
+				A10030 /* SocialFeedView.swift in Sources */,
+				A10031 /* ProfileViewModel.swift in Sources */,
+				A10032 /* ProfileView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
