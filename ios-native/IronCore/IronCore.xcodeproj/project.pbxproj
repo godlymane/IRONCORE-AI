@@ -34,6 +34,7 @@
 		A10025 /* ArenaViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10025; };
 		A10026 /* LeagueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10026; };
 		A10027 /* ArenaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10027; };
+		A10028 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B10028; };
 		A20001 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = C20001; };
 		A20002 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = C20002; };
 		A20003 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = C20003; };
@@ -69,6 +70,7 @@
 		B10025 /* ArenaViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArenaViewModel.swift; sourceTree = "<group>"; };
 		B10026 /* LeagueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeagueView.swift; sourceTree = "<group>"; };
 		B10027 /* ArenaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArenaView.swift; sourceTree = "<group>"; };
+		B10028 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -104,6 +106,7 @@
 				E10050 /* Models */,
 				E10060 /* Utils */,
 				E10070 /* Resources */,
+				B10028 /* PrivacyInfo.xcprivacy */,
 			);
 			path = IronCore;
 			sourceTree = "<group>";
@@ -292,6 +295,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10013 /* GoogleService-Info.plist in Resources */,
+				A10028 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
