@@ -14,7 +14,7 @@ struct MainTabView: View {
             TabView(selection: $selectedTab) {
                 DashboardView(profile: authVM.profile)
                     .tag(0)
-                ArenaPlaceholder()
+                ArenaView()
                     .tag(1)
                 WorkoutView(uid: authVM.uid ?? "")
                     .tag(2)
@@ -112,12 +112,6 @@ enum TabItem: Int, CaseIterable, Identifiable {
 }
 
 // MARK: - Placeholder Views (Phase 1 — replaced in later phases)
-
-struct ArenaPlaceholder: View {
-    var body: some View {
-        PlaceholderTab(icon: "shield.lefthalf.filled", title: "Arena", subtitle: "Leaderboard • Battles • Chat")
-    }
-}
 
 struct AILabPlaceholder: View {
     var body: some View {

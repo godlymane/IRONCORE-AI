@@ -29,6 +29,11 @@
 		A10020 /* WorkoutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10020; };
 		A10021 /* NutritionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10021; };
 		A10022 /* NutritionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10022; };
+		A10023 /* ReviewManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10023; };
+		A10024 /* LeagueViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10024; };
+		A10025 /* ArenaViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10025; };
+		A10026 /* LeagueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10026; };
+		A10027 /* ArenaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10027; };
 		A20001 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = C20001; };
 		A20002 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = C20002; };
 		A20003 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = C20003; };
@@ -59,6 +64,11 @@
 		B10020 /* WorkoutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutView.swift; sourceTree = "<group>"; };
 		B10021 /* NutritionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionViewModel.swift; sourceTree = "<group>"; };
 		B10022 /* NutritionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionView.swift; sourceTree = "<group>"; };
+		B10023 /* ReviewManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewManager.swift; sourceTree = "<group>"; };
+		B10024 /* LeagueViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeagueViewModel.swift; sourceTree = "<group>"; };
+		B10025 /* ArenaViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArenaViewModel.swift; sourceTree = "<group>"; };
+		B10026 /* LeagueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeagueView.swift; sourceTree = "<group>"; };
+		B10027 /* ArenaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArenaView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -113,8 +123,18 @@
 				E10021 /* Auth */,
 				E10022 /* Onboarding */,
 				E10023 /* Main */,
+				E10024 /* Arena */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		E10024 /* Arena */ = {
+			isa = PBXGroup;
+			children = (
+				B10027 /* ArenaView.swift */,
+				B10026 /* LeagueView.swift */,
+			);
+			path = Arena;
 			sourceTree = "<group>";
 		};
 		E10021 /* Auth */ = {
@@ -152,6 +172,9 @@
 				B10015 /* PremiumViewModel.swift */,
 				B10016 /* DashboardViewModel.swift */,
 				B10019 /* WorkoutViewModel.swift */,
+				B10021 /* NutritionViewModel.swift */,
+				B10024 /* LeagueViewModel.swift */,
+				B10025 /* ArenaViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -162,6 +185,7 @@
 				B10006 /* AuthService.swift */,
 				B10007 /* FirestoreService.swift */,
 				B10014 /* StoreKitService.swift */,
+				B10023 /* ReviewManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -297,6 +321,13 @@
 				A10018 /* ExerciseDB.swift in Sources */,
 				A10019 /* WorkoutViewModel.swift in Sources */,
 				A10020 /* WorkoutView.swift in Sources */,
+				A10021 /* NutritionViewModel.swift in Sources */,
+				A10022 /* NutritionView.swift in Sources */,
+				A10023 /* ReviewManager.swift in Sources */,
+				A10024 /* LeagueViewModel.swift in Sources */,
+				A10025 /* ArenaViewModel.swift in Sources */,
+				A10026 /* LeagueView.swift in Sources */,
+				A10027 /* ArenaView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

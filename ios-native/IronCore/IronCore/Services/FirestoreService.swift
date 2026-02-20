@@ -152,6 +152,107 @@ final class FirestoreService {
             .collection("workouts").document(workoutId).delete()
     }
 
+    // MARK: - Leaderboard (leaderboard/{userId})
+
+    func listenToLeaderboard(limit count: Int = 50, completion: @escaping ([[String: Any]]) -> Void) -> ListenerRegistration {
+        return db.collection("leaderboard")
+            .order(by: "xp", descending: true)
+            .limit(to: count)
+            .addSnapshotListener { snapshot, error in
+                if let error = error {
+                    print("[Firestore] Leaderboard listener error: \(error)")
+                    return
+                }
+                let docs = snapshot?.documents.map { doc -> [String: Any] in
+                    var data = doc.data()
+                    data["userId"] = doc.documentID
+                    return data
+                } ?? []
+                completion(docs)
+            }
+    }
+
+    func updateLeaderboardEntry(uid: String, data: [String: Any]) async throws {
+        var entry = data
+        entry["lastUpdated"] = FieldValue.serverTimestamp()
+        try await db.collection("leaderboard").document(uid)
+            .setData(entry, merge: true)
+    }
+
+    // MARK: - Battles (battles/{battleId})
+
+    func createBattle(data: [String: Any]) async throws -> String {
+        var battle = data
+        battle["createdAt"] = FieldValue.serverTimestamp()
+        let ref = try await db.collection("battles").addDocument(data: battle)
+        return ref.documentID
+    }
+
+    func updateBattle(battleId: String, data: [String: Any]) async throws {
+        try await db.collection("battles").document(battleId)
+            .setData(data, merge: true)
+    }
+
+    /// Listen for incoming battle challenges (where user is opponent, status=pending)
+    func listenToPendingBattles(uid: String, completion: @escaping ([[String: Any]]) -> Void) -> ListenerRegistration {
+        return db.collection("battles")
+            .whereField("opponent.userId", isEqualTo: uid)
+            .whereField("status", isEqualTo: "pending")
+            .addSnapshotListener { snapshot, error in
+                if let error = error {
+                    print("[Firestore] Pending battles listener error: \(error)")
+                    return
+                }
+                let docs = snapshot?.documents.map { doc -> [String: Any] in
+                    var data = doc.data()
+                    data["id"] = doc.documentID
+                    return data
+                } ?? []
+                completion(docs)
+            }
+    }
+
+    /// Fetch user's battle history (as challenger or opponent)
+    func getUserBattles(uid: String, limit count: Int = 20, completion: @escaping ([[String: Any]]) -> Void) -> ListenerRegistration {
+        // Listen to battles where user is challenger
+        return db.collection("battles")
+            .whereField("challenger.userId", isEqualTo: uid)
+            .order(by: "createdAt", descending: true)
+            .limit(to: count)
+            .addSnapshotListener { snapshot, error in
+                if let error = error {
+                    print("[Firestore] User battles listener error: \(error)")
+                    return
+                }
+                let docs = snapshot?.documents.map { doc -> [String: Any] in
+                    var data = doc.data()
+                    data["id"] = doc.documentID
+                    return data
+                } ?? []
+                completion(docs)
+            }
+    }
+
+    /// Listen to battles where user is the opponent
+    func getUserBattlesAsOpponent(uid: String, limit count: Int = 20, completion: @escaping ([[String: Any]]) -> Void) -> ListenerRegistration {
+        return db.collection("battles")
+            .whereField("opponent.userId", isEqualTo: uid)
+            .order(by: "createdAt", descending: true)
+            .limit(to: count)
+            .addSnapshotListener { snapshot, error in
+                if let error = error {
+                    print("[Firestore] Opponent battles listener error: \(error)")
+                    return
+                }
+                let docs = snapshot?.documents.map { doc -> [String: Any] in
+                    var data = doc.data()
+                    data["id"] = doc.documentID
+                    return data
+                } ?? []
+                completion(docs)
+            }
+    }
+
     // MARK: - Helpers
 
     static func todayString() -> String {
