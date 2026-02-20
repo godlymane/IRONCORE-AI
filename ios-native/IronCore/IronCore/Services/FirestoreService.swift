@@ -26,16 +26,30 @@ final class FirestoreService {
     }
 
     /// Listen for real-time profile changes (matches onSnapshot in React)
-    func listenToProfile(uid: String, completion: @escaping (UserProfile?) -> Void) -> ListenerRegistration {
+    /// Completion returns Result to distinguish network errors from missing profiles
+    func listenToProfile(uid: String, completion: @escaping (Result<UserProfile?, Error>) -> Void) -> ListenerRegistration {
         return db.collection("users").document(uid)
             .collection("data").document("profile")
             .addSnapshotListener { snapshot, error in
-                guard let snapshot = snapshot, snapshot.exists else {
-                    completion(nil)
+                if let error = error {
+                    print("[Firestore] Profile listener error: \(error)")
+                    completion(.failure(error))
                     return
                 }
-                let profile = try? snapshot.data(as: UserProfile.self)
-                completion(profile)
+                guard let snapshot = snapshot, snapshot.exists else {
+                    completion(.success(nil))
+                    return
+                }
+                do {
+                    let profile = try snapshot.data(as: UserProfile.self)
+                    completion(.success(profile))
+                } catch {
+                    // Codable decode failed — log but keep user authenticated.
+                    // This prevents onboarded users from being sent back to onboarding
+                    // just because a new field was added that the model doesn't expect.
+                    print("[Firestore] Profile decode error: \(error). Keeping current auth state.")
+                    completion(.failure(error))
+                }
             }
     }
 
@@ -49,6 +63,101 @@ final class FirestoreService {
                 "date": dateString,
                 "createdAt": FieldValue.serverTimestamp()
             ])
+    }
+
+    // MARK: - Meals (users/{uid}/meals)
+
+    func listenToMeals(uid: String, completion: @escaping ([[String: Any]]) -> Void) -> ListenerRegistration {
+        return db.collection("users").document(uid)
+            .collection("meals")
+            .order(by: "createdAt", descending: true)
+            .limit(to: 100)
+            .addSnapshotListener { snapshot, error in
+                if let error = error {
+                    print("[Firestore] Meals listener error: \(error)")
+                    return // Keep existing data, don't wipe with empty array
+                }
+                let docs = snapshot?.documents.map { doc -> [String: Any] in
+                    var data = doc.data()
+                    data["id"] = doc.documentID
+                    return data
+                } ?? []
+                completion(docs)
+            }
+    }
+
+    func addMeal(uid: String, meal: [String: Any]) async throws {
+        var data = meal
+        data["date"] = Self.todayString()
+        data["createdAt"] = FieldValue.serverTimestamp()
+        data["userId"] = uid
+        try await db.collection("users").document(uid)
+            .collection("meals").addDocument(data: data)
+    }
+
+    func deleteMeal(uid: String, mealId: String) async throws {
+        try await db.collection("users").document(uid)
+            .collection("meals").document(mealId).delete()
+    }
+
+    // MARK: - Burned (users/{uid}/burned)
+
+    func listenToBurned(uid: String, completion: @escaping ([[String: Any]]) -> Void) -> ListenerRegistration {
+        return db.collection("users").document(uid)
+            .collection("burned")
+            .order(by: "createdAt", descending: true)
+            .limit(to: 100)
+            .addSnapshotListener { snapshot, error in
+                if let error = error {
+                    print("[Firestore] Burned listener error: \(error)")
+                    return
+                }
+                let docs = snapshot?.documents.map { $0.data() } ?? []
+                completion(docs)
+            }
+    }
+
+    // MARK: - Workouts (users/{uid}/workouts)
+
+    func listenToWorkouts(uid: String, completion: @escaping ([[String: Any]]) -> Void) -> ListenerRegistration {
+        return db.collection("users").document(uid)
+            .collection("workouts")
+            .order(by: "createdAt", descending: true)
+            .limit(to: 50)
+            .addSnapshotListener { snapshot, error in
+                if let error = error {
+                    print("[Firestore] Workouts listener error: \(error)")
+                    return
+                }
+                let docs = snapshot?.documents.map { doc -> [String: Any] in
+                    var data = doc.data()
+                    data["id"] = doc.documentID
+                    return data
+                } ?? []
+                completion(docs)
+            }
+    }
+
+    func addWorkout(uid: String, workout: [String: Any]) async throws {
+        var data = workout
+        data["date"] = Self.todayString()
+        data["createdAt"] = FieldValue.serverTimestamp()
+        data["userId"] = uid
+        try await db.collection("users").document(uid)
+            .collection("workouts").addDocument(data: data)
+    }
+
+    func deleteWorkout(uid: String, workoutId: String) async throws {
+        try await db.collection("users").document(uid)
+            .collection("workouts").document(workoutId).delete()
+    }
+
+    // MARK: - Helpers
+
+    static func todayString() -> String {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: Date())
     }
 
     // MARK: - Onboarding Complete

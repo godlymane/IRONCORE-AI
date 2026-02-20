@@ -12,11 +12,11 @@ struct MainTabView: View {
 
             // Tab content
             TabView(selection: $selectedTab) {
-                DashboardPlaceholder()
+                DashboardView(profile: authVM.profile)
                     .tag(0)
                 ArenaPlaceholder()
                     .tag(1)
-                WorkoutPlaceholder()
+                WorkoutView(uid: authVM.uid ?? "")
                     .tag(2)
                 AILabPlaceholder()
                     .tag(3)
@@ -113,21 +113,9 @@ enum TabItem: Int, CaseIterable, Identifiable {
 
 // MARK: - Placeholder Views (Phase 1 — replaced in later phases)
 
-struct DashboardPlaceholder: View {
-    var body: some View {
-        PlaceholderTab(icon: "flame.fill", title: "Dashboard", subtitle: "Home • Macros • Nutrition")
-    }
-}
-
 struct ArenaPlaceholder: View {
     var body: some View {
         PlaceholderTab(icon: "shield.lefthalf.filled", title: "Arena", subtitle: "Leaderboard • Battles • Chat")
-    }
-}
-
-struct WorkoutPlaceholder: View {
-    var body: some View {
-        PlaceholderTab(icon: "dumbbell.fill", title: "Workout", subtitle: "Training • Logging • PRs")
     }
 }
 

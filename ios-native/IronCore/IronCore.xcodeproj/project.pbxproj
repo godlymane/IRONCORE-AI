@@ -22,9 +22,17 @@
 		A10013 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = B10013; };
 		A10014 /* StoreKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10014; };
 		A10015 /* PremiumViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10015; };
+		A10016 /* DashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10016; };
+		A10017 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10017; };
+		A10018 /* ExerciseDB.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10018; };
+		A10019 /* WorkoutViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10019; };
+		A10020 /* WorkoutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10020; };
+		A10021 /* NutritionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10021; };
+		A10022 /* NutritionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10022; };
 		A20001 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = C20001; };
 		A20002 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = C20002; };
 		A20003 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = C20003; };
+		A20004 /* FirebaseFunctions in Frameworks */ = {isa = PBXBuildFile; productRef = C20004; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -44,6 +52,13 @@
 		B10013 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		B10014 /* StoreKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitService.swift; sourceTree = "<group>"; };
 		B10015 /* PremiumViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PremiumViewModel.swift; sourceTree = "<group>"; };
+		B10016 /* DashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewModel.swift; sourceTree = "<group>"; };
+		B10017 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		B10018 /* ExerciseDB.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseDB.swift; sourceTree = "<group>"; };
+		B10019 /* WorkoutViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutViewModel.swift; sourceTree = "<group>"; };
+		B10020 /* WorkoutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutView.swift; sourceTree = "<group>"; };
+		B10021 /* NutritionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionViewModel.swift; sourceTree = "<group>"; };
+		B10022 /* NutritionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -54,6 +69,7 @@
 				A20001 /* FirebaseAuth in Frameworks */,
 				A20002 /* FirebaseFirestore in Frameworks */,
 				A20003 /* FirebaseStorage in Frameworks */,
+				A20004 /* FirebaseFunctions in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -121,6 +137,9 @@
 			isa = PBXGroup;
 			children = (
 				B10012 /* MainTabView.swift */,
+				B10017 /* DashboardView.swift */,
+				B10020 /* WorkoutView.swift */,
+				B10022 /* NutritionView.swift */,
 			);
 			path = Main;
 			sourceTree = "<group>";
@@ -131,6 +150,8 @@
 				B10008 /* AuthViewModel.swift */,
 				B10009 /* OnboardingViewModel.swift */,
 				B10015 /* PremiumViewModel.swift */,
+				B10016 /* DashboardViewModel.swift */,
+				B10019 /* WorkoutViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -149,6 +170,7 @@
 			isa = PBXGroup;
 			children = (
 				B10005 /* UserProfile.swift */,
+				B10018 /* ExerciseDB.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -198,6 +220,7 @@
 				C20001 /* FirebaseAuth */,
 				C20002 /* FirebaseFirestore */,
 				C20003 /* FirebaseStorage */,
+				C20004 /* FirebaseFunctions */,
 			);
 			productName = IronCore;
 			productReference = B10000 /* IronCore.app */;
@@ -269,6 +292,11 @@
 				A10012 /* MainTabView.swift in Sources */,
 				A10014 /* StoreKitService.swift in Sources */,
 				A10015 /* PremiumViewModel.swift in Sources */,
+				A10016 /* DashboardViewModel.swift in Sources */,
+				A10017 /* DashboardView.swift in Sources */,
+				A10018 /* ExerciseDB.swift in Sources */,
+				A10019 /* WorkoutViewModel.swift in Sources */,
+				A10020 /* WorkoutView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -505,6 +533,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = P10001;
 			productName = FirebaseStorage;
+		};
+		C20004 /* FirebaseFunctions */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = P10001;
+			productName = FirebaseFunctions;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

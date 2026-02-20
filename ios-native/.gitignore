@@ -1,0 +1,20 @@
+# Xcode user data
+xcuserdata/
+*.xcuserstate
+
+# Build artifacts
+DerivedData/
+build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# CocoaPods (if used later)
+Pods/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Firebase config (secrets)
+**/GoogleService-Info.plist

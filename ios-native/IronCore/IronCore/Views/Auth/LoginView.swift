@@ -144,6 +144,43 @@ struct LoginView: View {
             .frame(height: 56)
             .cornerRadius(16)
 
+            // Google Sign-In (matches React "Continue with Google")
+            Button {
+                Task { await authVM.signInWithGoogle() }
+            } label: {
+                HStack(spacing: 10) {
+                    // Google "G" logo
+                    ZStack {
+                        Circle()
+                            .fill(Color.white)
+                            .frame(width: 24, height: 24)
+                        Text("G")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 0.26, green: 0.52, blue: 0.96), // Google blue
+                                        Color(red: 0.86, green: 0.20, blue: 0.18), // Google red
+                                        Color(red: 0.96, green: 0.73, blue: 0.16), // Google yellow
+                                        Color(red: 0.20, green: 0.66, blue: 0.33)  // Google green
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                    }
+                    Text("Continue with Google")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.black)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 56)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.white)
+                )
+            }
+
             // Email/Password toggle
             Button {
                 withAnimation { showEmailAuth.toggle() }

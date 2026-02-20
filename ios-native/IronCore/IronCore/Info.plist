@@ -25,7 +25,7 @@
 		<string>remote-notification</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>IronCore uses the camera for real-time AI form correction during workouts. No video is recorded.</string>
+	<string>IronCore Fit uses your camera to analyze exercise form in real-time, providing instant feedback to prevent injury and improve technique.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>IronCore uses your photo library to save and view progress photos.</string>
 	<key>UILaunchScreen</key>

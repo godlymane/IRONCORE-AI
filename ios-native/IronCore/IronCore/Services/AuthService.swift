@@ -1,5 +1,8 @@
 import Foundation
+import UIKit
 import FirebaseAuth
+import FirebaseCore
+import GoogleSignIn
 import AuthenticationServices
 import CryptoKit
 
@@ -31,8 +34,40 @@ final class AuthService {
         return result.user
     }
 
-    // MARK: - Google Sign-In (via Firebase Auth REST + custom flow)
-    // Full Google Sign-In requires GoogleSignIn SDK — configured in SPM
+    // MARK: - Google Sign-In (matches signInWithGoogle in useFitnessData.js)
+
+    func signInWithGoogle() async throws -> User {
+        guard let clientID = FirebaseApp.app()?.options.clientID else {
+            throw AuthError.invalidCredential
+        }
+
+        let config = GIDConfiguration(clientID: clientID)
+        GIDSignIn.sharedInstance.configuration = config
+
+        guard let windowScene = await UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let rootViewController = await windowScene.windows.first?.rootViewController else {
+            throw AuthError.invalidCredential
+        }
+
+        let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: rootViewController)
+
+        guard let idToken = result.user.idToken?.tokenString else {
+            throw AuthError.invalidCredential
+        }
+
+        let credential = GoogleAuthProvider.credential(
+            withIDToken: idToken,
+            accessToken: result.user.accessToken.tokenString
+        )
+
+        let authResult = try await Auth.auth().signIn(with: credential)
+        return authResult.user
+    }
+
+    /// Handle URL callback for Google Sign-In (call from AppDelegate/SceneDelegate)
+    func handleGoogleSignInURL(_ url: URL) -> Bool {
+        return GIDSignIn.sharedInstance.handle(url)
+    }
 
     // MARK: - Apple Sign-In
 

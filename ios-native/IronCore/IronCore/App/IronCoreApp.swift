@@ -12,6 +12,11 @@ struct IronCoreApp: App {
             RootView()
                 .environmentObject(authViewModel)
                 .preferredColorScheme(.dark)
+                .task {
+                    // Eagerly load StoreKit products + check entitlements on launch
+                    await StoreKitService.shared.loadProducts()
+                    await StoreKitService.shared.checkEntitlements()
+                }
         }
     }
 }
@@ -23,5 +28,10 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     ) -> Bool {
         FirebaseApp.configure()
         return true
+    }
+
+    // Google Sign-In URL handler
+    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        return AuthService.shared.handleGoogleSignInURL(url)
     }
 }

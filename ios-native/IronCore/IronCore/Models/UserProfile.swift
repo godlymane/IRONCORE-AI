@@ -159,6 +159,9 @@ struct UserProfile: Codable {
     var xp: Int?
     var league: String?
 
+    // Founder
+    var founderBadge: Bool?
+
     init() {
         self.goal = FitnessGoal.maintain.rawValue
         self.gender = Gender.male.rawValue

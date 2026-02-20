@@ -1,5 +1,6 @@
 import SwiftUI
 import FirebaseAuth
+import FirebaseFirestore
 import AuthenticationServices
 
 enum AuthState: Equatable {
@@ -20,9 +21,12 @@ final class AuthViewModel: ObservableObject {
     @Published var isSigningIn = false
 
     private var authHandle: AuthStateDidChangeListenerHandle?
-    private var profileListener: Any?
+    private var profileListener: ListenerRegistration?
     private let authService = AuthService.shared
     private let firestoreService = FirestoreService.shared
+
+    // Convenience accessor
+    var uid: String? { user?.uid }
 
     // Apple Sign-In nonce
     var currentNonce: String?
@@ -35,6 +39,7 @@ final class AuthViewModel: ObservableObject {
         if let handle = authHandle {
             Auth.auth().removeStateDidChangeListener(handle)
         }
+        stopProfileListener()
     }
 
     // MARK: - Auth State Listener (matches onAuthStateChanged in React)
@@ -51,9 +56,13 @@ final class AuthViewModel: ObservableObject {
                     if cachedOnboarded {
                         self.authState = .authenticated
                     }
-                    // Also load from Firestore
+                    // Initial load from Firestore, then start live listener
                     await self.loadProfile(uid: user.uid)
+                    self.startProfileListener(uid: user.uid)
+                    // Retry any onboarding writes that failed previously
+                    await self.retryPendingOnboarding()
                 } else {
+                    self.stopProfileListener()
                     self.profile = nil
                     self.authState = .unauthenticated
                 }
@@ -82,6 +91,44 @@ final class AuthViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Live Profile Listener (keeps profile fresh after initial load)
+
+    private func startProfileListener(uid: String) {
+        // Don't double-subscribe
+        stopProfileListener()
+
+        profileListener = firestoreService.listenToProfile(uid: uid) { [weak self] result in
+            Task { @MainActor in
+                guard let self = self else { return }
+                switch result {
+                case .success(let profile):
+                    if let profile = profile {
+                        self.profile = profile
+                        if profile.onboarded {
+                            UserDefaults.standard.set(true, forKey: "ironai_onboarded_\(uid)")
+                            if self.authState != .authenticated {
+                                self.authState = .authenticated
+                            }
+                        }
+                    }
+                    // nil means doc doesn't exist yet — don't change state,
+                    // initial loadProfile already handled this
+
+                case .failure:
+                    // Error (network or decode) — keep current profile and auth state.
+                    // Never kick an authenticated user back to onboarding because
+                    // of a transient error or Codable mismatch.
+                    break
+                }
+            }
+        }
+    }
+
+    private func stopProfileListener() {
+        profileListener?.remove()
+        profileListener = nil
+    }
+
     // MARK: - Email/Password Sign In
 
     func signInWithEmail(email: String, password: String) async {
@@ -104,6 +151,26 @@ final class AuthViewModel: ObservableObject {
             self.user = user
         } catch {
             self.error = error.localizedDescription
+        }
+        isSigningIn = false
+    }
+
+    // MARK: - Google Sign-In (matches signInWithGoogle in useFitnessData.js)
+
+    func signInWithGoogle() async {
+        isSigningIn = true
+        error = nil
+        do {
+            let user = try await authService.signInWithGoogle()
+            self.user = user
+        } catch {
+            // Cancelled by user — silent (matches React: auth/popup-closed-by-user)
+            let nsError = error as NSError
+            if nsError.domain == "com.google.GIDSignIn" && nsError.code == -5 {
+                // GIDSignIn cancel code — silent
+            } else {
+                self.error = error.localizedDescription
+            }
         }
         isSigningIn = false
     }
@@ -157,20 +224,92 @@ final class AuthViewModel: ObservableObject {
         // 2. Cache to UserDefaults (matches localStorage in React)
         UserDefaults.standard.set(true, forKey: "ironai_onboarded_\(uid)")
 
-        // 3. Write to Firestore in background (matches async updateData in React)
+        // 3. Write to Firestore — retry up to 3 times on failure.
+        // UserDefaults cache keeps user in .authenticated even if Firestore fails,
+        // so they're never sent back to onboarding. Pending data is cached locally
+        // and retried on next app launch.
         Task {
-            do {
-                try await firestoreService.completeOnboarding(uid: uid, onboardingData: data)
-            } catch {
-                print("Profile save error: \(error)")
+            var succeeded = false
+            for attempt in 1...3 {
+                do {
+                    try await firestoreService.completeOnboarding(uid: uid, onboardingData: data)
+                    succeeded = true
+                    break
+                } catch {
+                    print("[Onboarding] Firestore write attempt \(attempt) failed: \(error)")
+                    if attempt < 3 {
+                        try? await Task.sleep(nanoseconds: UInt64(attempt) * 1_000_000_000)
+                    }
+                }
+            }
+            if !succeeded {
+                print("[Onboarding] CRITICAL: Profile save failed after 3 attempts. Caching locally.")
+                cachePendingOnboarding(uid: uid, data: data)
             }
         }
+    }
+
+    /// Retry any pending onboarding writes that failed previously.
+    /// Call this on app launch after auth resolves.
+    func retryPendingOnboarding() async {
+        guard let uid = user?.uid else { return }
+        let key = "ironai_pending_onboarding_\(uid)"
+        guard let cached = UserDefaults.standard.dictionary(forKey: key) else { return }
+
+        let onboardingData = onboardingDataFromCache(cached)
+        do {
+            try await firestoreService.completeOnboarding(uid: uid, onboardingData: onboardingData)
+            UserDefaults.standard.removeObject(forKey: key)
+            print("[Onboarding] Pending profile write succeeded on retry")
+        } catch {
+            print("[Onboarding] Pending profile retry still failing: \(error)")
+        }
+    }
+
+    private func cachePendingOnboarding(uid: String, data: OnboardingData) {
+        let dict: [String: Any] = [
+            "goal": data.goal.rawValue,
+            "gender": data.gender.rawValue,
+            "weight": data.weight ?? 0,
+            "height": data.height ?? 0,
+            "age": data.age ?? 0,
+            "activityLevel": data.activityLevel.rawValue,
+            "intensity": data.intensity.rawValue,
+            "calories": data.calculatedCalories,
+            "protein": data.calculatedProtein,
+            "carbs": data.calculatedCarbs,
+            "fat": data.calculatedFat,
+            "tdee": data.calculatedTDEE,
+            "bmr": data.calculatedBMR
+        ]
+        UserDefaults.standard.set(dict, forKey: "ironai_pending_onboarding_\(uid)")
+    }
+
+    private func onboardingDataFromCache(_ dict: [String: Any]) -> OnboardingData {
+        var data = OnboardingData()
+        data.goal = FitnessGoal(rawValue: dict["goal"] as? String ?? "maintain") ?? .maintain
+        data.gender = Gender(rawValue: dict["gender"] as? String ?? "male") ?? .male
+        data.weight = dict["weight"] as? Double
+        data.height = dict["height"] as? Double
+        data.age = dict["age"] as? Int
+        data.activityLevel = ActivityLevel(rawValue: dict["activityLevel"] as? Double ?? 1.55) ?? .moderate
+        data.intensity = IntensityLevel(rawValue: dict["intensity"] as? String ?? "moderate") ?? .moderate
+        data.calculatedCalories = dict["calories"] as? Int ?? 0
+        data.calculatedProtein = dict["protein"] as? Int ?? 0
+        data.calculatedCarbs = dict["carbs"] as? Int ?? 0
+        data.calculatedFat = dict["fat"] as? Int ?? 0
+        data.calculatedTDEE = dict["tdee"] as? Int ?? 0
+        data.calculatedBMR = dict["bmr"] as? Int ?? 0
+        return data
     }
 
     // MARK: - Sign Out (matches logout in useFitnessData.js)
 
     func signOut() {
         guard let uid = user?.uid else { return }
+
+        // Stop live listeners before signing out
+        stopProfileListener()
 
         do {
             try authService.signOut()
