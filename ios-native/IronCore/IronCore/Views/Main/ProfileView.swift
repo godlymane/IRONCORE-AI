@@ -281,7 +281,7 @@ struct ProfileView: View {
         let bmi = weight / (heightM * heightM)
         let bodyFat = profile?.bodyFat ?? 20
         let leanMass = weight * (1 - bodyFat / 100.0)
-        let ffmi = leanMass / (heightM * heightM)
+        let ffmi = leanMass / (heightM * heightM) + 6.1 * (1.8 - heightM)
 
         return HStack(spacing: 12) {
             VStack(spacing: 8) {

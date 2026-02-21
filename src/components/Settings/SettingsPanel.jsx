@@ -13,6 +13,7 @@ import {
     getWorkoutReminders,
     removeWorkoutReminder
 } from '../../services/pushNotificationService';
+import { usePremium } from '../../context/PremiumContext';
 
 export const SettingsPanel = ({
     workouts = [],
@@ -21,6 +22,7 @@ export const SettingsPanel = ({
     onLogout,
     className = ''
 }) => {
+    const { isPremium, requirePremium } = usePremium();
     const [notificationStatus, setNotificationStatus] = useState('default');
     const [reminders, setReminders] = useState([]);
     const [showReminderPicker, setShowReminderPicker] = useState(false);
@@ -55,6 +57,10 @@ export const SettingsPanel = ({
     };
 
     const handleExport = async (type) => {
+        if (!isPremium) {
+            requirePremium('export');
+            return;
+        }
         setExportLoading(type);
         try {
             switch (type) {
@@ -203,19 +209,19 @@ export const SettingsPanel = ({
 
                 <SettingItem
                     icon={Download}
-                    label="Export Workouts"
+                    label={isPremium ? "Export Workouts" : "Export Workouts (PRO)"}
                     description={`${workouts.length} workouts as CSV`}
                     action={() => handleExport('workouts')}
                 />
                 <SettingItem
                     icon={FileText}
-                    label="Export Meals"
+                    label={isPremium ? "Export Meals" : "Export Meals (PRO)"}
                     description={`${meals.length} meals as CSV`}
                     action={() => handleExport('meals')}
                 />
                 <SettingItem
                     icon={Database}
-                    label="Full Backup"
+                    label={isPremium ? "Full Backup" : "Full Backup (PRO)"}
                     description="Export all data as JSON"
                     action={() => handleExport('all')}
                 />

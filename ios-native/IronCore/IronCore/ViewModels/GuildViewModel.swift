@@ -21,9 +21,14 @@ final class GuildViewModel: ObservableObject {
     @Published var showCreateSheet = false
     @Published var showLeaveConfirm = false
     @Published var showTransferSheet = false
+    @Published var showDisbandConfirm = false
+    @Published var disbandConfirmText = ""
     @Published var showPromoteConfirm: GuildMember?
     @Published var showDemoteConfirm: GuildMember?
     @Published var showKickConfirm: GuildMember?
+
+    // Create guild validation
+    @Published var createError = ""
 
     // Chat
     @Published var chatInput = ""
@@ -82,6 +87,7 @@ final class GuildViewModel: ObservableObject {
         let message: String
         let avatarUrl: String
         let timestamp: Date?
+        let isSystem: Bool
     }
 
     struct WeeklyChallenge: Identifiable {
@@ -203,7 +209,8 @@ final class GuildViewModel: ObservableObject {
                             username: d["username"] as? String ?? "Unknown",
                             message: d["message"] as? String ?? "",
                             avatarUrl: d["avatarUrl"] as? String ?? "",
-                            timestamp: ts
+                            timestamp: ts,
+                            isSystem: d["isSystem"] as? Bool ?? false
                         )
                     }.reversed()
                 }
@@ -304,21 +311,63 @@ final class GuildViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Create Guild (with icon)
+    // MARK: - Banned Words Filter
+
+    private static let bannedWords: Set<String> = [
+        "fuck", "shit", "ass", "bitch", "nigger", "nigga", "faggot", "retard",
+        "cunt", "dick", "pussy", "whore", "slut", "rape", "nazi", "hitler",
+        "kill", "suicide", "porn", "sex", "cock", "penis", "vagina",
+    ]
+
+    private static func containsBannedWord(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        return bannedWords.contains(where: { lower.contains($0) })
+    }
+
+    // MARK: - Validate Guild Name (returns error string or nil)
+
+    func validateGuildCreation(name: String, description: String) -> String? {
+        let trimmedName = name.trimmingCharacters(in: .whitespaces)
+        if trimmedName.isEmpty { return "Guild needs a name." }
+        if trimmedName.count < 3 { return "Too short. Minimum 3 characters." }
+        if trimmedName.count > 24 { return "Too long. 24 characters max." }
+        if Self.containsBannedWord(trimmedName) { return "That name isn't allowed." }
+        if description.count > 120 { return "Keep it under 120 characters." }
+        return nil
+    }
+
+    // MARK: - Create Guild (with icon + validation)
 
     func createGuild(name: String, description: String, icon: String, uid: String, username: String, avatarUrl: String) async {
-        guard !name.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        createError = ""
 
+        if let error = validateGuildCreation(name: name, description: description) {
+            createError = error
+            return
+        }
+
+        // Check if user already in a guild
+        do {
+            let userDoc = try await db.collection("users").document(uid).getDocument()
+            if let existingGuildId = userDoc.data()?["guildId"] as? String, !existingGuildId.isEmpty {
+                createError = "You're already in a guild. Leave first to create a new one."
+                return
+            }
+        } catch {
+            // Continue — non-blocking check
+        }
+
+        // Check name uniqueness
         do {
             let existing = try await db.collection("guilds")
                 .whereField("name", isEqualTo: name)
                 .getDocuments()
             guard existing.documents.isEmpty else {
-                print("[Guild] Name already taken")
+                createError = "That name's taken. Try another."
                 return
             }
         } catch {
-            print("[Guild] Name check error: \(error)")
+            createError = "Couldn't create guild. Check your connection and try again."
             return
         }
 
@@ -352,12 +401,13 @@ final class GuildViewModel: ObservableObject {
             try await db.collection("users").document(uid).setData(["guildId": guildId], merge: true)
 
             showCreateSheet = false
+            createError = ""
             subscribeToGuild(guildId)
             subscribeToChatMessages(guildId)
             subscribeToWeeklyChallenges(guildId)
             subscribeToWars(guildId)
         } catch {
-            print("[Guild] Create error: \(error)")
+            createError = "Couldn't create guild. Check your connection and try again."
         }
     }
 
@@ -393,6 +443,8 @@ final class GuildViewModel: ObservableObject {
 
             try await db.collection("users").document(uid).setData(["guildId": guildId], merge: true)
 
+            await postSystemMessage(guildId: guildId, text: "\(username) joined the guild.")
+
             subscribeToGuild(guildId)
             subscribeToChatMessages(guildId)
             subscribeToWeeklyChallenges(guildId)
@@ -415,7 +467,13 @@ final class GuildViewModel: ObservableObject {
             return
         }
 
+        let guildId = guild.id
+        let name = member.username
         await removeMember(member, from: guild, clearGuildId: true)
+        // Only post if guild still exists (not solo-disband)
+        if guild.memberCount > 1 {
+            await postSystemMessage(guildId: guildId, text: "\(name) left the guild.")
+        }
     }
 
     // MARK: - Promote to Officer
@@ -423,6 +481,7 @@ final class GuildViewModel: ObservableObject {
     func promoteMember(_ member: GuildMember) async {
         guard let guild = currentGuild else { return }
         await updateMemberRole(member, newRole: "officer", in: guild)
+        await postSystemMessage(guildId: guild.id, text: "\(member.username) was promoted to Officer.")
         showPromoteConfirm = nil
     }
 
@@ -431,6 +490,7 @@ final class GuildViewModel: ObservableObject {
     func demoteMember(_ member: GuildMember) async {
         guard let guild = currentGuild else { return }
         await updateMemberRole(member, newRole: "member", in: guild)
+        await postSystemMessage(guildId: guild.id, text: "\(member.username) was demoted to Member.")
         showDemoteConfirm = nil
     }
 
@@ -438,7 +498,10 @@ final class GuildViewModel: ObservableObject {
 
     func kickMember(_ member: GuildMember) async {
         guard let guild = currentGuild else { return }
+        let guildId = guild.id
+        let name = member.username
         await removeMember(member, from: guild, clearGuildId: true)
+        await postSystemMessage(guildId: guildId, text: "\(name) was removed from the guild.")
         showKickConfirm = nil
     }
 
@@ -468,6 +531,8 @@ final class GuildViewModel: ObservableObject {
                 "members": updatedMembers,
                 "ownerId": newLeader.userId
             ])
+            let leaderName = guild.members.first(where: { $0.userId == uid })?.username ?? "Leader"
+            await postSystemMessage(guildId: guild.id, text: "\(leaderName) transferred leadership to \(newLeader.username).")
             showTransferSheet = false
         } catch {
             print("[Guild] Transfer error: \(error)")
@@ -495,6 +560,65 @@ final class GuildViewModel: ObservableObject {
                 .collection("chat").addDocument(data: messageData)
         } catch {
             print("[Guild] Send message error: \(error)")
+        }
+    }
+
+    // MARK: - Post System Message (centered, no avatar — chat events)
+
+    func postSystemMessage(guildId: String, text: String) async {
+        let data: [String: Any] = [
+            "userId": "__system__",
+            "username": "System",
+            "message": text,
+            "avatarUrl": "",
+            "timestamp": FieldValue.serverTimestamp(),
+            "isSystem": true,
+        ]
+        do {
+            try await db.collection("guilds").document(guildId)
+                .collection("chat").addDocument(data: data)
+        } catch {
+            print("[Guild] System message error: \(error)")
+        }
+    }
+
+    // MARK: - Disband Guild (leader only, requires confirmation text)
+
+    func disbandGuild(uid: String) async {
+        guard let guild = currentGuild else { return }
+        guard guild.ownerId == uid else { return }
+
+        let guildId = guild.id
+
+        do {
+            // Delete subcollections (chat, challenges, wars) — batch
+            let chatDocs = try await db.collection("guilds").document(guildId).collection("chat").getDocuments()
+            let challengeDocs = try await db.collection("guilds").document(guildId).collection("challenges").getDocuments()
+            let warDocs = try await db.collection("guilds").document(guildId).collection("wars").getDocuments()
+
+            let batch = db.batch()
+            for doc in chatDocs.documents { batch.deleteDocument(doc.reference) }
+            for doc in challengeDocs.documents { batch.deleteDocument(doc.reference) }
+            for doc in warDocs.documents { batch.deleteDocument(doc.reference) }
+            try await batch.commit()
+
+            // Clear guildId on all members
+            for member in guild.members {
+                try? await db.collection("users").document(member.userId)
+                    .updateData(["guildId": FieldValue.delete()])
+            }
+
+            // Delete guild doc
+            try await db.collection("guilds").document(guildId).delete()
+
+            stop()
+            currentGuild = nil
+            browsing = true
+            showDisbandConfirm = false
+            disbandConfirmText = ""
+            await fetchAvailableGuilds()
+        } catch {
+            print("[Guild] Disband error: \(error)")
         }
     }
 

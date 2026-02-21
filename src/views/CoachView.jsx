@@ -145,6 +145,12 @@ Coach (respond in character — short, specific, intense):`;
     };
 
     const generateWorkout = async () => {
+        const limit = checkRateLimit(isPremium);
+        if (!limit.allowed) {
+            addToast(limit.reason, 'error');
+            return;
+        }
+
         setLoading(true);
         const focus = genFocus === 'Custom' ? customFocus : genFocus;
         const ctx = buildContext();
@@ -155,7 +161,7 @@ ${ctx}
 Return ONLY valid JSON: { "title": "string", "exercises": [ { "name": "string", "sets": "string", "reps": "string", "rest": "string" } ] }`;
 
         try {
-            const res = await callGemini(prompt, "You are an expert strength coach. Return only valid JSON, no markdown.", null, true);
+            const res = await callGemini(prompt, "You are an expert strength coach. Return only valid JSON, no markdown.", null, true, 0, 'workout');
             if (res?.startsWith('Error:')) {
                 addToast(res.replace('Error: ', ''), 'error');
             } else {

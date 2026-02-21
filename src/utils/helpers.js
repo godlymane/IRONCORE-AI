@@ -47,7 +47,7 @@ const nativePost = (url, payload) => {
 /**
  * Call Gemini via Cloud Function (preferred) or direct API (dev fallback).
  */
-export const callGemini = async (userQuery, systemPrompt, imageBase64 = null, expectJson = false, retries = 0) => {
+export const callGemini = async (userQuery, systemPrompt, imageBase64 = null, expectJson = false, retries = 0, feature = 'chat') => {
   // 1. Try Cloud Function first (keeps API key server-side)
   const cf = getCallGeminiCF();
   if (cf) {
@@ -57,6 +57,7 @@ export const callGemini = async (userQuery, systemPrompt, imageBase64 = null, ex
         systemPrompt,
         imageBase64,
         expectJson,
+        feature,
       });
       return result.data.text;
     } catch (e) {
@@ -114,7 +115,7 @@ export const callGemini = async (userQuery, systemPrompt, imageBase64 = null, ex
   } catch (error) {
     if (retries < 2) {
       await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
-      return callGemini(userQuery, systemPrompt, imageBase64, expectJson, retries + 1);
+      return callGemini(userQuery, systemPrompt, imageBase64, expectJson, retries + 1, feature);
     }
     return `Error: Network connection failed. Check your internet.`;
   }

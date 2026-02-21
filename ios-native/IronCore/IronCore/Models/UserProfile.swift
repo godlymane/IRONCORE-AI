@@ -159,6 +159,9 @@ struct UserProfile: Codable {
     var xp: Int?
     var league: String?
 
+    // Guild
+    var guildId: String?
+
     // Founder
     var founderBadge: Bool?
 

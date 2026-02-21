@@ -10,7 +10,13 @@ struct FormCorrectionView: View {
     @EnvironmentObject var premiumVM: PremiumViewModel
     var onComplete: (() -> Void)?
 
+    @AppStorage("hasSeenFormCheckTutorial") private var hasSeenTutorial = false
+    @State private var showTutorial = false
+    @State private var tutorialStep = 0
+    @State private var showApproachingLimitToast = false
+
     var body: some View {
+        ZStack {
         VStack(spacing: 12) {
             // Exercise picker + score HUD
             exerciseHeader
@@ -42,14 +48,58 @@ struct FormCorrectionView: View {
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
-        .alert("Daily Limit Reached", isPresented: $vm.showPremiumGate) {
-            Button("Upgrade to Premium") {
+        .alert("You've used all 3 free form checks today.", isPresented: $vm.showPremiumGate) {
+            Button("Go Premium") {
                 _ = premiumVM.requirePremium("aiCoachCalls")
             }
-            Button("OK", role: .cancel) { }
+            Button("Train Without Form Check", role: .cancel) { }
         } message: {
-            Text("Free users get \(FormCorrectionViewModel.freeSessionsPerDay) form correction sessions per day. Upgrade to Premium for unlimited access.")
+            Text("Premium gives you unlimited form sessions — every set, every workout, every day.\n\nResets at midnight.")
         }
+        .onAppear {
+            if !hasSeenTutorial {
+                showTutorial = true
+            }
+        }
+        .onChange(of: vm.sessionsUsedToday) { _, newVal in
+            if !premiumVM.isPremium && newVal == FormCorrectionViewModel.freeSessionsPerDay - 1 {
+                showApproachingLimitToast = true
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 4_000_000_000)
+                    showApproachingLimitToast = false
+                }
+            }
+        }
+
+        // Approaching limit toast
+        if showApproachingLimitToast {
+            VStack {
+                Text("1 Form Check remaining today. Make it count.")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(hex: "#eab308").opacity(0.9))
+                    )
+                    .padding(.top, 8)
+
+                Spacer()
+            }
+            .transition(.move(edge: .top).combined(with: .opacity))
+            .animation(.easeInOut(duration: 0.3), value: showApproachingLimitToast)
+        }
+
+        // Tutorial overlay
+        if showTutorial {
+            FormCheckTutorialOverlay(
+                step: $tutorialStep,
+                isPresented: $showTutorial,
+                onComplete: { hasSeenTutorial = true }
+            )
+        }
+        } // ZStack
     }
 
     // MARK: - Exercise Header + Score
@@ -240,7 +290,7 @@ struct FormCorrectionView: View {
 
                         // Free tier counter
                         if !premiumVM.isPremium {
-                            Text("\(max(0, FormCorrectionViewModel.freeSessionsPerDay - vm.sessionsUsedToday)) sessions left today")
+                            Text("\(vm.sessionsUsedToday)/\(FormCorrectionViewModel.freeSessionsPerDay) today")
                                 .font(.system(size: 11, weight: .bold))
                                 .foregroundColor(Color(hex: "#eab308"))
                                 .padding(.horizontal, 12)
@@ -675,5 +725,145 @@ struct RepSummarySheet: View {
 
     private func scoreColor(_ score: Int) -> Color {
         score >= 80 ? .green : score >= 50 ? .yellow : .ironRedLight
+    }
+}
+
+// MARK: - FormCheck Tutorial Overlay (5-step first-use walkthrough)
+
+struct FormCheckTutorialOverlay: View {
+    @Binding var step: Int
+    @Binding var isPresented: Bool
+    var onComplete: () -> Void
+
+    private let steps: [(title: String, body: String, icon: String, cta: String)] = [
+        (
+            "POSITION YOUR PHONE",
+            "Prop your phone 6-8 feet away. Camera should see your full body — head to ankles.",
+            "iphone.radiowaves.left.and.right",
+            "NEXT"
+        ),
+        (
+            "SELECT YOUR EXERCISE",
+            "Tap the exercise picker at the top. We'll track the right form for what you're doing.",
+            "figure.strengthtraining.traditional",
+            "NEXT"
+        ),
+        (
+            "WATCH THE SKELETON",
+            "The overlay aligns with your body in real-time. That's the AI mapping your joints.",
+            "figure.walk.motion",
+            "NEXT"
+        ),
+        (
+            "GREEN = GOOD. RED = FIX IT.",
+            "Green checkmarks mean your form is solid. Red means something needs correcting. Follow the coaching cues at the bottom.",
+            "checkmark.circle.fill",
+            "NEXT"
+        ),
+        (
+            "REVIEW YOUR REPS",
+            "When you're done, tap \"End Set\" to see your rep-by-rep breakdown. Every rep scored. Every correction tracked.",
+            "chart.bar.fill",
+            "GOT IT — LET'S GO"
+        ),
+    ]
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.85)
+                .ignoresSafeArea()
+                .onTapGesture { } // Block taps through
+
+            VStack(spacing: 28) {
+                Spacer()
+
+                // Step indicator
+                HStack(spacing: 6) {
+                    ForEach(0..<steps.count, id: \.self) { i in
+                        Circle()
+                            .fill(i == step ? Color.ironRed : Color.white.opacity(0.2))
+                            .frame(width: 8, height: 8)
+                    }
+                }
+
+                // Icon
+                ZStack {
+                    Circle()
+                        .fill(Color.ironRed.opacity(0.15))
+                        .frame(width: 90, height: 90)
+                        .overlay(
+                            Circle().stroke(Color.ironRed.opacity(0.3), lineWidth: 1)
+                        )
+
+                    Image(systemName: steps[step].icon)
+                        .font(.system(size: 36))
+                        .foregroundColor(.ironRedLight)
+                }
+
+                // Title
+                Text(steps[step].title)
+                    .font(.system(size: 22, weight: .black))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+
+                // Body
+                Text(steps[step].body)
+                    .font(.system(size: 15))
+                    .foregroundColor(Color.white.opacity(0.6))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+
+                Spacer()
+
+                // CTA
+                Button {
+                    if step < steps.count - 1 {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            step += 1
+                        }
+                    } else {
+                        onComplete()
+                        isPresented = false
+                    }
+                } label: {
+                    Text(steps[step].cta)
+                        .font(.system(size: 14, weight: .black))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color.ironRed, Color.ironRedDark],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                        )
+                }
+                .padding(.horizontal, 24)
+
+                // Skip
+                if step < steps.count - 1 {
+                    Button {
+                        onComplete()
+                        isPresented = false
+                    } label: {
+                        Text("Skip tutorial")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(Color.white.opacity(0.35))
+                    }
+                }
+
+                // Step count
+                Text("\(step + 1) of \(steps.count)")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(Color.white.opacity(0.25))
+                    .padding(.bottom, 32)
+            }
+        }
+        .transition(.opacity)
+        .animation(.easeInOut(duration: 0.3), value: step)
     }
 }

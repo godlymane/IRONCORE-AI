@@ -17,6 +17,7 @@ build/
 # Firebase secrets
 android/app/google-services.json
 ios/App/App/GoogleService-Info.plist
+ios-native/**/GoogleService-Info.plist
 **/serviceAccountKey*.json
 
 # Android signing

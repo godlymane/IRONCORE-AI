@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, Image as ImageIcon, Trash2, ArrowLeftRight, Calendar, Upload, X, ChevronRight } from 'lucide-react';
+import { Camera, Image as ImageIcon, Trash2, ArrowLeftRight, Calendar, Upload, X, ChevronRight, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { uploadPhoto, getPhotos, deletePhoto } from '../../services/photoService';
 import { GlassCard } from '../UIComponents';
+import { usePremium } from '../../context/PremiumContext';
 
 const ViewToggle = ({ active, onChange }) => (
     <div className="flex bg-black/20 p-1 rounded-xl">
@@ -269,6 +270,8 @@ export const ProgressPhotos = ({ userId }) => {
     const [view, setView] = useState('gallery');
     const [photos, setPhotos] = useState([]);
     const [loading, setLoading] = useState(true);
+    const { isPremium, requirePremium } = usePremium();
+    const FREE_PHOTO_LIMIT = 5;
 
     const refreshPhotos = async () => {
         if (!userId) return;
@@ -287,6 +290,10 @@ export const ProgressPhotos = ({ userId }) => {
     }, [userId]);
 
     const handleUploadWrapper = async (file, uid, note, type) => {
+        if (!isPremium && photos.length >= FREE_PHOTO_LIMIT) {
+            requirePremium('progressPhotos');
+            return;
+        }
         await uploadPhoto(file, uid, note, type);
         await refreshPhotos();
         setView('gallery');
@@ -343,7 +350,26 @@ export const ProgressPhotos = ({ userId }) => {
                         <>
                             {view === 'gallery' && <PhotoGrid photos={photos} onDelete={handleDelete} />}
                             {view === 'compare' && <ComparisonView photos={photos} />}
-                            {view === 'upload' && <UploadView onUpload={handleUploadWrapper} userId={userId} />}
+                            {view === 'upload' && (
+                                !isPremium && photos.length >= FREE_PHOTO_LIMIT ? (
+                                    <div className="py-12 text-center space-y-4">
+                                        <div className="w-16 h-16 mx-auto rounded-full bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-center">
+                                            <Lock size={24} className="text-yellow-400" />
+                                        </div>
+                                        <p className="text-white font-bold">Photo Limit Reached</p>
+                                        <p className="text-sm text-white/50 max-w-xs mx-auto">Free accounts can store up to {FREE_PHOTO_LIMIT} progress photos. Upgrade to Premium for unlimited.</p>
+                                        <button
+                                            onClick={() => requirePremium('progressPhotos')}
+                                            className="px-6 py-3 rounded-xl font-bold text-white text-sm"
+                                            style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)' }}
+                                        >
+                                            Unlock Unlimited Photos
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <UploadView onUpload={handleUploadWrapper} userId={userId} />
+                                )
+                            )}
                         </>
                     )}
                 </motion.div>

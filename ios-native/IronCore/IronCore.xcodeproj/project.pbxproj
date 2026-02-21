@@ -39,6 +39,12 @@
 		A10030 /* SocialFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10030; };
 		A10031 /* ProfileViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10031; };
 		A10032 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10032; };
+		A10033 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10033; };
+		A10034 /* FormCorrectionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10034; };
+		A10035 /* FormCorrectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10035; };
+		A10036 /* GuildViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10036; };
+		A10037 /* GuildView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10037; };
+		A10038 /* AILabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10038; };
 		A20001 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = C20001; };
 		A20002 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = C20002; };
 		A20003 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = C20003; };
@@ -79,6 +85,12 @@
 		B10030 /* SocialFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialFeedView.swift; sourceTree = "<group>"; };
 		B10031 /* ProfileViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileViewModel.swift; sourceTree = "<group>"; };
 		B10032 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		B10033 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
+		B10034 /* FormCorrectionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormCorrectionViewModel.swift; sourceTree = "<group>"; };
+		B10035 /* FormCorrectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormCorrectionView.swift; sourceTree = "<group>"; };
+		B10036 /* GuildViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuildViewModel.swift; sourceTree = "<group>"; };
+		B10037 /* GuildView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuildView.swift; sourceTree = "<group>"; };
+		B10038 /* AILabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AILabView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -348,6 +360,12 @@
 				A10030 /* SocialFeedView.swift in Sources */,
 				A10031 /* ProfileViewModel.swift in Sources */,
 				A10032 /* ProfileView.swift in Sources */,
+				A10033 /* CameraManager.swift in Sources */,
+				A10034 /* FormCorrectionViewModel.swift in Sources */,
+				A10035 /* FormCorrectionView.swift in Sources */,
+				A10036 /* GuildViewModel.swift in Sources */,
+				A10037 /* GuildView.swift in Sources */,
+				A10038 /* AILabView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

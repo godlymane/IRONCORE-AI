@@ -21,8 +21,8 @@ import {
     AuraIcon
 } from '../components/IronCoreIcons';
 
-// Import all AI components
-import { FormCoach } from '../components/FormCoach';
+// FormCoach lazy-loaded — TensorFlow.js (~1.5MB) only fetches when user taps Form Coach
+const FormCoach = React.lazy(() => import('../components/FormCoach').then(m => ({ default: m.FormCoach })));
 import { SmartRestTimer } from '../components/SmartRestTimer';
 import { SleepRecoveryTracker } from '../components/SleepRecoveryTracker';
 import { PredictiveAnalytics } from '../components/PredictiveAnalytics';
@@ -223,7 +223,16 @@ export const AILabView = ({ workouts = [], meals = [], profile = {}, updateData,
                         />
                     );
                 }
-                return <FormCoach exercise="squat" onComplete={() => setActiveFeature(null)} />;
+                return (
+                    <React.Suspense fallback={
+                        <div className="flex flex-col items-center justify-center py-16 gap-4">
+                            <div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
+                            <p className="text-xs text-gray-500 font-black uppercase tracking-widest">Loading AI Vision...</p>
+                        </div>
+                    }>
+                        <FormCoach exercise="squat" onComplete={() => setActiveFeature(null)} />
+                    </React.Suspense>
+                );
 
             case 'voice':
                 return (

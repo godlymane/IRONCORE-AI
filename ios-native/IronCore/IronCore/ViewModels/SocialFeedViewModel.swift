@@ -363,6 +363,19 @@ final class SocialFeedViewModel: ObservableObject {
         }
     }
 
+    /// Like a post — increments likes counter (matches React posts structure)
+    func likePost(_ postId: String) async {
+        do {
+            try await db.collection("global").document("data")
+                .collection("posts").document(postId).updateData([
+                    "likes": FieldValue.increment(Int64(1))
+                ])
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        } catch {
+            print("[Social] Failed to like post: \(error)")
+        }
+    }
+
     // MARK: - Helpers
 
     func levelForXP(_ xp: Int) -> Int {

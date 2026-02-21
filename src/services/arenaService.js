@@ -581,7 +581,7 @@ export const subscribeToPendingBattles = (userId, callback) => {
  */
 export const sendChatMessage = async (userId, username, message) => {
     try {
-        await addDoc(collection(db, 'chat_messages'), {
+        await addDoc(collection(db, 'global', 'data', 'chat'), {
             userId,
             username,
             message,
@@ -602,7 +602,7 @@ export const sendChatMessage = async (userId, username, message) => {
 export const getChatMessages = async (limitCount = 50) => {
     try {
         const q = query(
-            collection(db, 'chat_messages'),
+            collection(db, 'global', 'data', 'chat'),
             orderBy('timestamp', 'desc'),
             limit(limitCount)
         );
@@ -623,7 +623,7 @@ export const getChatMessages = async (limitCount = 50) => {
  */
 export const subscribeToChatMessages = (limitCount, callback) => {
     const q = query(
-        collection(db, 'chat_messages'),
+        collection(db, 'global', 'data', 'chat'),
         orderBy('timestamp', 'desc'),
         limit(limitCount)
     );

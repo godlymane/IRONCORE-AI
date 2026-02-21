@@ -44,14 +44,47 @@ struct GuildView: View {
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }
-        .alert("Leave Guild?", isPresented: $vm.showLeaveConfirm) {
+        .alert(leaveAlertTitle, isPresented: $vm.showLeaveConfirm) {
             Button("Cancel", role: .cancel) { }
-            Button("Leave", role: .destructive) {
-                Task { await vm.leaveGuild(uid: uid) }
+            if isLeaderSolo {
+                Button("Leave & Disband", role: .destructive) {
+                    Task { await vm.leaveGuild(uid: uid) }
+                }
+            } else {
+                Button("Leave", role: .destructive) {
+                    Task { await vm.leaveGuild(uid: uid) }
+                }
             }
         } message: {
-            Text("Are you sure you want to leave this guild?")
+            Text(leaveAlertBody)
         }
+        .alert("Disband guild?", isPresented: $vm.showDisbandConfirm) {
+            TextField("Type guild name to confirm", text: $vm.disbandConfirmText)
+            Button("Cancel", role: .cancel) { vm.disbandConfirmText = "" }
+            Button("Disband", role: .destructive) {
+                guard vm.disbandConfirmText == vm.currentGuild?.name else { return }
+                Task { await vm.disbandGuild(uid: uid) }
+            }
+        } message: {
+            Text("This action is permanent. Your guild and all its history will be deleted. All members will be removed. This cannot be undone.\n\nType \"\(vm.currentGuild?.name ?? "")\" to confirm.")
+        }
+    }
+
+    private var isLeaderSolo: Bool {
+        guard let guild = vm.currentGuild else { return false }
+        return guild.ownerId == uid && guild.memberCount <= 1
+    }
+
+    private var leaveAlertTitle: String {
+        if isLeaderSolo { return "Leave and disband?" }
+        return "Leave guild?"
+    }
+
+    private var leaveAlertBody: String {
+        if isLeaderSolo {
+            return "You're the only member. Leaving will delete the guild permanently."
+        }
+        return "You'll lose access to guild chat and war contributions. You can rejoin if the guild is open."
     }
 
     // MARK: - Premium Gate
@@ -334,7 +367,7 @@ private struct GuildDetailView: View {
             case 2:
                 GuildChallengesView(challenges: vm.weeklyChallenges)
             case 3:
-                GuildLeaderboardView(members: vm.memberLeaderboard)
+                GuildLeaderboardView(members: vm.memberLeaderboard, uid: uid)
             case 4:
                 GuildWarsView(activeWar: vm.activeWar, pastWars: vm.pastWars, guildName: guild.name)
             default:
@@ -493,8 +526,13 @@ private struct GuildChatView: View {
                         }
 
                         ForEach(vm.chatMessages) { msg in
-                            ChatBubble(message: msg, isMe: msg.userId == uid)
-                                .id(msg.id)
+                            if msg.isSystem {
+                                SystemChatBubble(message: msg)
+                                    .id(msg.id)
+                            } else {
+                                ChatBubble(message: msg, isMe: msg.userId == uid)
+                                    .id(msg.id)
+                            }
                         }
                     }
                     .padding(.horizontal, 16)
@@ -578,6 +616,26 @@ private struct ChatBubble: View {
     }
 }
 
+// MARK: - System Chat Bubble (centered, dimmed, no avatar)
+
+private struct SystemChatBubble: View {
+    let message: GuildViewModel.ChatMessage
+
+    var body: some View {
+        HStack {
+            Spacer()
+            Text(message.message)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(Color.white.opacity(0.35))
+                .italic()
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 6)
+            Spacer()
+        }
+    }
+}
+
 // MARK: - Guild Members (with officer actions)
 
 private struct GuildMembersView: View {
@@ -611,7 +669,7 @@ private struct GuildMembersView: View {
             .padding(.vertical, 12)
             .padding(.bottom, 80)
         }
-        .alert("Promote to Officer?", isPresented: Binding(
+        .alert("Promote \(vm.showPromoteConfirm?.username ?? "")?", isPresented: Binding(
             get: { vm.showPromoteConfirm != nil },
             set: { if !$0 { vm.showPromoteConfirm = nil } }
         )) {
@@ -620,9 +678,9 @@ private struct GuildMembersView: View {
                 if let m = vm.showPromoteConfirm { Task { await vm.promoteMember(m) } }
             }
         } message: {
-            Text("Promote \(vm.showPromoteConfirm?.username ?? "") to Officer?")
+            Text("They'll become an Officer. Officers can invite members, kick below their rank, and start wars.")
         }
-        .alert("Demote to Member?", isPresented: Binding(
+        .alert("Demote \(vm.showDemoteConfirm?.username ?? "")?", isPresented: Binding(
             get: { vm.showDemoteConfirm != nil },
             set: { if !$0 { vm.showDemoteConfirm = nil } }
         )) {
@@ -631,18 +689,18 @@ private struct GuildMembersView: View {
                 if let m = vm.showDemoteConfirm { Task { await vm.demoteMember(m) } }
             }
         } message: {
-            Text("Demote \(vm.showDemoteConfirm?.username ?? "") to Member?")
+            Text("They'll lose Officer permissions and become a regular Member.")
         }
-        .alert("Kick Member?", isPresented: Binding(
+        .alert("Remove \(vm.showKickConfirm?.username ?? "")?", isPresented: Binding(
             get: { vm.showKickConfirm != nil },
             set: { if !$0 { vm.showKickConfirm = nil } }
         )) {
             Button("Cancel", role: .cancel) { vm.showKickConfirm = nil }
-            Button("Kick", role: .destructive) {
+            Button("Remove", role: .destructive) {
                 if let m = vm.showKickConfirm { Task { await vm.kickMember(m) } }
             }
         } message: {
-            Text("Remove \(vm.showKickConfirm?.username ?? "") from the guild?")
+            Text("They'll be removed from the guild immediately. They can rejoin if the guild is open.")
         }
     }
 }
@@ -765,8 +823,21 @@ private struct GuildChallengesView: View {
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 12) {
+                // Section header
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("WEEKLY CHALLENGES")
+                        .font(.system(size: 16, weight: .black))
+                        .foregroundColor(.white)
+                        .tracking(-0.5)
+
+                    Text("Squad goals. Contribute reps, earn bonus XP.")
+                        .font(.system(size: 12))
+                        .foregroundColor(Color.white.opacity(0.5))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
                 if challenges.isEmpty {
-                    emptyState("No active challenges", icon: "flame", subtitle: "Challenges appear weekly")
+                    emptyState("No active challenges.", icon: "flame", subtitle: "New challenges drop every Monday. Check back then.")
                 } else {
                     ForEach(challenges) { challenge in
                         challengeCard(challenge)
@@ -864,12 +935,36 @@ private struct GuildChallengesView: View {
 
 private struct GuildLeaderboardView: View {
     let members: [GuildViewModel.GuildMember]
+    let uid: String
+
+    private var myRank: Int? {
+        guard let idx = members.firstIndex(where: { $0.userId == uid }) else { return nil }
+        return idx + 1
+    }
+
+    private var myXP: Int {
+        members.first(where: { $0.userId == uid })?.weeklyXP ?? 0
+    }
 
     var body: some View {
+        ZStack(alignment: .bottom) {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 8) {
+                // Section header
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("SQUAD RANKINGS")
+                        .font(.system(size: 16, weight: .black))
+                        .foregroundColor(.white)
+                        .tracking(-0.5)
+
+                    Text("Who's putting in work this week.")
+                        .font(.system(size: 12))
+                        .foregroundColor(Color.white.opacity(0.5))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
                 if members.isEmpty {
-                    emptyState("No data yet", icon: "chart.bar", subtitle: "Weekly XP resets each Monday")
+                    emptyState("No activity yet.", icon: "chart.bar", subtitle: "Start logging workouts. Your contributions show up here.")
                 } else {
                     ForEach(Array(members.enumerated()), id: \.element.id) { index, member in
                         HStack(spacing: 12) {
@@ -940,6 +1035,40 @@ private struct GuildLeaderboardView: View {
             .padding(.vertical, 12)
             .padding(.bottom, 80)
         }
+
+            // Sticky bottom bar: Your position
+            if let rank = myRank {
+                HStack(spacing: 8) {
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(.ironRedLight)
+
+                    Text("You: #\(rank)")
+                        .font(.system(size: 13, weight: .black))
+                        .foregroundColor(.white)
+
+                    Text("·")
+                        .foregroundColor(Color.white.opacity(0.3))
+
+                    Text("\(myXP) XP this week")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(Color(hex: "#eab308"))
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.white.opacity(0.06))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                        )
+                )
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+            }
+        } // ZStack
     }
 
     private func rankColor(_ index: Int) -> Color {
@@ -1111,9 +1240,27 @@ private struct CreateGuildSheet: View {
                         .font(.system(size: 20, weight: .black))
                         .foregroundColor(.white)
 
+                    // Error message
+                    if !vm.createError.isEmpty {
+                        Text(vm.createError)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.ironRedLight)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.ironRedLight.opacity(0.08))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.ironRedLight.opacity(0.2), lineWidth: 1)
+                                    )
+                            )
+                    }
+
                     // Icon picker
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("GUILD ICON")
+                        Text("CHOOSE YOUR CREST")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundColor(.textTertiary)
 
@@ -1165,7 +1312,7 @@ private struct CreateGuildSheet: View {
                             .font(.system(size: 11, weight: .bold))
                             .foregroundColor(.textTertiary)
 
-                        TextField("Motto or requirements...", text: $desc, axis: .vertical)
+                        TextField("What does your squad stand for? (120 chars)", text: $desc, axis: .vertical)
                             .font(.system(size: 14))
                             .foregroundColor(.white)
                             .lineLimit(3...5)
@@ -1256,7 +1403,7 @@ private struct TransferLeadershipSheet: View {
                     .font(.system(size: 18, weight: .black))
                     .foregroundColor(.white)
 
-                Text("You must transfer leadership before leaving the guild. Select the new leader:")
+                Text("A guild can't exist without a leader. Select the new leader — you'll become an Officer.")
                     .font(.system(size: 13))
                     .foregroundColor(Color.white.opacity(0.5))
                     .multilineTextAlignment(.center)

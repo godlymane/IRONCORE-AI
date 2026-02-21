@@ -146,7 +146,7 @@ async function seedChatMessages() {
     ];
 
     for (const msg of messages) {
-        await addDoc(collection(db, 'chat_messages'), {
+        await addDoc(collection(db, 'global', 'data', 'chat'), {
             ...msg,
             timestamp: Timestamp.now()
         });

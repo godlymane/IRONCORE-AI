@@ -286,7 +286,7 @@ export function useFitnessData(activeTab = 'dashboard') {
     const createBattle = async (opponentId, opponentName) => {
         if (!user || !db || !opponentId) return;
         try {
-            await addDoc(collection(db, 'global', 'data', 'battles'), {
+            await addDoc(collection(db, 'battles'), {
                 challengerId: user.uid,
                 challengerName: sanitizeText(user.displayName || "Unknown", MAX_USERNAME_LENGTH),
                 opponentId,
@@ -310,7 +310,7 @@ export function useFitnessData(activeTab = 'dashboard') {
         else if (key === 'chat') actualRef = query(collection(db, 'global', 'data', 'chat'), orderBy('createdAt', 'asc'), limit(50));
         else if (key === 'posts') actualRef = query(collection(db, 'global', 'data', 'posts'), orderBy('createdAt', 'desc'), limit(20));
         else if (key === 'globalFeed') actualRef = query(collection(db, 'global', 'data', 'feed'), orderBy('createdAt', 'desc'), limit(50));
-        else if (key === 'battles') actualRef = query(collection(db, 'global', 'data', 'battles'), orderBy('createdAt', 'desc'), limit(20));
+        else if (key === 'battles') actualRef = query(collection(db, 'battles'), orderBy('createdAt', 'desc'), limit(20));
         else if (isDoc) actualRef = doc(db, 'users', uid, 'data', key);
         else actualRef = query(collection(db, 'users', uid, key));
 

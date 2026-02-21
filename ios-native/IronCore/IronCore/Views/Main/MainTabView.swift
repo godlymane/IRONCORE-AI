@@ -18,7 +18,7 @@ struct MainTabView: View {
                     .tag(1)
                 WorkoutView(uid: authVM.uid ?? "")
                     .tag(2)
-                AILabPlaceholder()
+                AILabView()
                     .tag(3)
                 SocialFeedView(uid: authVM.uid ?? "")
                     .tag(4)

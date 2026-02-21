@@ -1,18 +1,42 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Shield, MessageSquare, Plus, Search, Crown, LogOut, Send, Trophy } from 'lucide-react';
+import { Users, Shield, MessageSquare, Plus, Search, Crown, LogOut, Send, Trophy, Lock } from 'lucide-react';
 import { useArena } from '../../context/ArenaContext';
 import { createGuild, joinGuild, leaveGuild, getGuilds, subscribeToGuild, sendGuildMessage, subscribeToGuildChat } from '../../services/guildService';
 import { Button, useToast } from '../UIComponents';
+import { usePremium } from '../../context/PremiumContext';
 
 const Guilds = () => {
     const { currentUser, refreshUser } = useArena();
     const { addToast } = useToast();
+    const { isPremium, requirePremium } = usePremium();
     const [guildId, setGuildId] = useState(currentUser?.guildId || null);
     const [currentGuild, setCurrentGuild] = useState(null);
     const [loading, setLoading] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+
+    // Premium gate — guilds are premium-only
+    if (!isPremium) {
+        return (
+            <div className="min-h-[60vh] flex items-center justify-center">
+                <div className="text-center space-y-4 px-6">
+                    <div className="w-20 h-20 mx-auto rounded-full bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-center">
+                        <Lock size={32} className="text-yellow-400" />
+                    </div>
+                    <h2 className="text-2xl font-black text-white italic uppercase">Iron Guilds</h2>
+                    <p className="text-sm text-white/50 max-w-xs mx-auto">Create and join guilds to compete with friends. Available on Premium.</p>
+                    <button
+                        onClick={() => requirePremium('guilds')}
+                        className="px-6 py-3 rounded-xl font-bold text-white text-sm"
+                        style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)' }}
+                    >
+                        Unlock Guilds
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     useEffect(() => {
         setGuildId(currentUser?.guildId);

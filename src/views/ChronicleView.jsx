@@ -1,36 +1,44 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  BarChart, Bar, 
+import {
+  BarChart, Bar,
   Tooltip, ResponsiveContainer, XAxis, Cell
 } from 'recharts';
-import { Utensils, Dumbbell, Droplets, Flame, Trash2, Scale } from 'lucide-react';
+import { Utensils, Dumbbell, Droplets, Flame, Trash2, Scale, Lock } from 'lucide-react';
 import { Card } from '../components/UIComponents';
+import { usePremium } from '../context/PremiumContext';
 
 export const ChronicleView = ({ meals, burned, workouts, progress, user, deleteEntry, profile }) => {
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
     const scrollRef = useRef(null);
+    const { isPremium, requirePremium } = usePremium();
+    const FREE_HISTORY_DAYS = 7;
 
     const getDayLabel = (dateStr) => {
         const d = new Date(dateStr);
-        return { 
-            day: d.toLocaleDateString('en-US', {weekday: 'short'}), 
-            num: d.getDate() 
+        return {
+            day: d.toLocaleDateString('en-US', {weekday: 'short'}),
+            num: d.getDate()
         };
     };
 
-    const dates = [];
     const today = new Date();
+    const allDates = [];
     const startDate = user?.metadata?.creationTime ? new Date(Number(user.metadata.creationTime) || user.metadata.creationTime) : new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
+
     const current = new Date(startDate);
     current.setHours(0,0,0,0);
     const end = new Date();
     end.setHours(23,59,59,999);
 
     while (current <= end) {
-        dates.push(current.toISOString().split('T')[0]);
+        allDates.push(current.toISOString().split('T')[0]);
         current.setDate(current.getDate() + 1);
     }
+
+    // Free users: last 7 days only
+    const freeWindowStart = new Date(today.getTime() - FREE_HISTORY_DAYS * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const dates = isPremium ? allDates : allDates.filter(d => d >= freeWindowStart);
+    const hasLockedHistory = !isPremium && allDates.length > dates.length;
 
     useEffect(() => {
         if (scrollRef.current) {
@@ -109,6 +117,15 @@ export const ChronicleView = ({ meals, burned, workouts, progress, user, deleteE
             )}
 
             <div ref={scrollRef} className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide scroll-smooth">
+                {hasLockedHistory && (
+                    <button
+                        onClick={() => requirePremium('unlimitedHistory')}
+                        className="flex-shrink-0 flex flex-col items-center justify-center w-14 h-20 rounded-2xl transition-all bg-yellow-500/10 border border-yellow-500/30 text-yellow-400"
+                    >
+                        <Lock size={14} />
+                        <span className="text-[9px] font-bold mt-1">PRO</span>
+                    </button>
+                )}
                 {dates.map(date => {
                     const { day, num } = getDayLabel(date);
                     const isSelected = selectedDate === date;

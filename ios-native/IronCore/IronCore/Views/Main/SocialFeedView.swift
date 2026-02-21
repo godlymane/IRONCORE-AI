@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 /// Social feed — activity feed, locker room chat, media posts, inbox.
 /// Mirrors CommunityView.jsx from React prototype.
@@ -6,6 +7,7 @@ import SwiftUI
 struct SocialFeedView: View {
     @StateObject private var vm = SocialFeedViewModel()
     @EnvironmentObject var authVM: AuthViewModel
+    @State private var selectedPhotoItem: PhotosPickerItem?
     let uid: String
 
     var body: some View {
@@ -172,8 +174,8 @@ struct SocialFeedView: View {
                 Task {
                     await vm.sendChatMessage(
                         uid: uid,
-                        username: authVM.profile?.goal ?? "Athlete",
-                        photo: "",
+                        username: authVM.user?.displayName ?? "Athlete",
+                        photo: authVM.user?.photoURL?.absoluteString ?? "",
                         xp: authVM.profile?.xp ?? 0
                     )
                 }
@@ -295,9 +297,7 @@ struct SocialFeedView: View {
                         .frame(maxHeight: 300)
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                 } else {
-                    Button {
-                        // PhotosPicker would go here — placeholder for now
-                    } label: {
+                    PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
                         VStack(spacing: 12) {
                             Image(systemName: "photo.badge.plus")
                                 .font(.system(size: 40))
@@ -316,6 +316,15 @@ struct SocialFeedView: View {
                                         .stroke(Color.white.opacity(0.1), style: StrokeStyle(lineWidth: 2, dash: [8]))
                                 )
                         )
+                    }
+                    .onChange(of: selectedPhotoItem) { _, newItem in
+                        guard let newItem else { return }
+                        Task {
+                            if let data = try? await newItem.loadTransferable(type: Data.self),
+                               let uiImage = UIImage(data: data) {
+                                vm.newPostImage = uiImage
+                            }
+                        }
                     }
                 }
 
@@ -349,8 +358,8 @@ struct SocialFeedView: View {
                         Task {
                             await vm.createPost(
                                 uid: uid,
-                                username: authVM.profile?.goal ?? "Athlete",
-                                userPhoto: "",
+                                username: authVM.user?.displayName ?? "Athlete",
+                                userPhoto: authVM.user?.photoURL?.absoluteString ?? "",
                                 xp: authVM.profile?.xp ?? 0
                             )
                         }
@@ -629,13 +638,17 @@ private struct PostCard: View {
             }
 
             // Likes
-            HStack(spacing: 4) {
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 12))
-                    .foregroundColor(.ironRedLight.opacity(0.5))
-                Text("\(post.likes)")
-                    .font(.system(size: 12))
-                    .foregroundColor(.textTertiary)
+            Button {
+                Task { await vm.likePost(post.id) }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(.ironRedLight.opacity(0.5))
+                    Text("\(post.likes)")
+                        .font(.system(size: 12))
+                        .foregroundColor(.textTertiary)
+                }
             }
         }
         .padding(14)

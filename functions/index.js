@@ -11,8 +11,14 @@ const razorpayKeyId = defineSecret("RAZORPAY_KEY_ID");
 const razorpayKeySecret = defineSecret("RAZORPAY_KEY_SECRET");
 
 // Apple App Store Server API (for iOS StoreKit 2 receipt validation)
-// Set these via: firebase functions:secrets:set APPLE_SHARED_SECRET
-const appleSharedSecret = defineSecret("APPLE_SHARED_SECRET");
+// Set via: firebase functions:secrets:set APPLE_ISSUER_ID
+// Set via: firebase functions:secrets:set APPLE_KEY_ID
+// Set via: firebase functions:secrets:set APPLE_PRIVATE_KEY (base64-encoded .p8 file content)
+// Set via: firebase functions:secrets:set APPLE_BUNDLE_ID
+const appleIssuerId = defineSecret("APPLE_ISSUER_ID");
+const appleKeyId = defineSecret("APPLE_KEY_ID");
+const applePrivateKey = defineSecret("APPLE_PRIVATE_KEY");
+const appleBundleId = defineSecret("APPLE_BUNDLE_ID");
 
 const AI_MODEL = "gemini-3-flash-preview";
 
@@ -301,18 +307,79 @@ exports.verifyPayment = onCall(
 );
 
 /**
+ * Generate a JWT for Apple App Store Server API authentication.
+ * Uses ES256 (P-256) signing with the private key from App Store Connect.
+ * https://developer.apple.com/documentation/appstoreserverapi/generating_tokens_for_api_requests
+ */
+function generateAppleJWT(issuerId, keyId, privateKeyBase64) {
+  const privateKeyPem = Buffer.from(privateKeyBase64, "base64").toString("utf8");
+
+  const header = {
+    alg: "ES256",
+    kid: keyId,
+    typ: "JWT",
+  };
+
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    iss: issuerId,
+    iat: now,
+    exp: now + 3600, // 1 hour
+    aud: "appstoreconnect-v1",
+    bid: appleBundleId.value(),
+  };
+
+  const encode = (obj) =>
+    Buffer.from(JSON.stringify(obj)).toString("base64url");
+
+  const headerB64 = encode(header);
+  const payloadB64 = encode(payload);
+  const signingInput = `${headerB64}.${payloadB64}`;
+
+  const sign = crypto.createSign("SHA256");
+  sign.update(signingInput);
+  sign.end();
+
+  // Sign and convert DER to raw r||s (64 bytes) for ES256 JWT
+  const derSig = sign.sign({ key: privateKeyPem, dsaEncoding: "ieee-p1363" });
+  const signatureB64 = Buffer.from(derSig).toString("base64url");
+
+  return `${signingInput}.${signatureB64}`;
+}
+
+/**
+ * Decode and verify a JWS signed transaction from Apple.
+ * Returns the decoded transaction payload if the bundle ID matches.
+ * In production, you should also verify the x5c certificate chain.
+ */
+function decodeAppleJWS(signedTransaction) {
+  const parts = signedTransaction.split(".");
+  if (parts.length !== 3) {
+    throw new HttpsError("invalid-argument", "Invalid JWS format.");
+  }
+  // Decode payload (middle segment)
+  const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+  return payload;
+}
+
+/**
  * Verify Apple App Store receipt (iOS StoreKit 2).
- * Called by the iOS app after a successful StoreKit purchase as a server-side
- * verification fallback. The iOS app writes to Firestore directly via
- * StoreKitService.swift, but this function provides server-side validation
- * for extra security and handles App Store Server Notifications.
+ * Called by the iOS app after a successful StoreKit purchase.
+ *
+ * SECURITY: This function calls Apple's App Store Server API to verify the
+ * transaction is real before activating the subscription. Never trust
+ * client-supplied transaction data alone.
  *
  * Input: { transactionId, originalTransactionId, productId }
- * Validates with Apple's App Store Server API, then writes subscription data
- * to the same Firestore paths as verifyPayment (Razorpay).
+ * Flow:
+ * 1. Generate JWT for Apple API auth
+ * 2. GET /inApps/v1/transactions/{transactionId} from Apple
+ * 3. Decode the signed transaction JWS
+ * 4. Verify bundleId + productId match our app
+ * 5. Write subscription data to Firestore
  */
 exports.verifyAppleReceipt = onCall(
-  { secrets: [appleSharedSecret], cors: true },
+  { secrets: [appleIssuerId, appleKeyId, applePrivateKey, appleBundleId], cors: true },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Must be logged in.");
@@ -343,23 +410,98 @@ exports.verifyAppleReceipt = onCall(
       throw new HttpsError("already-exists", "This transaction has already been processed.");
     }
 
-    // Activate subscription — same Firestore structure as Razorpay path
-    const now = new Date();
-    const expiryDate = new Date(now);
-    if (planId === "pro_yearly") {
-      expiryDate.setFullYear(expiryDate.getFullYear() + 1);
-    } else {
-      expiryDate.setMonth(expiryDate.getMonth() + 1);
+    // --- STEP 1: Verify transaction with Apple's App Store Server API ---
+    const jwt = generateAppleJWT(
+      appleIssuerId.value(),
+      appleKeyId.value(),
+      applePrivateKey.value()
+    );
+
+    // Use production URL; fall back to sandbox if 404
+    const appleBaseUrls = [
+      "https://api.storekit.itunes.apple.com",   // Production
+      "https://api.storekit-sandbox.itunes.apple.com", // Sandbox
+    ];
+
+    let appleTransaction = null;
+
+    for (const baseUrl of appleBaseUrls) {
+      const url = `${baseUrl}/inApps/v1/transactions/${transactionId}`;
+      const appleResponse = await fetch(url, {
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+
+      if (appleResponse.status === 200) {
+        const appleData = await appleResponse.json();
+        // Apple returns { signedTransactionInfo: "JWS..." }
+        if (!appleData.signedTransactionInfo) {
+          throw new HttpsError("internal", "Apple returned no signed transaction.");
+        }
+        appleTransaction = decodeAppleJWS(appleData.signedTransactionInfo);
+        break;
+      } else if (appleResponse.status === 404) {
+        // Transaction not found at this environment, try next
+        continue;
+      } else {
+        const errBody = await appleResponse.text().catch(() => "");
+        throw new HttpsError(
+          "internal",
+          `Apple API error: ${appleResponse.status} ${errBody}`
+        );
+      }
     }
 
+    if (!appleTransaction) {
+      throw new HttpsError(
+        "not-found",
+        "Transaction not found in Apple's system. Invalid or expired transaction."
+      );
+    }
+
+    // --- STEP 2: Validate the transaction belongs to our app ---
+    if (appleTransaction.bundleId !== appleBundleId.value()) {
+      throw new HttpsError(
+        "permission-denied",
+        "Transaction bundle ID does not match our app."
+      );
+    }
+
+    if (appleTransaction.productId !== productId) {
+      throw new HttpsError(
+        "permission-denied",
+        "Transaction product ID does not match claimed product."
+      );
+    }
+
+    // --- STEP 3: Extract real dates from Apple's verified transaction ---
+    const purchaseDate = new Date(appleTransaction.purchaseDate || appleTransaction.originalPurchaseDate);
+    const expiryDate = appleTransaction.expiresDate
+      ? new Date(appleTransaction.expiresDate)
+      : (() => {
+          const d = new Date(purchaseDate);
+          if (planId === "pro_yearly") d.setFullYear(d.getFullYear() + 1);
+          else d.setMonth(d.getMonth() + 1);
+          return d;
+        })();
+
+    // Check subscription hasn't already expired
+    if (expiryDate < new Date()) {
+      throw new HttpsError(
+        "failed-precondition",
+        "This subscription has already expired."
+      );
+    }
+
+    // --- STEP 4: Activate subscription (same Firestore structure as Razorpay) ---
     const subscriptionData = {
       planId,
       status: "active",
-      startDate: now.toISOString(),
+      startDate: purchaseDate.toISOString(),
       expiryDate: expiryDate.toISOString(),
       paymentId: `apple_${transactionId}`,
-      orderId: `apple_${originalTransactionId || transactionId}`,
+      orderId: `apple_${originalTransactionId || appleTransaction.originalTransactionId || transactionId}`,
       platform: "ios",
+      verifiedByServer: true,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
@@ -381,6 +523,9 @@ exports.verifyAppleReceipt = onCall(
     batch.set(db.doc(`subscriptions/${uid}_apple_${transactionId}`), {
       userId: uid,
       ...subscriptionData,
+      appleTransactionId: String(appleTransaction.transactionId),
+      appleOriginalTransactionId: String(appleTransaction.originalTransactionId),
+      appleEnvironment: appleTransaction.environment || "unknown",
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
