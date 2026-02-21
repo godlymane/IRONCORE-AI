@@ -382,6 +382,41 @@ final class FormCorrectionViewModel: ObservableObject {
         isStreaming = false
         if repCount > 0 {
             showSummary = true
+            persistRepSummary()
+        }
+    }
+
+    /// Save rep summary to Firestore: users/{uid}/formSessions/{autoId}
+    private func persistRepSummary() {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        guard !repSummary.isEmpty else { return }
+
+        let reps: [[String: Any]] = repSummary.map { rep in
+            [
+                "repNumber": rep.id,
+                "score": rep.score,
+                "checkpoints": rep.checkpoints.map { cp in
+                    ["id": cp.id, "label": cp.label, "passed": cp.passed ?? false] as [String: Any]
+                },
+            ]
+        }
+
+        let sessionData: [String: Any] = [
+            "exercise": selectedExercise.id,
+            "exerciseName": selectedExercise.name,
+            "totalReps": repCount,
+            "avgScore": formScore,
+            "reps": reps,
+            "timestamp": FieldValue.serverTimestamp(),
+        ]
+
+        Task {
+            do {
+                try await db.collection("users").document(uid)
+                    .collection("formSessions").addDocument(data: sessionData)
+            } catch {
+                print("[FormCorrection] Persist session error: \(error)")
+            }
         }
     }
 
@@ -510,29 +545,20 @@ final class FormCorrectionViewModel: ObservableObject {
     // MARK: - Exercise-Specific Evaluations
 
     private func evaluateSquat(_ p: [VNHumanBodyPoseObservation.JointName: CGPoint]) -> [FeedbackItem] {
-        let lhip = p[.leftHip]
-        let rhip = p[.rightHip]
-        let lknee = p[.leftKnee]
-        let rknee = p[.rightKnee]
-        let lankle = p[.leftAnkle]
-        let rankle = p[.rightAnkle]
-        let lshoulder = p[.leftShoulder]
+        let hipY = (p[.leftHip] ?? p[.rightHip])?.y
+        let kneeY = (p[.leftKnee] ?? p[.rightKnee])?.y
+        let kneeX = (p[.leftKnee] ?? p[.rightKnee])?.x
+        let ankleX = (p[.leftAnkle] ?? p[.rightAnkle])?.x
 
         // Depth: hip below knee (in screen coords, higher y = lower on screen)
-        let hipY = lhip?.y ?? rhip?.y
-        let kneeY = lknee?.y ?? rknee?.y
-        let depthOk: Bool? = (hipY != nil && kneeY != nil) ? hipY! >= kneeY! - 0.04 : nil
+        let depthOk: Bool? = if let hy = hipY, let ky = kneeY { hy >= ky - 0.04 } else { nil }
 
         // Knee tracking
-        let kneeX = lknee?.x ?? rknee?.x
-        let ankleX = lankle?.x ?? rankle?.x
-        let kneeOk: Bool? = (kneeX != nil && ankleX != nil) ? abs(kneeX! - ankleX!) < 0.1 : nil
+        let kneeOk: Bool? = if let kx = kneeX, let ax = ankleX { abs(kx - ax) < 0.1 } else { nil }
 
         // Back angle
-        let hip = lhip ?? rhip
-        let knee = lknee ?? rknee
-        let backAngle = angle(lshoulder, hip, knee)
-        let backOk: Bool? = backAngle != nil ? backAngle! >= 55 : nil
+        let backAngle = angle(p[.leftShoulder], p[.leftHip] ?? p[.rightHip], p[.leftKnee] ?? p[.rightKnee])
+        let backOk: Bool? = if let ba = backAngle { ba >= 55 } else { nil }
 
         let cps = selectedExercise.checkpoints
         return [
@@ -543,22 +569,16 @@ final class FormCorrectionViewModel: ObservableObject {
     }
 
     private func evaluatePushup(_ p: [VNHumanBodyPoseObservation.JointName: CGPoint]) -> [FeedbackItem] {
-        let ls = p[.leftShoulder]
-        let le = p[.leftElbow]
-        let lw = p[.leftWrist]
-        let lh = p[.leftHip]
-        let la = p[.leftAnkle]
-
         // Elbow angle
-        let elbowAngle = angle(ls, le, lw)
-        let elbowOk: Bool? = elbowAngle != nil ? (elbowAngle! >= 40 && elbowAngle! <= 130) : nil
+        let elbowAngle = angle(p[.leftShoulder], p[.leftElbow], p[.leftWrist])
+        let elbowOk: Bool? = if let ea = elbowAngle { ea >= 40 && ea <= 130 } else { nil }
 
         // Hip alignment (straight body)
-        let bodyAngle = angle(ls, lh, la)
-        let hipOk: Bool? = bodyAngle != nil ? bodyAngle! >= 145 : nil
+        let bodyAngle = angle(p[.leftShoulder], p[.leftHip], p[.leftAnkle])
+        let hipOk: Bool? = if let ba = bodyAngle { ba >= 145 } else { nil }
 
         // Depth
-        let depthOk: Bool? = (ls != nil && le != nil) ? ls!.y >= le!.y - 0.04 : nil
+        let depthOk: Bool? = if let ls = p[.leftShoulder], let le = p[.leftElbow] { ls.y >= le.y - 0.04 } else { nil }
 
         let cps = selectedExercise.checkpoints
         return [
@@ -569,20 +589,15 @@ final class FormCorrectionViewModel: ObservableObject {
     }
 
     private func evaluateDeadlift(_ p: [VNHumanBodyPoseObservation.JointName: CGPoint]) -> [FeedbackItem] {
-        let ls = p[.leftShoulder]
-        let lh = p[.leftHip]
-        let lk = p[.leftKnee]
-
         // Neutral spine
-        let spineAngle = angle(ls, lh, lk)
-        let spineOk: Bool? = spineAngle != nil ? spineAngle! >= 140 : nil
+        let spineAngle = angle(p[.leftShoulder], p[.leftHip], p[.leftKnee])
+        let spineOk: Bool? = if let sa = spineAngle { sa >= 140 } else { nil }
 
         // Hip hinge: hip should push back
-        let hingeOk: Bool? = (lh != nil && lk != nil) ? lh!.x < lk!.x + 0.05 : nil
+        let hingeOk: Bool? = if let lh = p[.leftHip], let lk = p[.leftKnee] { lh.x < lk.x + 0.05 } else { nil }
 
         // Lockout
-        let lockoutAngle = angle(ls, lh, lk)
-        let lockoutOk: Bool? = lockoutAngle != nil ? lockoutAngle! >= 155 : nil
+        let lockoutOk: Bool? = if let sa = spineAngle { sa >= 155 } else { nil }
 
         let cps = selectedExercise.checkpoints
         return [
@@ -593,21 +608,15 @@ final class FormCorrectionViewModel: ObservableObject {
     }
 
     private func evaluateLunge(_ p: [VNHumanBodyPoseObservation.JointName: CGPoint]) -> [FeedbackItem] {
-        let lk = p[.leftKnee]
-        let lh = p[.leftHip]
-        let la = p[.leftAnkle]
-        let ls = p[.leftShoulder]
-        let rk = p[.rightKnee]
-
         // Front knee ~90 degrees
-        let kneeAngle = angle(lh, lk, la)
-        let kneeOk: Bool? = kneeAngle != nil ? (kneeAngle! >= 70 && kneeAngle! <= 110) : nil
+        let kneeAngle = angle(p[.leftHip], p[.leftKnee], p[.leftAnkle])
+        let kneeOk: Bool? = if let ka = kneeAngle { ka >= 70 && ka <= 110 } else { nil }
 
         // Upright torso
-        let torsoOk: Bool? = (ls != nil && lh != nil) ? abs(ls!.x - lh!.x) < 0.07 : nil
+        let torsoOk: Bool? = if let ls = p[.leftShoulder], let lh = p[.leftHip] { abs(ls.x - lh.x) < 0.07 } else { nil }
 
         // Back knee near ground
-        let backKneeOk: Bool? = (rk != nil && lk != nil) ? rk!.y > lk!.y - 0.03 : nil
+        let backKneeOk: Bool? = if let rk = p[.rightKnee], let lk = p[.leftKnee] { rk.y > lk.y - 0.03 } else { nil }
 
         let cps = selectedExercise.checkpoints
         return [
@@ -618,19 +627,15 @@ final class FormCorrectionViewModel: ObservableObject {
     }
 
     private func evaluateShoulderPress(_ p: [VNHumanBodyPoseObservation.JointName: CGPoint]) -> [FeedbackItem] {
-        let ls = p[.leftShoulder]
-        let le = p[.leftElbow]
-        let lw = p[.leftWrist]
-
         // Straight bar path: wrist above shoulder
-        let pathOk: Bool? = (lw != nil && ls != nil) ? abs(lw!.x - ls!.x) < 0.07 : nil
+        let pathOk: Bool? = if let lw = p[.leftWrist], let ls = p[.leftShoulder] { abs(lw.x - ls.x) < 0.07 } else { nil }
 
         // Elbows under wrists
-        let elbowOk: Bool? = (le != nil && lw != nil) ? abs(le!.x - lw!.x) < 0.06 : nil
+        let elbowOk: Bool? = if let le = p[.leftElbow], let lw = p[.leftWrist] { abs(le.x - lw.x) < 0.06 } else { nil }
 
         // Lockout: full arm extension
-        let pressAngle = angle(ls, le, lw)
-        let lockoutOk: Bool? = pressAngle != nil ? pressAngle! >= 150 : nil
+        let pressAngle = angle(p[.leftShoulder], p[.leftElbow], p[.leftWrist])
+        let lockoutOk: Bool? = if let pa = pressAngle { pa >= 150 } else { nil }
 
         let cps = selectedExercise.checkpoints
         return [
@@ -641,21 +646,15 @@ final class FormCorrectionViewModel: ObservableObject {
     }
 
     private func evaluatePlank(_ p: [VNHumanBodyPoseObservation.JointName: CGPoint]) -> [FeedbackItem] {
-        let ls = p[.leftShoulder]
-        let lh = p[.leftHip]
-        let la = p[.leftAnkle]
-        let lw = p[.leftWrist]
-        let nose = p[.nose]
-
         // Hip line
-        let bodyAngle = angle(ls, lh, la)
-        let hipOk: Bool? = bodyAngle != nil ? bodyAngle! >= 150 : nil
+        let bodyAngle = angle(p[.leftShoulder], p[.leftHip], p[.leftAnkle])
+        let hipOk: Bool? = if let ba = bodyAngle { ba >= 150 } else { nil }
 
         // Shoulders over wrists
-        let shoulderOk: Bool? = (ls != nil && lw != nil) ? abs(ls!.x - lw!.x) < 0.08 : nil
+        let shoulderOk: Bool? = if let ls = p[.leftShoulder], let lw = p[.leftWrist] { abs(ls.x - lw.x) < 0.08 } else { nil }
 
         // Neutral head
-        let headOk: Bool? = (nose != nil && ls != nil) ? abs(nose!.y - ls!.y) < 0.1 : nil
+        let headOk: Bool? = if let nose = p[.nose], let ls = p[.leftShoulder] { abs(nose.y - ls.y) < 0.1 } else { nil }
 
         let cps = selectedExercise.checkpoints
         return [
@@ -666,22 +665,19 @@ final class FormCorrectionViewModel: ObservableObject {
     }
 
     private func evaluateBenchPress(_ p: [VNHumanBodyPoseObservation.JointName: CGPoint]) -> [FeedbackItem] {
-        let ls = p[.leftShoulder]
-        let rs = p[.rightShoulder]
-        let lw = p[.leftWrist]
-        let rw = p[.rightWrist]
-        let lh = p[.leftHip]
-
         // Grip width: wrists wider than shoulders
-        let gripOk: Bool? = (lw != nil && rw != nil && ls != nil && rs != nil)
-            ? abs(lw!.x - rw!.x) > abs(ls!.x - rs!.x) : nil
+        let gripOk: Bool? = if let lw = p[.leftWrist], let rw = p[.rightWrist],
+                               let ls = p[.leftShoulder], let rs = p[.rightShoulder] {
+            abs(lw.x - rw.x) > abs(ls.x - rs.x)
+        } else { nil }
 
         // Bar path: wrists roughly above midchest (between shoulder and hip y)
-        let midY: CGFloat? = (ls != nil && lh != nil) ? (ls!.y + lh!.y) / 2.0 : nil
-        let barPathOk: Bool? = (lw != nil && midY != nil) ? abs(lw!.y - midY!) < 0.12 : nil
+        let barPathOk: Bool? = if let ls = p[.leftShoulder], let lh = p[.leftHip], let lw = p[.leftWrist] {
+            abs(lw.y - (ls.y + lh.y) / 2.0) < 0.12
+        } else { nil }
 
         // Back arch: slight arch — shoulder higher than hip in lying position
-        let archOk: Bool? = (ls != nil && lh != nil) ? abs(ls!.y - lh!.y) < 0.15 : nil
+        let archOk: Bool? = if let ls = p[.leftShoulder], let lh = p[.leftHip] { abs(ls.y - lh.y) < 0.15 } else { nil }
 
         let cps = selectedExercise.checkpoints
         return [
@@ -692,20 +688,15 @@ final class FormCorrectionViewModel: ObservableObject {
     }
 
     private func evaluateCurl(_ p: [VNHumanBodyPoseObservation.JointName: CGPoint]) -> [FeedbackItem] {
-        let ls = p[.leftShoulder]
-        let le = p[.leftElbow]
-        let lw = p[.leftWrist]
-        let lh = p[.leftHip]
-
         // Elbows pinned to sides: elbow x close to hip x
-        let elbowOk: Bool? = (le != nil && lh != nil) ? abs(le!.x - lh!.x) < 0.06 : nil
+        let elbowOk: Bool? = if let le = p[.leftElbow], let lh = p[.leftHip] { abs(le.x - lh.x) < 0.06 } else { nil }
 
         // ROM: full curl = wrist near shoulder at top
-        let curlAngle = angle(ls, le, lw)
-        let romOk: Bool? = curlAngle != nil ? (curlAngle! <= 140) : nil
+        let curlAngle = angle(p[.leftShoulder], p[.leftElbow], p[.leftWrist])
+        let romOk: Bool? = if let ca = curlAngle { ca <= 140 } else { nil }
 
         // No swing: torso stays vertical (shoulder x near hip x)
-        let swingOk: Bool? = (ls != nil && lh != nil) ? abs(ls!.x - lh!.x) < 0.06 : nil
+        let swingOk: Bool? = if let ls = p[.leftShoulder], let lh = p[.leftHip] { abs(ls.x - lh.x) < 0.06 } else { nil }
 
         let cps = selectedExercise.checkpoints
         return [
@@ -716,20 +707,15 @@ final class FormCorrectionViewModel: ObservableObject {
     }
 
     private func evaluateLateralRaise(_ p: [VNHumanBodyPoseObservation.JointName: CGPoint]) -> [FeedbackItem] {
-        let ls = p[.leftShoulder]
-        let le = p[.leftElbow]
-        let lw = p[.leftWrist]
-        let lh = p[.leftHip]
-
         // Height: wrist at or above shoulder level
-        let heightOk: Bool? = (lw != nil && ls != nil) ? lw!.y <= ls!.y + 0.04 : nil
+        let heightOk: Bool? = if let lw = p[.leftWrist], let ls = p[.leftShoulder] { lw.y <= ls.y + 0.04 } else { nil }
 
         // Slight elbow bend maintained
-        let elbowAngle = angle(ls, le, lw)
-        let elbowOk: Bool? = elbowAngle != nil ? (elbowAngle! >= 140 && elbowAngle! <= 180) : nil
+        let elbowAngle = angle(p[.leftShoulder], p[.leftElbow], p[.leftWrist])
+        let elbowOk: Bool? = if let ea = elbowAngle { ea >= 140 && ea <= 180 } else { nil }
 
         // No lean: torso upright (shoulder x near hip x)
-        let leanOk: Bool? = (ls != nil && lh != nil) ? abs(ls!.x - lh!.x) < 0.06 : nil
+        let leanOk: Bool? = if let ls = p[.leftShoulder], let lh = p[.leftHip] { abs(ls.x - lh.x) < 0.06 } else { nil }
 
         let cps = selectedExercise.checkpoints
         return [
