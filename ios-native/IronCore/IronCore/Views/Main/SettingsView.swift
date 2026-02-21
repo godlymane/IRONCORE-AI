@@ -321,7 +321,11 @@ struct SettingsView: View {
                 title: "Privacy & Security",
                 subtitle: "Manage your data and privacy",
                 isPro: false
-            ) { }
+            ) {
+                if let url = URL(string: "https://ironcore.fit/privacy") {
+                    UIApplication.shared.open(url)
+                }
+            }
 
             // Restore Purchases
             settingsRow(
@@ -379,7 +383,28 @@ struct SettingsView: View {
     // MARK: - Footer
 
     private var footer: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 8) {
+            HStack(spacing: 16) {
+                Button("Terms of Service") {
+                    if let url = URL(string: "https://ironcore.fit/terms") {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.textSecondary)
+
+                Text("·")
+                    .foregroundColor(Color.white.opacity(0.2))
+
+                Button("Privacy Policy") {
+                    if let url = URL(string: "https://ironcore.fit/privacy") {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.textSecondary)
+            }
+
             Text("IronCore Fit v\(vm.appVersion)")
                 .font(.system(size: 12))
                 .foregroundColor(.textTertiary)
