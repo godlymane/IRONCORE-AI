@@ -156,6 +156,7 @@
 			children = (
 				B10027 /* ArenaView.swift */,
 				B10026 /* LeagueView.swift */,
+				B10037 /* GuildView.swift */,
 			);
 			path = Arena;
 			sourceTree = "<group>";
@@ -185,6 +186,8 @@
 				B10022 /* NutritionView.swift */,
 				B10030 /* SocialFeedView.swift */,
 				B10032 /* ProfileView.swift */,
+				B10035 /* FormCorrectionView.swift */,
+				B10038 /* AILabView.swift */,
 			);
 			path = Main;
 			sourceTree = "<group>";
@@ -202,6 +205,8 @@
 				B10025 /* ArenaViewModel.swift */,
 				B10029 /* SocialFeedViewModel.swift */,
 				B10031 /* ProfileViewModel.swift */,
+				B10034 /* FormCorrectionViewModel.swift */,
+				B10036 /* GuildViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -213,6 +218,7 @@
 				B10007 /* FirestoreService.swift */,
 				B10014 /* StoreKitService.swift */,
 				B10023 /* ReviewManager.swift */,
+				B10033 /* CameraManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
