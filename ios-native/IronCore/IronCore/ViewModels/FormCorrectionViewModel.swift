@@ -1,4 +1,5 @@
 import Foundation
+import AVFoundation
 import Vision
 import CoreMedia
 import UIKit
@@ -295,14 +296,16 @@ final class FormCorrectionViewModel: ObservableObject {
     }
 
     /// Increment formChecksToday in Firestore after session starts.
+    /// Uses the already-incremented sessionsUsedToday (bumped in startCamera before this call).
     private func incrementFirestoreSessionCount() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         let todayStr = Self.todayString()
+        let newCount = sessionsUsedToday // Already incremented by startCamera()
 
         Task {
             do {
                 try await db.collection("users").document(uid).setData([
-                    "formChecksToday": sessionsUsedToday,
+                    "formChecksToday": newCount,
                     "formCheckDate": todayStr,
                 ], merge: true)
             } catch {
@@ -319,11 +322,38 @@ final class FormCorrectionViewModel: ObservableObject {
 
     // MARK: - Start / Stop Camera
 
+    @Published var showCameraDenied = false
+
     func startCamera() {
-        cameraManager.checkPermission()
         cameraManager.onFrame = { [weak self] buffer in
             self?.processFrame(buffer)
         }
+
+        // Check permission before starting — avoid silent failure
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        switch status {
+        case .authorized:
+            beginSession()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        self?.beginSession()
+                    } else {
+                        self?.showCameraDenied = true
+                    }
+                }
+            }
+        case .denied, .restricted:
+            showCameraDenied = true
+        @unknown default:
+            beginSession()
+        }
+    }
+
+    /// Starts the camera session, increments usage count, and resets tracking state.
+    /// Called only after camera permission is confirmed.
+    private func beginSession() {
         cameraManager.start()
 
         // Increment session count
