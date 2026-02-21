@@ -45,6 +45,9 @@
 		A10036 /* GuildViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10036; };
 		A10037 /* GuildView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10037; };
 		A10038 /* AILabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10038; };
+		A10039 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10039; };
+		A10040 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10040; };
+		A10041 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10041; };
 		A20001 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = C20001; };
 		A20002 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = C20002; };
 		A20003 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = C20003; };
@@ -91,6 +94,9 @@
 		B10036 /* GuildViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuildViewModel.swift; sourceTree = "<group>"; };
 		B10037 /* GuildView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuildView.swift; sourceTree = "<group>"; };
 		B10038 /* AILabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AILabView.swift; sourceTree = "<group>"; };
+		B10039 /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
+		B10040 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		B10041 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -188,6 +194,8 @@
 				B10032 /* ProfileView.swift */,
 				B10035 /* FormCorrectionView.swift */,
 				B10038 /* AILabView.swift */,
+				B10040 /* SettingsView.swift */,
+				B10041 /* PaywallView.swift */,
 			);
 			path = Main;
 			sourceTree = "<group>";
@@ -207,6 +215,7 @@
 				B10031 /* ProfileViewModel.swift */,
 				B10034 /* FormCorrectionViewModel.swift */,
 				B10036 /* GuildViewModel.swift */,
+				B10039 /* SettingsViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -372,6 +381,9 @@
 				A10036 /* GuildViewModel.swift in Sources */,
 				A10037 /* GuildView.swift in Sources */,
 				A10038 /* AILabView.swift in Sources */,
+				A10039 /* SettingsViewModel.swift in Sources */,
+				A10040 /* SettingsView.swift in Sources */,
+				A10041 /* PaywallView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

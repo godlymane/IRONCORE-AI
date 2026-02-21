@@ -4,6 +4,7 @@ import SwiftUI
 /// 6 tabs: Home, Arena, Lift, AI, Feed, Me
 struct MainTabView: View {
     @EnvironmentObject var authVM: AuthViewModel
+    @EnvironmentObject var premiumVM: PremiumViewModel
     @State private var selectedTab = 0
 
     var body: some View {
@@ -29,7 +30,16 @@ struct MainTabView: View {
 
             // Custom tab bar
             customTabBar
+
+            // Paywall overlay — triggered by premiumVM.showPaywall from anywhere
+            if premiumVM.showPaywall {
+                PaywallView()
+                    .environmentObject(premiumVM)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                    .zIndex(100)
+            }
         }
+        .animation(.easeInOut(duration: 0.3), value: premiumVM.showPaywall)
     }
 
     // MARK: - Custom Tab Bar (matches React tab navigation)

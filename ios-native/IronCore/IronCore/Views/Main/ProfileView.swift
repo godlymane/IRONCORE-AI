@@ -6,8 +6,11 @@ import SwiftUI
 struct ProfileView: View {
     @StateObject private var vm = ProfileViewModel()
     @EnvironmentObject var authVM: AuthViewModel
+    @EnvironmentObject var premiumVM: PremiumViewModel
     let profile: UserProfile?
     let uid: String
+
+    @State private var showSettings = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -563,24 +566,30 @@ struct ProfileView: View {
                         .modifier(GlassCard())
                     }
 
-                    // Premium status
-                    HStack(spacing: 10) {
-                        Image(systemName: profile?.isPremium == true ? "checkmark.seal.fill" : "lock.fill")
-                            .font(.system(size: 14))
-                            .foregroundColor(profile?.isPremium == true ? Color(hex: "#34d399") : .textTertiary)
-                        Text(profile?.isPremium == true ? "Premium Active" : "Free Plan")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(profile?.isPremium == true ? Color(hex: "#34d399") : .white)
-                        Spacer()
+                    // Premium status — tapping opens paywall for free users
+                    Button {
                         if profile?.isPremium != true {
-                            Text("UPGRADE")
-                                .font(.system(size: 11, weight: .black))
-                                .foregroundColor(.ironRedLight)
-                                .tracking(1)
+                            premiumVM.showPaywall = true
                         }
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: profile?.isPremium == true ? "checkmark.seal.fill" : "lock.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(profile?.isPremium == true ? Color(hex: "#34d399") : .textTertiary)
+                            Text(profile?.isPremium == true ? "Premium Active" : "Free Plan")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(profile?.isPremium == true ? Color(hex: "#34d399") : .white)
+                            Spacer()
+                            if profile?.isPremium != true {
+                                Text("UPGRADE")
+                                    .font(.system(size: 11, weight: .black))
+                                    .foregroundColor(.ironRedLight)
+                                    .tracking(1)
+                            }
+                        }
+                        .padding(14)
+                        .modifier(GlassCard())
                     }
-                    .padding(14)
-                    .modifier(GlassCard())
                 }
 
                 // Data & Export section
@@ -593,6 +602,24 @@ struct ProfileView: View {
                     SettingsRow(icon: "arrow.down.doc.fill", title: "Export Workouts", subtitle: "\(vm.totalWorkouts) workouts", isPro: true)
                     SettingsRow(icon: "arrow.down.doc.fill", title: "Export Meals", subtitle: "\(vm.totalMeals) meals", isPro: true)
                     SettingsRow(icon: "externaldrive.fill", title: "Full Backup", subtitle: "JSON export", isPro: true)
+                }
+
+                // Open full settings
+                Button { showSettings = true } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(.textTertiary)
+                        Text("All Settings")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12))
+                            .foregroundColor(.textTertiary)
+                    }
+                    .padding(14)
+                    .modifier(GlassCard())
                 }
 
                 // Sign out
@@ -640,6 +667,16 @@ struct ProfileView: View {
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 120)
+        }
+        .fullScreenCover(isPresented: $showSettings) {
+            SettingsView(
+                profile: profile,
+                uid: uid,
+                totalWorkouts: vm.totalWorkouts,
+                totalMeals: vm.totalMeals
+            )
+            .environmentObject(authVM)
+            .environmentObject(premiumVM)
         }
     }
 
