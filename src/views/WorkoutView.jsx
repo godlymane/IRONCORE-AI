@@ -4,8 +4,12 @@ import { Card, Button, GlassCard } from '../components/UIComponents';
 import { EXERCISE_DB } from '../utils/constants';
 import { SFX } from '../utils/audio';
 import { PostWorkoutUpsell } from '../components/PostWorkoutUpsell';
+import { useStore } from '../hooks/useStore';
+import { useFitnessData } from '../hooks/useFitnessData';
 
-export const WorkoutView = ({ workouts, updateData, deleteEntry }) => {
+export const WorkoutView = () => {
+    const { workouts } = useStore();
+    const { updateData, deleteEntry } = useFitnessData();
     const [isSessionActive, setIsSessionActive] = useState(false);
     const [sessionName, setSessionName] = useState("");
     const [sessionExercises, setSessionExercises] = useState([]);

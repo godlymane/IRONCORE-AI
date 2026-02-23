@@ -4,8 +4,10 @@ import { calculateBMI } from '../utils/helpers';
 import { Lock, TrendingUp } from 'lucide-react';
 import { PremiumIcon } from '../components/PremiumIcon';
 import { ScaleIcon, RulerIcon, PulseHeartIcon, ProteinBoltIcon } from '../components/IronCoreIcons';
+import { useStore } from '../hooks/useStore';
 
-export const TrackView = ({ progress, profile }) => {
+export const TrackView = () => {
+    const { progress, profile } = useStore();
     const sortedProgress = [...progress].sort((a, b) => {
         const dateA = a.createdAt?.seconds || new Date(a.date).getTime();
         const dateB = b.createdAt?.seconds || new Date(b.date).getTime();

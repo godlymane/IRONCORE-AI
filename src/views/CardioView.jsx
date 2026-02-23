@@ -3,6 +3,8 @@ import { Lock, Gauge, Mountain, Flame, Check, Settings, Footprints } from 'lucid
 import { PulseHeartIcon, TreadmillIcon, WalkingIcon, CyclingIcon } from '../components/IronCoreIcons';
 import { PremiumIcon } from '../components/PremiumIcon';
 import { GlassCard } from '../components/UIComponents';
+import { useStore } from '../hooks/useStore';
+import { useFitnessData } from '../hooks/useFitnessData';
 
 // Activity Card Component
 const ActivityCard = ({ id, label, icon, active, onClick, color }) => (
@@ -48,8 +50,9 @@ const GlassInput = ({ label, value, onChange, placeholder, unit, icon, inputMode
         </div>
     </div>
 );
-
-export const CardioView = ({ progress, profile, updateData, setActiveTab }) => {
+export const CardioView = () => {
+    const { progress, profile, setActiveTab } = useStore();
+    const { updateData } = useFitnessData();
     const [burn, setBurn] = useState(null);
     const [activity, setActivity] = useState("treadmill");
 

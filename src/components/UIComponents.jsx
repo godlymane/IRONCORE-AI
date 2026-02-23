@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, AlertTriangle, Info, Loader2, Moon, Sun, Image, History, Swords, Dumbbell } from 'lucide-react';
+import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { SFX } from '../utils/audio';
 import { useTheme } from '../context/ThemeContext';
 
@@ -135,13 +135,13 @@ export const SkeletonCard = () => (
   </div>
 );
 
-// --- PAGE TRANSITION WRAPPER (Direction-aware) ---
+// --- PAGE TRANSITION WRAPPER (Cinematic Direction-aware) ---
 export const PageTransition = ({ children, className = '', direction = 0 }) => (
   <motion.div
-    initial={{ opacity: 0, x: direction * 30 }}
-    animate={{ opacity: 1, x: 0 }}
-    exit={{ opacity: 0, x: direction * -30 }}
-    transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+    initial={{ opacity: 0, x: direction * 30, scale: 0.98 }}
+    animate={{ opacity: 1, x: 0, scale: 1 }}
+    exit={{ opacity: 0, x: direction * -30, scale: 0.98 }}
+    transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
     className={className}
   >
     {children}
@@ -280,9 +280,18 @@ export const Button = ({ children, onClick, className = "", variant = "primary",
       disabled={disabled || loading}
       whileHover={{ scale: disabled ? 1 : 1.02 }}
       whileTap={{ scale: disabled ? 1 : 0.97, filter: 'brightness(1.2)' }}
-      className={`relative overflow-hidden px-5 py-3 rounded-2xl font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2 transition-all duration-300 ${textColors[variant]} ${className}`}
+      className={`group relative overflow-hidden px-5 py-3 rounded-2xl font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2 transition-all duration-300 ${textColors[variant]} ${className}`}
       style={getButtonStyles()}
     >
+      {/* Light Sweep Effect */}
+      <div
+        className="absolute inset-0 -translate-x-full group-hover:animate-[sweep_1.5s_ease-in-out_infinite] opacity-0 group-hover:opacity-100 pointer-events-none"
+        style={{
+          background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
+          transform: 'skewX(-20deg)',
+          width: '50%'
+        }}
+      />
       {loading ? <Loader2 className="animate-spin w-4 h-4" /> : children}
     </motion.button>
   );
@@ -311,38 +320,79 @@ export const Card = ({ children, className = "", onClick }) => (
 // --- CONSOLIDATED GLASS CARD ---
 // Single source of truth for all glass card styling across the app
 export const GlassCard = ({ children, className = "", onClick, highlight = false, animated = false }) => {
-  // Detect mobile to skip GPU-heavy blur effects (inline styles bypass CSS media queries)
+  // Detect mobile to skip GPU-heavy blur effects and 3D tilts (inline styles bypass CSS media queries)
   const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
 
+  // 3D Magnetic Tilt Logic
+  const x = useMotionValue(0.5);
+  const y = useMotionValue(0.5);
+  const rotateX = useTransform(y, [0, 1], [3, -3]);
+  const rotateY = useTransform(x, [0, 1], [-3, 3]);
+
+  const handleMouseMove = (e) => {
+    if (isMobile) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    x.set((e.clientX - rect.left) / rect.width);
+    y.set((e.clientY - rect.top) / rect.height);
+  };
+
+  const handleMouseLeave = () => {
+    if (isMobile) return;
+    x.set(0.5);
+    y.set(0.5);
+  };
+
   const content = (
-    <div
+    <motion.div
       onClick={onClick}
-      className={`relative overflow-hidden rounded-3xl p-5 transition-all duration-300 ${onClick ? 'cursor-pointer' : ''} ${className}`}
-      style={isMobile ? {
-        background: highlight ? 'rgba(40, 10, 10, 0.95)' : 'rgba(18, 18, 18, 0.95)',
-        border: highlight ? '1px solid rgba(220, 38, 38, 0.3)' : '1px solid rgba(220, 38, 38, 0.1)',
-        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5)',
-      } : {
-        background: highlight
-          ? 'linear-gradient(145deg, rgba(220, 38, 38, 0.15) 0%, rgba(153, 27, 27, 0.08) 50%, rgba(220, 38, 38, 0.12) 100%)'
-          : 'linear-gradient(145deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 50%, rgba(255, 255, 255, 0.02) 100%)',
-        backdropFilter: 'blur(20px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-        border: highlight ? '1px solid rgba(220, 38, 38, 0.3)' : '1px solid rgba(220, 38, 38, 0.1)',
-        boxShadow: highlight
-          ? '0 10px 40px rgba(220, 38, 38, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08)'
-          : '0 10px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06)',
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      style={{
+        rotateX: isMobile ? 0 : rotateX,
+        rotateY: isMobile ? 0 : rotateY,
+        transformPerspective: 1000,
+        ...(isMobile ? {
+          background: highlight ? 'rgba(40, 10, 10, 0.95)' : 'rgba(18, 18, 18, 0.95)',
+          border: highlight ? '1px solid rgba(220, 38, 38, 0.4)' : '1px solid rgba(220, 38, 38, 0.1)',
+          boxShadow: highlight
+            ? '0 0 20px rgba(220, 38, 38, 0.15), 0 4px 16px rgba(0, 0, 0, 0.5)'
+            : '0 4px 16px rgba(0, 0, 0, 0.5)',
+        } : {
+          background: highlight
+            ? 'linear-gradient(145deg, rgba(220, 38, 38, 0.15) 0%, rgba(153, 27, 27, 0.08) 50%, rgba(220, 38, 38, 0.12) 100%)'
+            : 'linear-gradient(145deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 50%, rgba(255, 255, 255, 0.02) 100%)',
+          backdropFilter: 'blur(20px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+          border: highlight ? '1px solid rgba(220, 38, 38, 0.35)' : '1px solid rgba(220, 38, 38, 0.1)',
+          boxShadow: highlight
+            ? '0 0 30px rgba(220, 38, 38, 0.12), 0 10px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08)'
+            : '0 10px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06)',
+        })
       }}
+      className={`group relative overflow-hidden rounded-3xl p-5 transition-colors duration-300 ${onClick ? 'cursor-pointer hover:border-red-500/30' : ''} ${className}`}
     >
-      {/* Subtle top shine — skip on mobile to save GPU */}
+      {/* Dynamic Shine Layer based on Mouse Position */}
+      {!isMobile && (
+        <motion.div
+          className="absolute inset-0 pointer-events-none rounded-3xl z-20"
+          style={{
+            background: useTransform(
+              [x, y],
+              ([latestX, latestY]) => `radial-gradient(circle at ${latestX * 100}% ${latestY * 100}%, rgba(255,255,255,0.05) 0%, transparent 60%)`
+            )
+          }}
+        />
+      )}
+
+      {/* Subtle top shine — static */}
       {!isMobile && (
         <div
-          className="absolute top-0 left-0 right-0 h-[40%] rounded-t-3xl pointer-events-none"
+          className="absolute top-0 left-0 right-0 h-[40%] rounded-t-3xl pointer-events-none z-10"
           style={{ background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%)' }}
         />
       )}
       <div className="relative z-10">{children}</div>
-    </div>
+    </motion.div>
   );
 
   if (animated) {

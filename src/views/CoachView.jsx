@@ -9,6 +9,7 @@ import { DumbbellIcon, ProteinBoltIcon, TargetIcon, SmartTimerIconShape, PlateIc
 import { usePremium } from '../context/PremiumContext';
 import { doc, getDoc, setDoc, increment } from 'firebase/firestore';
 import { db } from '../firebase';
+import { useStore } from '../hooks/useStore';
 
 const SYSTEM_PROMPT = `You are IronCore — the most elite AI fitness coach on the planet. You are NOT a generic chatbot. You are a world-class strength & nutrition coach with 20+ years of experience training pro athletes.
 
@@ -28,7 +29,9 @@ RULES:
 - Be brutally honest about bad habits but frame it as "here's how to fix it"
 - Remember the conversation context — don't repeat yourself`;
 
-export const CoachView = ({ weight, meals, workouts, profile, updateData }) => {
+export const CoachView = () => {
+    const { meals = [], workouts = [], profile = {}, updateData, progress = [] } = useStore();
+    const weight = profile.weight || progress.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).find(p => p.weight)?.weight;
     const [mode, setMode] = useState('chat');
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState("");
@@ -131,7 +134,7 @@ Coach (respond in character — short, specific, intense):`;
                 try {
                     const j = JSON.parse(response);
                     if (j.message) displayText = j.message;
-                } catch (_) {}
+                } catch (_) { }
                 setMessages(prev => [...prev, { role: 'ai', text: displayText }]);
             } else {
                 const errMsg = response?.replace('Error: ', '') || 'Connection issue.';

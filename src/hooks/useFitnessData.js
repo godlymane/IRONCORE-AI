@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import {
     signInWithPopup,
     GoogleAuthProvider,
@@ -18,6 +18,8 @@ import {
 import { Capacitor } from '@capacitor/core';
 import { db, auth as firebaseAuth, storage as firebaseStorage, isStorageConfigured } from '../firebase';
 import { runMigrations, CURRENT_SCHEMA_VERSION } from '../utils/migrations';
+import imageCompression from 'browser-image-compression';
+import { useStore } from './useStore';
 
 // --- Input validation helpers ---
 const MAX_MESSAGE_LENGTH = 500;
@@ -41,28 +43,24 @@ const SOCIAL_TABS = new Set(['arena', 'profile']);
 // Tabs that need photos listener
 const PHOTOS_TABS = new Set(['profile']);
 
-export function useFitnessData(activeTab = 'dashboard') {
-    const [user, setUser] = useState(null);
-    const [profileLoaded, setProfileLoaded] = useState(false);
-    const [profileExists, setProfileExists] = useState(false);
+export function useFitnessData() {
+    // Read from Zustand store
+    const {
+        user, dataLoaded, profileLoaded, profileExists, activeTab,
+        setUser, setLoading, setError, clearStore, updateState
+    } = useStore();
+
+    // Data references (not reactive here, just needed for functions)
+    const storeState = useStore();
+
     const listenersRef = useRef([]);
     const socialUnsubs = useRef([]);
     const photosUnsub = useRef(null);
 
-    const [data, setData] = useState({
-        meals: [], progress: [], burned: [], workouts: [], photos: [],
-        profile: {},
-        leaderboard: [], chat: [], following: [], posts: [], inbox: [],
-        globalFeed: [], battles: []
-    });
-
-    const [dataLoaded, setDataLoaded] = useState(false);
-    const [error, setError] = useState(null);
-    const [loading, setLoading] = useState(true);
-
-    // Use singleton instances from firebase.js (no duplicate init)
+    // Use singleton instances from firebase.js
     const isStorageReady = isStorageConfigured;
 
+    // --- INIT AUTH ---
     useEffect(() => {
         if (!db || !firebaseAuth) {
             setError("Firebase not initialized — check .env");
@@ -70,26 +68,23 @@ export function useFitnessData(activeTab = 'dashboard') {
             return;
         }
 
-        // Auth state listener — sole source of truth for login state
         const unsubscribe = onAuthStateChanged(firebaseAuth, (u) => {
-            // Auth state changed
-            // Seed profile from localStorage so onboarding data shows instantly
             if (u) {
                 try {
                     const cached = localStorage.getItem('ironai_profile_' + u.uid);
                     if (cached) {
                         const parsed = JSON.parse(cached);
-                        setData(prev => ({ ...prev, profile: { ...parsed, ...prev.profile } }));
+                        updateState({ profile: { ...parsed } });
                     }
                 } catch (e) { /* ignore */ }
             }
             setUser(u);
-            setLoading(false);
         });
 
         return () => unsubscribe();
     }, []);
 
+    // --- AUTH ACTIONS ---
     const login = async () => {
         try {
             const isNative = Capacitor.isNativePlatform();
@@ -121,44 +116,34 @@ export function useFitnessData(activeTab = 'dashboard') {
                     await FirebaseAuthentication.signOut();
                 } catch (e) { /* native signout failed, continue with web signout */ }
             }
-            const uid = user?.uid;
             await signOut(firebaseAuth);
 
-            // Clear ALL in-memory state (privacy: don't leak data to next user)
-            setData({
-                meals: [], progress: [], burned: [], workouts: [], photos: [],
-                profile: {},
-                leaderboard: [], chat: [], following: [], posts: [], inbox: [],
-                globalFeed: [], battles: []
-            });
-            setProfileLoaded(false);
-            setProfileExists(false);
-            setDataLoaded(false);
+            clearStore();
 
             // Tear down deferred listeners
             socialUnsubs.current.forEach(u => u());
             socialUnsubs.current = [];
             if (photosUnsub.current) { photosUnsub.current(); photosUnsub.current = null; }
 
-            // Clear localStorage caches for this user
-            if (uid) {
-                try {
-                    localStorage.removeItem('ironai_profile_' + uid);
-                    localStorage.removeItem('ironai_onboarded_' + uid);
-                } catch (e) { /* ignore */ }
-            }
+            // NOTE: We intentionally keep localStorage caches (profile, onboarding)
+            // so the app feels instant on re-login. Firestore onSnapshot will
+            // overwrite stale data within seconds of the next sign-in.
         } catch (e) { console.error(e); }
     };
 
+    // --- DATA MUTATIONS ---
     const uploadProfilePic = async (file) => {
         if (!isStorageReady || !user) { setError("Storage not configured."); return; }
         try {
+            const options = { maxSizeMB: 0.5, maxWidthOrHeight: 800, useWebWorker: true };
+            const compressedFile = await imageCompression(file, options);
+
             const storageRef = ref(firebaseStorage, 'users/' + user.uid + '/profile_' + Date.now() + '.jpg');
-            await uploadBytes(storageRef, file);
+            await uploadBytes(storageRef, compressedFile);
             const url = await getDownloadURL(storageRef);
-            // Update Firestore profile
+
             await updateData('add', 'profile', { photoURL: url });
-            // Also update localStorage cache so pic persists across restarts
+
             try {
                 const cached = localStorage.getItem('ironai_profile_' + user.uid);
                 const profile = cached ? JSON.parse(cached) : {};
@@ -172,8 +157,11 @@ export function useFitnessData(activeTab = 'dashboard') {
     const uploadProgressPhoto = async (file, note = "") => {
         if (!isStorageReady || !user) return;
         try {
+            const options = { maxSizeMB: 1.0, maxWidthOrHeight: 1200, useWebWorker: true };
+            const compressedFile = await imageCompression(file, options);
+
             const storageRef = ref(firebaseStorage, 'users/' + user.uid + '/progress/' + Date.now() + '.jpg');
-            await uploadBytes(storageRef, file);
+            await uploadBytes(storageRef, compressedFile);
             const url = await getDownloadURL(storageRef);
             await addDoc(collection(db, 'users', user.uid, 'photos'), { url, date: new Date().toISOString().split('T')[0], createdAt: new Date(), note });
             return true;
@@ -222,7 +210,6 @@ export function useFitnessData(activeTab = 'dashboard') {
             await runTransaction(db, async (txn) => {
                 const snap = await txn.get(profileRef);
                 const current = snap.exists() ? snap.data() : {};
-                // Check if already claimed today (inside transaction to prevent double-claim)
                 if (current.dailyDrops && current.dailyDrops[today]) {
                     throw new Error("already_claimed");
                 }
@@ -237,13 +224,13 @@ export function useFitnessData(activeTab = 'dashboard') {
         }
     };
 
-    // --- SOCIAL ACTIONS ---
     const sendMessage = async (text) => {
         const clean = sanitizeText(text, MAX_MESSAGE_LENGTH);
+        const { profile } = useStore.getState();
         if (!user || !db || !clean) return;
         try {
             await addDoc(collection(db, 'global', 'data', 'chat'), {
-                text: clean, userId: user.uid, username: sanitizeText(user.displayName || "Anonymous", MAX_USERNAME_LENGTH), photo: user.photoURL, xp: data.profile.xp || 0, createdAt: new Date()
+                text: clean, userId: user.uid, username: sanitizeText(user.displayName || "Anonymous", MAX_USERNAME_LENGTH), photo: user.photoURL, xp: profile.xp || 0, createdAt: new Date()
             });
         } catch (e) { console.error("Message failed", e); }
     };
@@ -260,8 +247,9 @@ export function useFitnessData(activeTab = 'dashboard') {
     };
 
     const toggleFollow = async (targetUserId) => {
+        const { following } = useStore.getState();
         if (!user || !db) return;
-        const isFollowing = data.following.includes(targetUserId);
+        const isFollowing = following.includes(targetUserId);
         try {
             if (isFollowing) { await deleteDoc(doc(db, 'users', user.uid, 'following', targetUserId)); }
             else { await setDoc(doc(db, 'users', user.uid, 'following', targetUserId), { followedAt: new Date() }); }
@@ -269,6 +257,7 @@ export function useFitnessData(activeTab = 'dashboard') {
     };
 
     const createPost = async (file, caption) => {
+        const { profile } = useStore.getState();
         if (!isStorageReady || !user || !db) return;
         const cleanCaption = sanitizeText(caption, MAX_CAPTION_LENGTH);
         try {
@@ -276,13 +265,12 @@ export function useFitnessData(activeTab = 'dashboard') {
             await uploadBytes(storageRef, file);
             const url = await getDownloadURL(storageRef);
             await addDoc(collection(db, 'global', 'data', 'posts'), {
-                imageUrl: url, caption: cleanCaption, userId: user.uid, username: sanitizeText(user.displayName || "Anonymous", MAX_USERNAME_LENGTH), userPhoto: user.photoURL, xp: data.profile.xp || 0, likes: 0, createdAt: new Date()
+                imageUrl: url, caption: cleanCaption, userId: user.uid, username: sanitizeText(user.displayName || "Anonymous", MAX_USERNAME_LENGTH), userPhoto: user.photoURL, xp: profile.xp || 0, likes: 0, createdAt: new Date()
             });
             return true;
         } catch (e) { console.error("Post failed", e); return false; }
     };
 
-    // --- BATTLES LOGIC ---
     const createBattle = async (opponentId, opponentName) => {
         if (!user || !db || !opponentId) return;
         try {
@@ -298,12 +286,11 @@ export function useFitnessData(activeTab = 'dashboard') {
         } catch (e) { console.error("Battle creation failed", e); }
     };
 
-    // --- DATA LISTENERS with error handlers + refresh support ---
+    // --- DATA LISTENERS ---
     const onListenerError = useCallback((key) => (err) => {
         console.error('Listener error [' + key + ']:', err.code || err.message);
     }, []);
 
-    // Shared bind helper — creates a Firestore listener and returns the unsub function
     const bindListener = useCallback((uid, key, isDoc = false) => {
         let actualRef;
         if (key === 'leaderboard') actualRef = query(collection(db, 'leaderboard'), orderBy('xp', 'desc'), limit(100));
@@ -317,26 +304,29 @@ export function useFitnessData(activeTab = 'dashboard') {
         return onSnapshot(actualRef, (snap) => {
             if (isDoc) {
                 const docData = snap.exists() ? snap.data() : {};
-                setData(prev => ({ ...prev, [key]: docData }));
+                useStore.getState().updateState({ [key]: docData });
+
                 if (key === 'profile') {
-                    setProfileLoaded(true);
-                    setProfileExists(snap.exists() && Object.keys(docData).length > 0);
+                    useStore.getState().updateState({
+                        profileLoaded: true,
+                        profileExists: snap.exists() && Object.keys(docData).length > 0
+                    });
                     if (snap.exists() && Object.keys(docData).length > 0) {
                         try { localStorage.setItem('ironai_profile_' + uid, JSON.stringify(docData)); } catch (_) { /* ignore */ }
                     }
                 }
             } else {
                 const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                if (key !== 'chat' && key !== 'globalFeed' && key !== 'posts' && key !== 'battles' && key !== 'leaderboard') {
+                if (!['chat', 'globalFeed', 'posts', 'battles', 'leaderboard'].includes(key)) {
                     list.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
                 }
-                setData(prev => ({ ...prev, [key]: list }));
+                useStore.getState().updateState({ [key]: list });
             }
-            setDataLoaded(true);
+            useStore.getState().updateState({ dataLoaded: true });
         }, onListenerError(key));
     }, [onListenerError]);
 
-    // CORE listeners (5): always active when logged in — meals, progress, burned, workouts, profile
+    // CORE listeners
     useEffect(() => {
         if (!user || !db) return;
         const unsubs = [
@@ -350,15 +340,13 @@ export function useFitnessData(activeTab = 'dashboard') {
         return () => unsubs.forEach(u => u());
     }, [user, bindListener]);
 
-    // SOCIAL listeners (7): only when on arena or profile tabs
+    // SOCIAL listeners
     useEffect(() => {
         if (!user || !db || !SOCIAL_TABS.has(activeTab)) {
-            // Tear down social listeners when leaving social tabs
             socialUnsubs.current.forEach(u => u());
             socialUnsubs.current = [];
             return;
         }
-        // Already subscribed? Don't re-subscribe
         if (socialUnsubs.current.length > 0) return;
 
         socialUnsubs.current = [
@@ -369,10 +357,10 @@ export function useFitnessData(activeTab = 'dashboard') {
             bindListener(user.uid, 'battles'),
             onSnapshot(collection(db, 'users', user.uid, 'inbox'), (snap) => {
                 const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.createdAt - a.createdAt);
-                setData(prev => ({ ...prev, inbox: msgs }));
+                useStore.getState().updateState({ inbox: msgs });
             }, onListenerError('inbox')),
             onSnapshot(collection(db, 'users', user.uid, 'following'), (snap) => {
-                setData(prev => ({ ...prev, following: snap.docs.map(d => d.id) }));
+                useStore.getState().updateState({ following: snap.docs.map(d => d.id) });
             }, onListenerError('following')),
         ];
         return () => {
@@ -381,21 +369,19 @@ export function useFitnessData(activeTab = 'dashboard') {
         };
     }, [user, activeTab, bindListener, onListenerError]);
 
-    // PHOTOS listener (1): only when on profile tab
+    // PHOTOS listener
     useEffect(() => {
         if (!user || !db || !PHOTOS_TABS.has(activeTab)) {
             if (photosUnsub.current) { photosUnsub.current(); photosUnsub.current = null; }
             return;
         }
-        if (photosUnsub.current) return; // already subscribed
+        if (photosUnsub.current) return;
         photosUnsub.current = bindListener(user.uid, 'photos');
         return () => { if (photosUnsub.current) { photosUnsub.current(); photosUnsub.current = null; } };
     }, [user, activeTab, bindListener]);
 
-    // Re-subscribe core listeners for pull-to-refresh
     const refreshData = useCallback(() => {
         if (!user || !db) return;
-        // Tear down and rebuild core listeners
         listenersRef.current.forEach(u => u());
         listenersRef.current = [
             bindListener(user.uid, 'meals'),
@@ -404,7 +390,6 @@ export function useFitnessData(activeTab = 'dashboard') {
             bindListener(user.uid, 'workouts'),
             bindListener(user.uid, 'profile', true),
         ];
-        // Also refresh social if on a social tab
         if (SOCIAL_TABS.has(activeTab)) {
             socialUnsubs.current.forEach(u => u());
             socialUnsubs.current = [
@@ -415,42 +400,40 @@ export function useFitnessData(activeTab = 'dashboard') {
                 bindListener(user.uid, 'battles'),
                 onSnapshot(collection(db, 'users', user.uid, 'inbox'), (snap) => {
                     const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.createdAt - a.createdAt);
-                    setData(prev => ({ ...prev, inbox: msgs }));
+                    useStore.getState().updateState({ inbox: msgs });
                 }, onListenerError('inbox')),
                 onSnapshot(collection(db, 'users', user.uid, 'following'), (snap) => {
-                    setData(prev => ({ ...prev, following: snap.docs.map(d => d.id) }));
+                    useStore.getState().updateState({ following: snap.docs.map(d => d.id) });
                 }, onListenerError('following')),
             ];
         }
     }, [user, activeTab, bindListener, onListenerError]);
 
-    // --- Schema migration runner (runs once after profile + data load) ---
+    // Migration runner
     const migrationRanRef = useRef(false);
     useEffect(() => {
+        const { profile, progress, meals, workouts } = useStore.getState();
         if (migrationRanRef.current || !user || !db || !profileLoaded || !dataLoaded) return;
-        if ((data.profile.schemaVersion || 0) >= CURRENT_SCHEMA_VERSION) return;
+        if ((profile.schemaVersion || 0) >= CURRENT_SCHEMA_VERSION) return;
         migrationRanRef.current = true;
 
         runMigrations(
-            data.profile,
-            { progress: data.progress, meals: data.meals, workouts: data.workouts },
+            profile,
+            { progress, meals, workouts },
             async (patch) => {
                 await setDoc(doc(db, 'users', user.uid, 'data', 'profile'), patch, { merge: true });
             }
-        ).then(result => {
-            if (result.migrated) {
-                // Migrations applied
-            }
-        }).catch(e => console.error('Migration error:', e));
-    }, [user, db, profileLoaded, dataLoaded, data.profile, data.progress, data.meals, data.workouts]);
+        ).catch(e => console.error('Migration error:', e));
+    }, [user, db, profileLoaded, dataLoaded, storeState.profile, storeState.progress, storeState.meals, storeState.workouts]);
 
     const updateData = async (action, col, payload, id) => {
         if (!user || !db) return;
-        // Validate payload to prevent prototype pollution
         if (payload && !validatePayload(payload)) {
             console.error('Invalid payload rejected');
             return;
         }
+
+        const { profile, leaderboard } = useStore.getState();
         const today = new Date().toISOString().split('T')[0];
         const timestamp = new Date();
         let xpGain = 0;
@@ -464,7 +447,6 @@ export function useFitnessData(activeTab = 'dashboard') {
 
             const docData = { ...payload, date: today, createdAt: timestamp, userId: user.uid };
 
-            // Bounds-check workout volume values
             if (col === 'workouts' && payload.exercises) {
                 payload.exercises.forEach(ex => {
                     if (ex.sets) {
@@ -478,10 +460,9 @@ export function useFitnessData(activeTab = 'dashboard') {
 
             try {
                 if (col === 'xp_bonus') { /* logic */ }
-                else if (col === 'profile') { await setDoc(doc(db, 'users', user.uid, 'data', 'profile'), payload, { merge: true }); }
+                else if (col === 'profile') { await setDoc(doc(db, 'users', user.uid, 'data', 'profile'), { ...payload, userId: user.uid }, { merge: true }); }
                 else { await addDoc(collection(db, 'users', user.uid, col), docData); }
 
-                // Update XP atomically via transaction + update leaderboard
                 if (xpGain > 0 || col === 'workouts') {
                     const profileRef = doc(db, 'users', user.uid, 'data', 'profile');
                     let newXp = 0;
@@ -496,11 +477,10 @@ export function useFitnessData(activeTab = 'dashboard') {
                             txn.set(profileRef, { xp: newXp }, { merge: true });
                         });
                     } else {
-                        newXp = data.profile.xp || 0;
+                        newXp = profile.xp || 0;
                         oldXp = newXp;
                     }
 
-                    // Leaderboard volume calculation
                     let workoutVolume = 0;
                     if (col === 'workouts' && payload.exercises) {
                         payload.exercises.forEach(ex => {
@@ -508,14 +488,14 @@ export function useFitnessData(activeTab = 'dashboard') {
                         });
                     }
 
-                    const currentEntry = data.leaderboard.find(u => u.userId === user.uid);
+                    const currentEntry = leaderboard.find(u => u.userId === user.uid);
                     const currentVolume = currentEntry?.todayVolume || 0;
 
                     const leaderboardData = {
                         username: sanitizeText(user.displayName || "Anonymous", MAX_USERNAME_LENGTH),
                         xp: newXp,
                         userId: user.uid,
-                        photo: data.profile.photoURL || user.photoURL,
+                        photo: profile.photoURL || user.photoURL,
                         todayVolume: col === 'workouts' ? currentVolume + workoutVolume : currentVolume
                     };
                     await setDoc(doc(db, 'leaderboard', user.uid), leaderboardData, { merge: true });
@@ -526,7 +506,6 @@ export function useFitnessData(activeTab = 'dashboard') {
                 }
             } catch (e) { console.error("Write Error", e); }
         } else if (action === 'update') {
-            // Update an existing document (merge)
             if (!id) return;
             try {
                 await setDoc(doc(db, 'users', user.uid, col, id), payload, { merge: true });
@@ -536,12 +515,13 @@ export function useFitnessData(activeTab = 'dashboard') {
 
     const clearError = useCallback(() => setError(null), []);
 
+    // Return the stable functions and API so existing components don't break immediately
+    // Note: To fully benefit from Zustand, components should import `useStore` directly and stop destructuring from this hook.
     return {
-        user, loading, login, logout, profileLoaded, profileExists, dataLoaded,
-        uploadProfilePic, uploadProgressPhoto,
+        login, logout, uploadProfilePic, uploadProgressPhoto,
         sendMessage, toggleFollow, sendPrivateMessage, createPost,
-        buyItem, completeDailyDrop, broadcastEvent, createBattle, isStorageReady,
-        ...data, updateData, deleteEntry: (col, id) => updateData('delete', col, null, id),
-        refreshData, error, clearError
+        buyItem, completeDailyDrop, broadcastEvent, createBattle,
+        isStorageReady, updateData, deleteEntry: (col, id) => updateData('delete', col, null, id),
+        refreshData, clearError
     };
 }

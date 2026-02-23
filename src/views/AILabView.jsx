@@ -8,6 +8,7 @@ import { Button, Card } from '../components/UIComponents';
 import { PremiumIcon } from '../components/PremiumIcon';
 import { usePremium } from '../context/PremiumContext';
 import { Lock } from 'lucide-react';
+import { useStore } from '../hooks/useStore';
 
 // Import Icons
 import {
@@ -116,7 +117,9 @@ const CameraPermissionPriming = ({ onGranted, onSkip }) => {
 /**
  * AI Lab View - Showcase all AI features in one place
  */
-export const AILabView = ({ workouts = [], meals = [], profile = {}, updateData, weight }) => {
+export const AILabView = () => {
+    const { workouts = [], meals = [], profile = {}, updateData, progress = [] } = useStore();
+    const weight = profile.weight || progress.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).find(p => p.weight)?.weight;
     const [labTab, setLabTab] = useState('coach'); // 'coach' or 'vision'
     const [activeFeature, setActiveFeature] = useState(null);
     const [cameraPermGranted, setCameraPermGranted] = useState(false);
@@ -126,7 +129,7 @@ export const AILabView = ({ workouts = [], meals = [], profile = {}, updateData,
     React.useEffect(() => {
         navigator.permissions?.query({ name: 'camera' }).then(result => {
             if (result.state === 'granted') setCameraPermGranted(true);
-        }).catch(() => {}); // Permissions API not supported — show priming screen
+        }).catch(() => { }); // Permissions API not supported — show priming screen
     }, []);
 
     // Premium-gated features — free users get paywall
@@ -163,7 +166,7 @@ export const AILabView = ({ workouts = [], meals = [], profile = {}, updateData,
 
     const { voiceState, transcript, isSupported, manualActivate, speak, VOICE_STATE } = useVoiceCommands({
         onCommand: handleVoiceCommand,
-        onLog: () => {}
+        onLog: () => { }
     });
     const isListening = voiceState === VOICE_STATE.ACTIVE || voiceState === VOICE_STATE.LISTENING;
     const toggleListening = manualActivate;
@@ -194,7 +197,7 @@ export const AILabView = ({ workouts = [], meals = [], profile = {}, updateData,
     const handleFeatureSelect = (feature) => {
         if (feature.premium && !isPremium) {
             const featureKey = feature.id === 'form' ? 'aiCoachCalls' :
-                               feature.id === 'stats' ? 'unlimitedHistory' : 'aiCoachCalls';
+                feature.id === 'stats' ? 'unlimitedHistory' : 'aiCoachCalls';
             requirePremium(featureKey);
             return;
         }
@@ -429,7 +432,7 @@ export const AILabView = ({ workouts = [], meals = [], profile = {}, updateData,
                         exit={{ opacity: 0, x: 20 }}
                         className="flex-grow"
                     >
-                        <CoachView weight={weight} meals={meals} workouts={workouts} profile={profile} updateData={updateData} />
+                        <CoachView />
                     </motion.div>
                 ) : (
                     <motion.div

@@ -20,6 +20,18 @@ const getCallGeminiCF = () => {
   return _callGeminiCF;
 };
 
+// Lazy-init analyzeFood callable
+let _analyzeFoodCF = null;
+const getAnalyzeFoodCF = () => {
+  if (!_analyzeFoodCF) {
+    try {
+      const functions = getFunctions(getApp());
+      _analyzeFoodCF = httpsCallable(functions, 'analyzeFood');
+    } catch (e) { }
+  }
+  return _analyzeFoodCF;
+};
+
 /**
  * Native HTTP request using XMLHttpRequest to bypass CapacitorHttp's fetch patching.
  */
@@ -94,10 +106,10 @@ export const callGemini = async (userQuery, systemPrompt, imageBase64 = null, ex
     const response = isNative
       ? await nativePost(url, payload)
       : await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
@@ -119,6 +131,30 @@ export const callGemini = async (userQuery, systemPrompt, imageBase64 = null, ex
     }
     return `Error: Network connection failed. Check your internet.`;
   }
+};
+
+/**
+ * Specialized caller for food analysis, using the new server-side Cloud Function.
+ */
+export const analyzeFood = async (mealText, imageBase64 = null, retries = 0) => {
+  const cf = getAnalyzeFoodCF();
+  if (cf) {
+    try {
+      const result = await cf({ mealText, imageBase64 });
+      return result.data.text;
+    } catch (e) {
+      if (e.code === 'functions/unauthenticated') return "Error: Not logged in.";
+      if (e.code === 'functions/resource-exhausted') return "Error: Rate limit exceeded. Wait a moment.";
+      console.warn('Cloud Function analyzeFood failed, falling back to direct API:', e.message);
+    }
+  }
+
+  // Fallback to direct API
+  const prompt = imageBase64
+    ? `Identify the food in this image and return JSON: { "mealName": "string", "calories": number, "protein": number, "carbs": number, "fat": number }. Estimate realistic macros for a typical serving.`
+    : `Return JSON: { "mealName": "string", "calories": number, "protein": number, "carbs": number, "fat": number } for "${mealText}"`;
+
+  return callGemini(prompt, "Nutrition API. JSON Only.", imageBase64, true, retries, 'nutrition');
 };
 
 export const cleanAIResponse = (text) => {

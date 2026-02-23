@@ -26,6 +26,7 @@ const AI_MODEL = "gemini-3-flash-preview";
 const RATE_LIMITS = {
   chat: { maxRequests: 30, windowMs: 60_000 },      // 30 req/min for chat
   workout: { maxRequests: 10, windowMs: 60_000 },    // 10 req/min for workout gen
+  nutrition: { maxRequests: 15, windowMs: 60_000 },  // 15 req/min for macro analysis
   default: { maxRequests: 30, windowMs: 60_000 },
 };
 
@@ -111,6 +112,67 @@ exports.callGemini = onCall(
     if (expectJson) {
       finalPrompt = `${systemPrompt || ""}\n\nCRITICAL INSTRUCTION: Return ONLY valid JSON. Do not use Markdown code blocks. Do not add introductory text.\n\nUser Request: ${prompt}`;
     }
+
+    const parts = [{ text: finalPrompt }];
+    if (imageBase64) {
+      parts.push({ inlineData: { mimeType: "image/jpeg", data: imageBase64 } });
+    }
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${AI_MODEL}:generateContent?key=${geminiKey.value()}`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ role: "user", parts }] }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      const msg = err?.error?.message || response.statusText;
+      throw new HttpsError("internal", `Gemini API error: ${msg} (${response.status})`);
+    }
+
+    const result = await response.json();
+    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!text) {
+      throw new HttpsError("internal", "Gemini returned empty response.");
+    }
+
+    return { text, rateLimit: rateInfo };
+  }
+);
+
+/**
+ * Callable Cloud Function specifically for food macro analysis using Gemini Vision.
+ * Keeps the specialized prompt and API key server-side.
+ */
+exports.analyzeFood = onCall(
+  { secrets: [geminiKey], cors: true },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Must be logged in.");
+    }
+
+    const { mealText, imageBase64 } = request.data;
+    if (!mealText && !imageBase64) {
+      throw new HttpsError("invalid-argument", "Either mealText or imageBase64 must be provided.");
+    }
+
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+    const rateInfo = await checkRateLimit(uid, "nutrition", db);
+
+    const systemPrompt = "Nutrition API. JSON Only.";
+    let prompt;
+
+    if (imageBase64) {
+      prompt = `Identify the food in this image and return JSON: { "mealName": "string", "calories": number, "protein": number, "carbs": number, "fat": number }. Estimate realistic macros for a typical serving.`;
+    } else {
+      prompt = `Return JSON: { "mealName": "string", "calories": number, "protein": number, "carbs": number, "fat": number } for "${mealText}"`;
+    }
+
+    const finalPrompt = `${systemPrompt}\n\nCRITICAL INSTRUCTION: Return ONLY valid JSON. Do not use Markdown code blocks. Do not add introductory text.\n\nUser Request: ${prompt}`;
 
     const parts = [{ text: finalPrompt }];
     if (imageBase64) {
@@ -478,11 +540,11 @@ exports.verifyAppleReceipt = onCall(
     const expiryDate = appleTransaction.expiresDate
       ? new Date(appleTransaction.expiresDate)
       : (() => {
-          const d = new Date(purchaseDate);
-          if (planId === "pro_yearly") d.setFullYear(d.getFullYear() + 1);
-          else d.setMonth(d.getMonth() + 1);
-          return d;
-        })();
+        const d = new Date(purchaseDate);
+        if (planId === "pro_yearly") d.setFullYear(d.getFullYear() + 1);
+        else d.setMonth(d.getMonth() + 1);
+        return d;
+      })();
 
     // Check subscription hasn't already expired
     if (expiryDate < new Date()) {

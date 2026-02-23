@@ -42,7 +42,7 @@ export const ArenaProvider = ({ children, user: authUser }) => {
 
     // Get real user ID and username from auth
     const userId = authUser?.uid;
-    const username = authUser?.displayName || 'Warrior';
+    const authUsername = authUser?.displayName;
     const userPhoto = authUser?.photoURL;
 
     // Initialize user on mount (when authUser changes)
@@ -60,8 +60,9 @@ export const ArenaProvider = ({ children, user: authUser }) => {
                 let user = await getUserStats(userId);
 
                 if (!user) {
-                    // Create new user if doesn't exist in arena
-                    await initializeUser(userId, username, userPhoto);
+                    // Create new user if doesn't exist in arena, fallback to 'Warrior' ONLY here if auth also lacks a name
+                    const finalUsername = authUsername || 'Warrior';
+                    await initializeUser(userId, finalUsername, userPhoto);
                     user = await getUserStats(userId);
                 }
 
@@ -79,7 +80,7 @@ export const ArenaProvider = ({ children, user: authUser }) => {
         };
 
         initUser();
-    }, [userId, username, userPhoto]);
+    }, [userId, authUsername, userPhoto]);
 
     // Subscribe to leaderboard
     useEffect(() => {
@@ -136,7 +137,7 @@ export const ArenaProvider = ({ children, user: authUser }) => {
         }
     }, [currentUser]);
 
-    const challengePlayer = useCallback(async (opponentId, opponentUsername, opponentXP) => {
+    const challengePlayer = useCallback(async (opponentId, opponentUsername, opponentXP, opponentPhoto) => {
         if (!currentUser) return null;
 
         try {
@@ -144,11 +145,13 @@ export const ArenaProvider = ({ children, user: authUser }) => {
                 {
                     userId: currentUser.id,
                     username: currentUser.username,
+                    photo: currentUser.avatarUrl || userPhoto || null,
                     xp: currentUser.xp
                 },
                 {
                     userId: opponentId,
                     username: opponentUsername,
+                    photo: opponentPhoto || null,
                     xp: opponentXP
                 }
             );

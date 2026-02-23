@@ -14,16 +14,27 @@ import {
 const PremiumContext = createContext(null);
 
 export const PremiumProvider = ({ children, user }) => {
-    const [isPremium, setIsPremium] = useState(false);
-    const [plan, setPlan] = useState('free');
-    const [features, setFeatures] = useState(PRICING_PLANS.free.features);
+    // ⚡ DEV MODE: Set to true to always be Pro (for testing)
+    const DEV_FORCE_PREMIUM = true;
+
+    const [isPremium, setIsPremium] = useState(DEV_FORCE_PREMIUM);
+    const [plan, setPlan] = useState(DEV_FORCE_PREMIUM ? 'pro_monthly' : 'free');
+    const [features, setFeatures] = useState(DEV_FORCE_PREMIUM ? PRICING_PLANS.pro_monthly.features : PRICING_PLANS.free.features);
     const [expiryDate, setExpiryDate] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [showPaywall, setShowPaywall] = useState(false);
     const [paywallFeature, setPaywallFeature] = useState(null);
 
     // Check premium status on mount and user change
     useEffect(() => {
+        if (DEV_FORCE_PREMIUM) {
+            setIsPremium(true);
+            setPlan('pro_monthly');
+            setFeatures(PRICING_PLANS.pro_monthly.features);
+            setLoading(false);
+            return;
+        }
+
         const checkStatus = async () => {
             if (!user?.uid) {
                 setIsPremium(false);

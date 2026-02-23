@@ -19,10 +19,13 @@ const AILabView = React.lazy(() => import('./views/AILabView').then(m => ({ defa
 
 import { NavBtn, ToastProvider, useToast, PageTransition, SkeletonCard, FloatingActionButton } from './components/UIComponents';
 import { OfflineIndicator } from './components/StatusComponents';
-import { SplashScreen, ParticleBackground, PullToRefresh } from './components/PremiumUI';
+import { SplashScreen, PullToRefresh } from './components/PremiumUI';
+import AmbientFX from './components/AmbientFX';
+import VoiceCoach from './components/VoiceCoach';
 import { DashboardSkeleton, WorkoutSkeleton, CardioSkeleton, ArenaSkeleton, ProfileSkeleton, AILabSkeleton } from './components/ViewSkeletons';
 import { EliteFlameIcon, EliteSwordsIcon, EliteDumbbellIcon, EliteBrainIcon, EliteHeartIcon, EliteCrownIcon } from './components/EliteIcons';
 import { useFitnessData } from './hooks/useFitnessData';
+import { useStore } from './hooks/useStore';
 import { SFX, Haptics } from './utils/audio';
 import { ThemeProvider } from './context/ThemeContext';
 // ArenaProvider removed — Arena now uses useFitnessData leaderboard directly
@@ -43,15 +46,23 @@ const MainContent = () => {
   const { addToast } = useToast();
 
   const {
-    user, loading, login, logout, profileLoaded, profileExists, dataLoaded,
-    uploadProfilePic, uploadProgressPhoto,
+    user, loading, profileLoaded, profileExists, dataLoaded,
     meals, progress, burned, workouts, profile, photos,
     leaderboard, chat, following, posts, inbox, globalFeed,
+    battles, error, setActiveTab: setStoreActiveTab
+  } = useStore();
+
+  const {
+    login, logout, uploadProfilePic, uploadProgressPhoto,
     sendMessage, toggleFollow, createPost, sendPrivateMessage,
     updateData, deleteEntry, completeDailyDrop, buyItem, createBattle,
-    isStorageReady, battles,
-    refreshData, error, clearError
-  } = useFitnessData(activeTab);
+    isStorageReady, refreshData, clearError
+  } = useFitnessData();
+
+  // Sync local activeTab to the Zustand store
+  useEffect(() => {
+    setStoreActiveTab(activeTab);
+  }, [activeTab, setStoreActiveTab]);
 
   // Surface hook errors as toasts
   useEffect(() => {
@@ -127,7 +138,7 @@ const MainContent = () => {
         StatusBar.setStyle({ style: Style.Dark });
         StatusBar.setBackgroundColor({ color: '#000000' });
         StatusBar.setOverlaysWebView({ overlay: true });
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }, []);
 
@@ -141,23 +152,30 @@ const MainContent = () => {
     return () => clearTimeout(timer);
   }, [user, loading]);
 
-  // CHECK FOR ONBOARDING STATUS - Only ONCE after profile first loads from Firestore
-  const onboardingChecked = useRef(false);
+  // CHECK FOR ONBOARDING STATUS
+  // Check once per user login
+  const checkedUid = useRef(null);
   useEffect(() => {
-    if (onboardingChecked.current) return;
     if (!user || !profileLoaded || loading) return;
 
-    onboardingChecked.current = true;
+    // If UID changed, reset check (handles logout/login as different user)
+    if (checkedUid.current === user.uid) return;
+    checkedUid.current = user.uid;
+
     // Check localStorage first (instant, survives offline/slow Firestore)
     const localOnboarded = localStorage.getItem(`ironai_onboarded_${user.uid}`);
     if (localOnboarded === 'true') {
       setShowOnboarding(false);
       return;
     }
+
     // Fallback: check Firestore profile
-    const needsOnboarding = !profileExists || !profile.onboarded;
+    // Robust check: needs onboarding if profile doesn't exist OR it lacks the onboarded flag AND lacks basic calorie targets
+    const hasData = meals.length > 0 || workouts.length > 0;
+    const needsOnboarding = (!profileExists || (!profile.onboarded && !profile.dailyCalories)) && !hasData;
+
     setShowOnboarding(needsOnboarding);
-  }, [user, profile, loading, profileLoaded, profileExists]);
+  }, [user, profile, loading, profileLoaded, profileExists, meals, workouts]);
 
   const handleOnboardingComplete = (data) => {
     // Dismiss onboarding IMMEDIATELY — don't block on Firestore write
@@ -221,8 +239,8 @@ const MainContent = () => {
   return (
     <PremiumProvider user={user}>
       <div className="min-h-screen text-gray-100 font-sans selection:bg-red-500/30 pb-safe-area-inset-bottom" style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)' }}>
-        {/* Background Particles — disabled on mobile for performance */}
-        {window.innerWidth > 768 && <ParticleBackground count={20} />}
+        {/* Background Ambient Living Light — disabled on mobile for performance */}
+        {window.innerWidth > 768 && <AmbientFX count={15} />}
 
         {/* Offline Indicator */}
         <OfflineIndicator />
@@ -244,69 +262,69 @@ const MainContent = () => {
             await new Promise(r => setTimeout(r, 600));
             addToast('Data synced', 'info');
           }}>
-          <div
-            ref={viewportRef}
-            onScroll={handleScroll}
-            className="p-5 overflow-y-auto overflow-x-hidden scrollbar-hide"
-            style={{ height: '100dvh', paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}
-          >
-            <AnimatePresence mode="wait">
-              {activeTab === 'dashboard' && (
-                <PageTransition key="dashboard" direction={direction}>
-                  <ViewErrorBoundary viewName="Dashboard">
-                    <React.Suspense fallback={<DashboardSkeleton />}>
-                      <DashboardView meals={meals} burned={burned} workouts={workouts} updateData={updateData} deleteEntry={deleteEntry} profile={profile} uploadProfilePic={uploadProfilePic} user={user} completeDailyDrop={completeDailyDrop} buyItem={buyItem} isStorageReady={isStorageReady} dataLoaded={dataLoaded} />
-                    </React.Suspense>
-                  </ViewErrorBoundary>
-                </PageTransition>
-              )}
-              {activeTab === 'workout' && (
-                <PageTransition key="workout" direction={direction}>
-                  <ViewErrorBoundary viewName="Workout">
-                    <React.Suspense fallback={<WorkoutSkeleton />}>
-                      <WorkoutView workouts={workouts} updateData={updateData} deleteEntry={deleteEntry} />
-                    </React.Suspense>
-                  </ViewErrorBoundary>
-                </PageTransition>
-              )}
-              {activeTab === 'cardio' && (
-                <PageTransition key="cardio" direction={direction}>
-                  <ViewErrorBoundary viewName="Cardio">
-                    <React.Suspense fallback={<CardioSkeleton />}>
-                      <CardioView progress={progress} profile={profile} updateData={updateData} setActiveTab={setActiveTab} />
-                    </React.Suspense>
-                  </ViewErrorBoundary>
-                </PageTransition>
-              )}
-              {activeTab === 'arena' && (
-                <PageTransition key="arena" direction={direction}>
-                  <ViewErrorBoundary viewName="Arena">
-                    <React.Suspense fallback={<ArenaSkeleton />}>
-                      <ArenaView user={user} workouts={workouts} meals={meals} burned={burned} leaderboard={leaderboard} profile={profile} chat={chat} sendMessage={sendMessage} battles={battles} createBattle={createBattle} />
-                    </React.Suspense>
-                  </ViewErrorBoundary>
-                </PageTransition>
-              )}
-              {activeTab === 'profile' && (
-                <PageTransition key="profile" direction={direction}>
-                  <ViewErrorBoundary viewName="Profile">
-                    <React.Suspense fallback={<ProfileSkeleton />}>
-                      <ProfileHub profile={profile} progress={progress} meals={meals} burned={burned} workouts={workouts} leaderboard={leaderboard} photos={photos} deleteEntry={deleteEntry} uploadProfilePic={uploadProfilePic} uploadProgressPhoto={uploadProgressPhoto} onLogout={logout} isStorageReady={isStorageReady} user={user} />
-                    </React.Suspense>
-                  </ViewErrorBoundary>
-                </PageTransition>
-              )}
-              {activeTab === 'ailab' && (
-                <PageTransition key="ailab" direction={direction}>
-                  <ViewErrorBoundary viewName="AI Lab">
-                    <React.Suspense fallback={<AILabSkeleton />}>
-                      <AILabView workouts={workouts} meals={meals} profile={profile} updateData={updateData} weight={latestWeight} />
-                    </React.Suspense>
-                  </ViewErrorBoundary>
-                </PageTransition>
-              )}
-            </AnimatePresence>
-          </div>
+            <div
+              ref={viewportRef}
+              onScroll={handleScroll}
+              className="p-5 overflow-y-auto overflow-x-hidden scrollbar-hide"
+              style={{ height: '100dvh', paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}
+            >
+              <AnimatePresence mode="wait">
+                {activeTab === 'dashboard' && (
+                  <PageTransition key="dashboard" direction={direction}>
+                    <ViewErrorBoundary viewName="Dashboard">
+                      <React.Suspense fallback={<DashboardSkeleton />}>
+                        <DashboardView meals={meals} burned={burned} workouts={workouts} updateData={updateData} deleteEntry={deleteEntry} profile={profile} uploadProfilePic={uploadProfilePic} user={user} completeDailyDrop={completeDailyDrop} buyItem={buyItem} isStorageReady={isStorageReady} dataLoaded={dataLoaded} />
+                      </React.Suspense>
+                    </ViewErrorBoundary>
+                  </PageTransition>
+                )}
+                {activeTab === 'workout' && (
+                  <PageTransition key="workout" direction={direction}>
+                    <ViewErrorBoundary viewName="Workout">
+                      <React.Suspense fallback={<WorkoutSkeleton />}>
+                        <WorkoutView />
+                      </React.Suspense>
+                    </ViewErrorBoundary>
+                  </PageTransition>
+                )}
+                {activeTab === 'cardio' && (
+                  <PageTransition key="cardio" direction={direction}>
+                    <ViewErrorBoundary viewName="Cardio">
+                      <React.Suspense fallback={<CardioSkeleton />}>
+                        <CardioView />
+                      </React.Suspense>
+                    </ViewErrorBoundary>
+                  </PageTransition>
+                )}
+                {activeTab === 'arena' && (
+                  <PageTransition key="arena" direction={direction}>
+                    <ViewErrorBoundary viewName="Arena">
+                      <React.Suspense fallback={<ArenaSkeleton />}>
+                        <ArenaView user={user} workouts={workouts} meals={meals} burned={burned} leaderboard={leaderboard} profile={profile} chat={chat} sendMessage={sendMessage} battles={battles} createBattle={createBattle} />
+                      </React.Suspense>
+                    </ViewErrorBoundary>
+                  </PageTransition>
+                )}
+                {activeTab === 'profile' && (
+                  <PageTransition key="profile" direction={direction}>
+                    <ViewErrorBoundary viewName="Profile">
+                      <React.Suspense fallback={<ProfileSkeleton />}>
+                        <ProfileHub deleteEntry={deleteEntry} onLogout={logout} />
+                      </React.Suspense>
+                    </ViewErrorBoundary>
+                  </PageTransition>
+                )}
+                {activeTab === 'ailab' && (
+                  <PageTransition key="ailab" direction={direction}>
+                    <ViewErrorBoundary viewName="AI Lab">
+                      <React.Suspense fallback={<AILabSkeleton />}>
+                        <AILabView workouts={workouts} meals={meals} profile={profile} updateData={updateData} weight={latestWeight} />
+                      </React.Suspense>
+                    </ViewErrorBoundary>
+                  </PageTransition>
+                )}
+              </AnimatePresence>
+            </div>
           </PullToRefresh>
 
 
@@ -323,10 +341,12 @@ const MainContent = () => {
             />
           )}
 
+          {/* VOICE COACH — Floating Mic Button */}
+          <VoiceCoach updateData={updateData} />
           {/* BOTTOM NAV - LIQUID GLASS FLOATING DOCK */}
           <motion.div
             className="fixed bottom-0 left-0 right-0 z-40 p-3"
-            animate={{ y: navVisible ? 0 : 120, opacity: navVisible ? 1 : 0 }}
+            animate={{ y: navVisible ? 0 : 120 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 8px) + 8px)' }}
           >

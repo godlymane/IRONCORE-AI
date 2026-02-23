@@ -25,7 +25,8 @@ export const ArenaView = ({
     const chatEndRef = useRef(null);
 
     const xp = profile?.xp || 0;
-    const level = Math.floor(xp / 500) + 1;
+    const levelData = getLevel(xp, LEVELS);
+    const level = levelData.level || Math.floor(xp / 500) + 1;
 
     // Auto-scroll chat
     useEffect(() => {
@@ -114,10 +115,26 @@ export const ArenaView = ({
                 </div>
             </GlassCard>
 
-            {/* Tab Switcher */}
-            <div className="flex p-1 bg-white/5 rounded-xl border border-white/10">
+            {/* Tab Switcher — Polished Pill */}
+            <div className="relative flex p-1 rounded-2xl border border-white/10" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                {/* Sliding Active Indicator */}
+                <motion.div
+                    className="absolute z-0 rounded-xl"
+                    style={{
+                        width: `calc((100% - 8px) / 3)`,
+                        height: 'calc(100% - 8px)',
+                        top: '4px',
+                        background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.5) 0%, rgba(185, 28, 28, 0.3) 100%)',
+                        boxShadow: '0 0 20px rgba(220, 38, 38, 0.4)',
+                        border: '1px solid rgba(220, 38, 38, 0.4)',
+                    }}
+                    animate={{
+                        left: `calc(${['leaderboard', 'chat', 'battles'].indexOf(arenaTab)} * (100% - 8px) / 3 + 4px)`,
+                    }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                />
                 {[
-                    { id: 'leaderboard', label: 'Leaderboard', icon: Trophy, premium: false },
+                    { id: 'leaderboard', label: 'Ranks', icon: Trophy, premium: false },
                     { id: 'chat', label: 'Locker Room', icon: MessageCircle, premium: false },
                     { id: 'battles', label: 'Battles', icon: Swords, premium: true },
                 ].map(tab => (
@@ -130,11 +147,10 @@ export const ArenaView = ({
                             }
                             setArenaTab(tab.id);
                         }}
-                        className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
-                            arenaTab === tab.id
-                                ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
-                                : 'text-gray-400 hover:text-white hover:bg-white/5'
-                        }`}
+                        className={`relative z-10 flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5 ${arenaTab === tab.id
+                            ? 'text-white'
+                            : 'text-gray-500 hover:text-gray-300'
+                            }`}
                     >
                         <tab.icon size={14} />
                         {tab.label}
@@ -161,11 +177,10 @@ export const ArenaView = ({
                                 return (
                                     <div
                                         key={entry.userId || i}
-                                        className={`flex items-center gap-3 p-3 rounded-2xl transition-all ${
-                                            isMe
-                                                ? 'bg-gradient-to-r from-red-900/40 to-red-800/20 border-2 border-red-500/40'
-                                                : 'bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.06]'
-                                        }`}
+                                        className={`flex items-center gap-3 p-3 rounded-2xl transition-all ${isMe
+                                            ? 'bg-gradient-to-r from-red-900/40 to-red-800/20 border-2 border-red-500/40'
+                                            : 'bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.06]'
+                                            }`}
                                     >
                                         <div className="w-8 text-center flex-shrink-0">
                                             {getRankBadge(rank)}
@@ -188,7 +203,7 @@ export const ArenaView = ({
                                                     <span className="px-1.5 py-0.5 bg-red-600 rounded text-[10px] font-bold text-white flex-shrink-0">YOU</span>
                                                 )}
                                             </div>
-                                            <p className="text-[11px] text-gray-500">Lv.{entryLevel} • {(entry.xp || 0).toLocaleString()} XP</p>
+                                            <p className="text-[11px] text-gray-500">Lv.{getLevel(entry.xp || 0, LEVELS).level || entryLevel} • {(entry.xp || 0).toLocaleString()} XP</p>
                                         </div>
                                         {entry.todayVolume > 0 && (
                                             <div className="text-right flex-shrink-0">
@@ -230,11 +245,10 @@ export const ArenaView = ({
                                                 </div>
                                                 <div className={`max-w-[75%] ${isMe ? 'text-right' : ''}`}>
                                                     <p className="text-[10px] text-gray-500 font-bold mb-0.5">{msg.username || 'Anon'}</p>
-                                                    <div className={`px-3 py-2 rounded-2xl text-sm ${
-                                                        isMe
-                                                            ? 'bg-red-600/80 text-white rounded-tr-sm'
-                                                            : 'bg-white/[0.06] text-gray-200 rounded-tl-sm'
-                                                    }`}>
+                                                    <div className={`px-3 py-2 rounded-2xl text-sm ${isMe
+                                                        ? 'bg-red-600/80 text-white rounded-tr-sm'
+                                                        : 'bg-white/[0.06] text-gray-200 rounded-tl-sm'
+                                                        }`}>
                                                         {msg.text}
                                                     </div>
                                                 </div>
@@ -281,14 +295,21 @@ export const ArenaView = ({
                             </GlassCard>
                         ) : (
                             battles.map((battle, i) => {
-                                const isChallenger = battle.challengerId === user?.uid;
-                                const opponentName = isChallenger ? battle.opponentName : battle.challengerName;
+                                const isChallenger = battle.challenger?.userId === user?.uid;
+                                const opponent = isChallenger ? battle.opponent : battle.challenger;
+                                const opponentName = opponent?.username || 'Unknown Warrior';
+                                const opponentPhoto = opponent?.photo;
+
                                 return (
                                     <GlassCard key={battle.id || i} className="!p-4">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-full bg-red-600/20 border border-red-500/30 flex items-center justify-center">
-                                                    <Swords size={18} className="text-red-400" />
+                                                <div className="w-10 h-10 rounded-full bg-gray-800 overflow-hidden border border-white/20 flex flex-shrink-0 items-center justify-center">
+                                                    {opponentPhoto ? (
+                                                        <img src={opponentPhoto} alt="" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <Swords size={18} className="text-red-400" />
+                                                    )}
                                                 </div>
                                                 <div>
                                                     <p className="font-bold text-white">vs {opponentName}</p>
@@ -297,11 +318,10 @@ export const ArenaView = ({
                                                     </p>
                                                 </div>
                                             </div>
-                                            <div className={`px-3 py-1 rounded-lg text-xs font-bold ${
-                                                battle.status === 'active'
-                                                    ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                                                    : 'bg-gray-500/20 text-gray-400 border border-gray-500/30'
-                                            }`}>
+                                            <div className={`px-3 py-1 rounded-lg text-xs font-bold ${battle.status === 'active'
+                                                ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                                : 'bg-gray-500/20 text-gray-400 border border-gray-500/30'
+                                                }`}>
                                                 {battle.status === 'active' ? 'LIVE' : battle.status?.toUpperCase()}
                                             </div>
                                         </div>

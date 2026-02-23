@@ -8,21 +8,16 @@ import { PremiumIcon } from '../components/PremiumIcon';
 import { GlassCard } from '../components/UIComponents';
 import { ProfileSkeleton } from '../components/ViewSkeletons';
 import { TrophyIconShape, ProteinBoltIcon, DumbbellIcon, UtensilsIcon } from '../components/IronCoreIcons';
+import { useStore } from '../hooks/useStore';
 
 export const ProfileHub = ({
-    profile = {},
-    progress = [],
-    photos = [],
-    meals = [],
-    workouts = [],
-    burned = [],
-    leaderboard = [],
     deleteEntry,
-    uploadProfilePic,
-    onLogout,
-    isStorageReady,
-    user
+    onLogout
 }) => {
+    // Read state from Zustand store for optimal performance!
+    const {
+        user, profile, progress, photos, meals, workouts, burned, leaderboard
+    } = useStore();
     const [subTab, setSubTab] = useState('overview');
     const xp = profile?.xp || 0;
     const level = Math.floor(xp / 500) + 1;
@@ -132,11 +127,10 @@ export const ProfileHub = ({
                 ))}
             </div>
 
-            {/* Content */}
             <div className="min-h-[50vh]">
-                {subTab === 'overview' && <TrackView profile={profile} progress={progress} />}
-                {subTab === 'history' && <ChronicleView meals={meals} burned={burned} workouts={workouts} progress={progress} user={{}} deleteEntry={deleteEntry} profile={profile} />}
-                {subTab === 'stats' && <StatsView leaderboard={leaderboard} profile={profile} progress={progress} meals={meals} workouts={workouts} />}
+                {subTab === 'overview' && <TrackView />}
+                {subTab === 'history' && <ChronicleView deleteEntry={deleteEntry} />}
+                {subTab === 'stats' && <StatsView />}
                 {subTab === 'gallery' && <ProgressPhotos userId={user?.uid} />}
             </div>
         </div>

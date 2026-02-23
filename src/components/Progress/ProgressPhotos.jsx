@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { uploadPhoto, getPhotos, deletePhoto } from '../../services/photoService';
 import { GlassCard } from '../UIComponents';
 import { usePremium } from '../../context/PremiumContext';
+import { useStore } from '../../hooks/useStore';
 
 const ViewToggle = ({ active, onChange }) => (
     <div className="flex bg-black/20 p-1 rounded-xl">
@@ -12,8 +13,8 @@ const ViewToggle = ({ active, onChange }) => (
                 key={view}
                 onClick={() => onChange(view)}
                 className={`flex-1 py-2 px-4 rounded-lg text-xs font-bold uppercase transition-all ${active === view
-                        ? 'bg-white/10 text-white shadow-lg'
-                        : 'text-gray-500 hover:text-white/70'
+                    ? 'bg-white/10 text-white shadow-lg'
+                    : 'text-gray-500 hover:text-white/70'
                     }`}
             >
                 {view}
@@ -34,8 +35,8 @@ const PhotoGrid = ({ photos, onDelete, onSelect, selectionMode, selectedIds }) =
                 <div
                     key={photo.id}
                     className={`relative group aspect-[3/4] rounded-2xl overflow-hidden cursor-pointer border transition-all ${selectedIds?.includes(photo.id)
-                            ? 'border-red-500 ring-2 ring-red-500/50 scale-[0.98]'
-                            : 'border-white/10 hover:border-white/30'
+                        ? 'border-red-500 ring-2 ring-red-500/50 scale-[0.98]'
+                        : 'border-white/10 hover:border-white/30'
                         }`}
                     onClick={() => onSelect && onSelect(photo)}
                 >
@@ -173,7 +174,9 @@ const ComparisonView = ({ photos }) => {
     );
 };
 
-const UploadView = ({ onUpload, userId }) => {
+const UploadView = ({ onUpload }) => {
+    const { user } = useStore();
+    const userId = user?.uid;
     const fileRef = useRef(null);
     const [file, setFile] = useState(null);
     const [preview, setPreview] = useState(null);
@@ -235,8 +238,8 @@ const UploadView = ({ onUpload, userId }) => {
                                 key={t}
                                 onClick={() => setType(t)}
                                 className={`py-3 rounded-xl text-xs font-bold uppercase border ${type === t
-                                        ? 'bg-red-600 border-red-500 text-white'
-                                        : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                                    ? 'bg-red-600 border-red-500 text-white'
+                                    : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
                                     }`}
                             >
                                 {t}
@@ -266,7 +269,9 @@ const UploadView = ({ onUpload, userId }) => {
     );
 };
 
-export const ProgressPhotos = ({ userId }) => {
+export const ProgressPhotos = () => {
+    const { user } = useStore();
+    const userId = user?.uid;
     const [view, setView] = useState('gallery');
     const [photos, setPhotos] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -367,7 +372,7 @@ export const ProgressPhotos = ({ userId }) => {
                                         </button>
                                     </div>
                                 ) : (
-                                    <UploadView onUpload={handleUploadWrapper} userId={userId} />
+                                    <UploadView onUpload={handleUploadWrapper} />
                                 )
                             )}
                         </>

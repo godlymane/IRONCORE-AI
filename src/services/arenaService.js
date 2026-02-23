@@ -381,11 +381,13 @@ export const createBattle = async (challenger, opponent, battleType = 'ranked') 
             challenger: {
                 userId: challenger.userId,
                 username: challenger.username,
+                photo: challenger.photo || null,
                 xp: challenger.xp || 0
             },
             opponent: {
                 userId: opponent.userId,
                 username: opponent.username,
+                photo: opponent.photo || null,
                 xp: opponent.xp || 0
             },
             status: 'pending',
@@ -579,11 +581,12 @@ export const subscribeToPendingBattles = (userId, callback) => {
  * @param {string} username 
  * @param {string} message 
  */
-export const sendChatMessage = async (userId, username, message) => {
+export const sendChatMessage = async (userId, username, photo, message) => {
     try {
         await addDoc(collection(db, 'global', 'data', 'chat'), {
             userId,
             username,
+            photo,
             message,
             timestamp: serverTimestamp()
         });
