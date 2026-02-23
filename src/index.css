@@ -60,18 +60,24 @@ body {
   width: 100%;
   transition: background-color 0.3s ease, color 0.3s ease;
 
-  /* Mobile optimizations */
+  /* Mobile optimizations - Native App Feel */
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
-  overscroll-behavior: none;
+  overscroll-behavior-y: none;
   touch-action: pan-y;
 
   /* Safe area support */
   padding-top: env(safe-area-inset-top);
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
+}
+
+/* Allow text selection in inputs despite user-select: none on body */
+input, textarea {
+  -webkit-user-select: auto;
+  user-select: auto;
 }
 
 /* =============================================
@@ -954,7 +960,7 @@ html {
    MOBILE MINIMUM FONT SIZE SAFETY NET
    ============================================= */
 @media (max-width: 768px) {
-  .text-\[9px\], .text-\[10px\] {
+  .text-\\[9px\\], .text-\\[10px\\] {
     font-size: 11px !important;
   }
 }
