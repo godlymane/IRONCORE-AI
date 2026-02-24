@@ -1,1 +1,62 @@
-{\n  \"appId\": \"com.ironcore.ai\",\n  \"appName\": \"IronCore AI\",\n  \"webDir\": \"dist\",\n  \"backgroundColor\": \"#000000\",\n  \"server\": {\n    \"androidScheme\": \"https\",\n    \"iosScheme\": \"https\",\n    \"hostname\": \"ironcore-f68c2.firebaseapp.com\",\n    \"allowNavigation\": [\n      \"ironcore-f68c2.firebaseapp.com\",\n      \"*.google.com\",\n      \"*.googleapis.com\",\n      \"*.googleusercontent.com\",\n      \"*.gstatic.com\",\n      \"accounts.google.com\"\n    ]\n  },\n  \"plugins\": {\n    \"StatusBar\": {\n      \"style\": \"DARK\",\n      \"backgroundColor\": \"#000000\",\n      \"overlaysWebView\": true\n    },\n    \"Keyboard\": {\n      \"resize\": \"body\",\n      \"resizeOnFullScreen\": true,\n      \"style\": \"DARK\"\n    },\n    \"SplashScreen\": {\n      \"launchShowDuration\": 0,\n      \"launchAutoHide\": false,\n      \"backgroundColor\": \"#000000\",\n      \"androidSplashResourceName\": \"splash\",\n      \"androidScaleType\": \"CENTER_CROP\",\n      \"showSpinner\": false,\n      \"splashFullScreen\": true,\n      \"splashImmersive\": true\n    },\n    \"Haptics\": {},\n    \"CapacitorHttp\": {\n      \"enabled\": true\n    },\n    \"FirebaseAuthentication\": {\n      \"skipNativeAuth\": false,\n      \"providers\": [\"google.com\"]\n    }\n  },\n  \"ios\": {\n    \"contentInset\": \"always\",\n    \"allowsLinkPreview\": false,\n    \"scrollEnabled\": false,\n    \"backgroundColor\": \"#000000\",\n    \"appendUserAgent\": \"IronCoreApp\"\n  },\n  \"android\": {\n    \"allowMixedContent\": false,\n    \"backgroundColor\": \"#000000\",\n    \"useLegacyBridge\": false,\n    \"appendUserAgent\": \"IronCoreApp\"\n  }\n}\n
+{
+  "appId": "com.ironcore.ai",
+  "appName": "IronCore AI",
+  "webDir": "dist",
+  "backgroundColor": "#000000",
+  "server": {
+    "androidScheme": "https",
+    "iosScheme": "https",
+    "hostname": "ironcore-f68c2.firebaseapp.com",
+    "allowNavigation": [
+      "ironcore-f68c2.firebaseapp.com",
+      "*.google.com",
+      "*.googleapis.com",
+      "*.googleusercontent.com",
+      "*.gstatic.com",
+      "accounts.google.com"
+    ]
+  },
+  "plugins": {
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#000000",
+      "overlaysWebView": true
+    },
+    "Keyboard": {
+      "resize": "body",
+      "resizeOnFullScreen": true,
+      "style": "DARK"
+    },
+    "SplashScreen": {
+      "launchShowDuration": 0,
+      "launchAutoHide": false,
+      "backgroundColor": "#000000",
+      "androidSplashResourceName": "splash",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false,
+      "splashFullScreen": true,
+      "splashImmersive": true
+    },
+    "Haptics": {},
+    "CapacitorHttp": {
+      "enabled": true
+    },
+    "FirebaseAuthentication": {
+      "skipNativeAuth": false,
+      "providers": ["google.com"]
+    }
+  },
+  "ios": {
+    "contentInset": "always",
+    "allowsLinkPreview": false,
+    "scrollEnabled": false,
+    "backgroundColor": "#000000",
+    "appendUserAgent": "IronCoreApp"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#000000",
+    "useLegacyBridge": false,
+    "appendUserAgent": "IronCoreApp"
+  }
+}
