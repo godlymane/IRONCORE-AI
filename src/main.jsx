@@ -3,13 +3,14 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
 import { initializePushNotifications } from './services/pushNotificationService'
+import { initializeCapacitor } from './lib/capacitorInit'
 
-// Register service worker and initialize push notifications
+initializeCapacitor();
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
       const result = await initializePushNotifications();
-      // Push notifications initialized
     } catch (error) {
       console.warn('Push notification setup failed:', error);
     }
@@ -21,6 +22,3 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <App />
   </React.StrictMode>,
 )
-
-
-
