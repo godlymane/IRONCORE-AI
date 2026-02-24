@@ -3,6 +3,7 @@
 
 <head>
   <meta charset="UTF-8" />
+  <!-- CRITICAL FIX #1: Add viewport-fit=cover for Capacitor 8 safe areas -->
   <meta name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
 
@@ -54,17 +55,38 @@
   <!-- Splash screens for iOS -->
   <meta name="apple-touch-startup-image" content="/splash.png" />
 
-  <!-- Native App CSS Overrides -->
+  <!-- Native App CSS Overrides + Safe Area Support -->
   <style>
+    /* Root CSS variables for safe area insets (read by JS if needed) */
+    :root {
+      --sai-top: env(safe-area-inset-top, 0px);
+      --sai-right: env(safe-area-inset-right, 0px);
+      --sai-bottom: env(safe-area-inset-bottom, 0px);
+      --sai-left: env(safe-area-inset-left, 0px);
+    }
+
     body {
       overscroll-behavior-y: none;
       -webkit-touch-callout: none;
       -webkit-user-select: none;
       user-select: none;
+      
+      /* CRITICAL: Apply safe area padding to body for Capacitor 8 */
+      /* This ensures content doesn't get clipped behind notches/nav bars */
+      padding-top: env(safe-area-inset-top);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+      /* Note: bottom padding handled per-component (nav bars, etc) */
     }
+    
     input, textarea {
       -webkit-user-select: auto;
       user-select: auto;
+    }
+
+    /* iOS keyboard fix: prevent zoom on input focus */
+    input, select, textarea {
+      font-size: 16px !important;
     }
   </style>
 </head>
