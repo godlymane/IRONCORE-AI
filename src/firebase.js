@@ -1,8 +1,9 @@
 // Firebase Configuration for IronCore AI
 import { initializeApp } from 'firebase/app';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
+import { Capacitor } from '@capacitor/core';
 
 
 const firebaseConfig = {
@@ -17,9 +18,12 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize services — persistentLocalCache supports multi-tab (replaces deprecated enableIndexedDbPersistence)
+// Native = single tab (WebView), Web = multi-tab (browser)
+const isNative = Capacitor.isNativePlatform();
+const tabMgr = isNative ? persistentSingleTabManager({}) : persistentMultipleTabManager();
+
 export const db = initializeFirestore(app, {
-    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    localCache: persistentLocalCache({ tabManager: tabMgr })
 });
 export const auth = getAuth(app);
 

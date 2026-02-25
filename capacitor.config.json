@@ -6,7 +6,6 @@
   "server": {
     "androidScheme": "https",
     "iosScheme": "https",
-    "hostname": "ironcore-f68c2.firebaseapp.com",
     "allowNavigation": [
       "ironcore-f68c2.firebaseapp.com",
       "*.google.com",
@@ -39,7 +38,7 @@
     },
     "Haptics": {},
     "CapacitorHttp": {
-      "enabled": true
+      "enabled": false
     }
   },
   "ios": {

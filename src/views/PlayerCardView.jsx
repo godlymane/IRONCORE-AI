@@ -1,14 +1,14 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
-import { Shield, Copy, Check, Download, ChevronRight, AlertCircle, Loader2, Dumbbell } from 'lucide-react';
+import { Shield, Copy, Check, Download, ChevronRight, AlertCircle, Loader2, Dumbbell, KeyRound } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { generatePhrase, hashPhrase, validateUsername } from '../utils/playerIdentity';
 import { PinEntryView } from './PinEntryView';
 import { SFX, Haptics } from '../utils/audio';
 
 // ─── Username Creation Screen ───────────────────────────────────
-const UsernameScreen = ({ onNext, onRecover }) => {
+const UsernameScreen = ({ onNext, onRecover, createError }) => {
   const [username, setUsername] = useState('');
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState('');
@@ -89,6 +89,7 @@ const UsernameScreen = ({ onNext, onRecover }) => {
         </div>
 
         {error && <p className="text-xs text-red-400 mb-4">{error}</p>}
+        {createError && <p className="text-xs text-orange-400 mb-4 p-2 bg-orange-500/10 rounded-lg">{createError}</p>}
         {available && <p className="text-xs text-green-400 mb-4">@{username} is available</p>}
 
         {/* Create Button */}
@@ -101,9 +102,20 @@ const UsernameScreen = ({ onNext, onRecover }) => {
           Create My Identity
         </button>
 
-        {/* Recover Link */}
-        <button onClick={onRecover} className="mt-6 text-xs text-gray-500 hover:text-white transition-colors">
-          Already have an account? <span className="text-red-400 font-bold">Recover</span>
+        {/* Divider */}
+        <div className="flex items-center gap-3 mt-8 mb-4">
+          <div className="flex-1 h-px bg-white/10" />
+          <span className="text-[10px] text-gray-600 uppercase tracking-widest">or</span>
+          <div className="flex-1 h-px bg-white/10" />
+        </div>
+
+        {/* Recovery / Login Button */}
+        <button
+          onClick={onRecover}
+          className="w-full py-3.5 rounded-2xl font-bold uppercase tracking-wider text-sm text-white border border-white/10 bg-white/5 active:bg-white/10 transition-all flex items-center justify-center gap-2"
+        >
+          <KeyRound size={16} className="text-red-400" />
+          I Have a Recovery Phrase
         </button>
       </motion.div>
     </div>
@@ -302,16 +314,24 @@ export const PlayerCardView = ({ onComplete, onRecover }) => {
   const [username, setUsername] = useState('');
   const [phrase, setPhrase] = useState('');
   const [uid, setUid] = useState('');
+  const [createError, setCreateError] = useState('');
 
   const handleUsernameChosen = async (name) => {
     setUsername(name);
     setStep('creating');
+    setCreateError('');
 
     try {
-      const { signInAnonymously } = await import('firebase/auth');
-      const { auth } = await import('../firebase');
-      const result = await signInAnonymously(auth);
-      const user = result.user;
+      // Step 1: Anonymous sign-in
+      let user;
+      try {
+        const { signInAnonymously } = await import('firebase/auth');
+        const { auth } = await import('../firebase');
+        const result = await signInAnonymously(auth);
+        user = result.user;
+      } catch (authErr) {
+        throw new Error(`Auth failed: ${authErr.code || authErr.message}`);
+      }
       setUid(user.uid);
 
       const newPhrase = generatePhrase();
@@ -321,22 +341,37 @@ export const PlayerCardView = ({ onComplete, onRecover }) => {
       const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
       const { db } = await import('../firebase');
 
-      // Claim username
-      await setDoc(doc(db, 'usernames', name), {
-        uid: user.uid,
-        createdAt: serverTimestamp(),
-      });
+      // Step 2: Claim username
+      try {
+        const { getDoc: gd } = await import('firebase/firestore');
+        const unSnap = await gd(doc(db, 'usernames', name));
+        if (unSnap.exists() && unSnap.data().uid !== user.uid) {
+          throw new Error('Username taken by another account. Try a different name.');
+        }
+        await setDoc(doc(db, 'usernames', name), {
+          uid: user.uid,
+          createdAt: serverTimestamp(),
+        });
+      } catch (unErr) {
+        if (unErr.message?.includes('Try a different')) throw unErr;
+        throw new Error(`Username claim failed: ${unErr.code || unErr.message}`);
+      }
 
-      // Write profile
-      await setDoc(doc(db, 'users', user.uid, 'data', 'profile'), {
-        username: name,
-        phraseHash: phraseH,
-        createdAt: serverTimestamp(),
-      }, { merge: true });
+      // Step 3: Write profile
+      try {
+        await setDoc(doc(db, 'users', user.uid, 'data', 'profile'), {
+          username: name,
+          phraseHash: phraseH,
+          createdAt: serverTimestamp(),
+        }, { merge: true });
+      } catch (profErr) {
+        throw new Error(`Profile write failed: ${profErr.code || profErr.message}`);
+      }
 
       setStep('pin');
     } catch (e) {
       console.error('Account creation error:', e);
+      setCreateError(e.message || String(e));
       setStep('username');
     }
   };
@@ -351,6 +386,8 @@ export const PlayerCardView = ({ onComplete, onRecover }) => {
       setStep('reveal');
     } catch (e) {
       console.error('PIN save error:', e);
+      setCreateError(`PIN save failed: ${e.code || e.message}`);
+      setStep('username');
     }
   };
 
@@ -387,5 +424,5 @@ export const PlayerCardView = ({ onComplete, onRecover }) => {
 
   if (step === 'pin') return <PinEntryView mode="setup" onComplete={handlePinSet} />;
   if (step === 'reveal') return <CardRevealScreen username={username} phrase={phrase} onSaved={handleCardSaved} />;
-  return <UsernameScreen onNext={handleUsernameChosen} onRecover={onRecover} />;
+  return <UsernameScreen onNext={handleUsernameChosen} onRecover={onRecover} createError={createError} />;
 };
