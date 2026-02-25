@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import {
     Settings, Download, Bell, BellOff, Palette, FileText,
     Shield, LogOut, ChevronRight, Check, Clock, Moon, Sun,
-    Database, Share2, Trash2
+    Database, Share2, Trash2, Cpu, Zap, Hand
 } from 'lucide-react';
 import { exportWorkouts, exportMeals, exportAllData } from '../../utils/exportUtils';
 import {
@@ -14,6 +14,7 @@ import {
     removeWorkoutReminder
 } from '../../services/pushNotificationService';
 import { usePremium } from '../../context/PremiumContext';
+import { getPerformanceMode, setPerformanceMode } from '../../lib/performanceMonitor';
 
 export const SettingsPanel = ({
     workouts = [],
@@ -28,11 +29,17 @@ export const SettingsPanel = ({
     const [showReminderPicker, setShowReminderPicker] = useState(false);
     const [selectedTime, setSelectedTime] = useState({ hour: 9, minute: 0 });
     const [exportLoading, setExportLoading] = useState(null);
+    const [perfMode, setPerfMode] = useState(getPerformanceMode);
 
     useEffect(() => {
         setNotificationStatus(getNotificationPermission());
         setReminders(getWorkoutReminders());
     }, []);
+
+    const handlePerfModeChange = (mode) => {
+        setPerfMode(mode);
+        setPerformanceMode(mode);
+    };
 
     const handleEnableNotifications = async () => {
         const result = await requestNotificationPermission();
@@ -201,6 +208,39 @@ export const SettingsPanel = ({
                         )}
                     </div>
                 )}
+            </div>
+
+            {/* AI Performance Mode */}
+            <div className="space-y-3">
+                <h3 className="text-sm font-bold text-white/50 uppercase tracking-wider">AI Camera</h3>
+                <div className="space-y-2">
+                    {[
+                        { mode: 'auto', icon: Zap, label: 'Auto', desc: 'Best quality — auto-detects low-end devices' },
+                        { mode: 'low_power', icon: Cpu, label: 'Low Power', desc: 'Reduced resolution — saves battery & prevents overheating' },
+                        { mode: 'manual', icon: Hand, label: 'Manual Mode', desc: 'Camera off — log reps & form checks manually' },
+                    ].map(({ mode, icon: Icon, label, desc }) => (
+                        <div
+                            key={mode}
+                            onClick={() => handlePerfModeChange(mode)}
+                            className={`flex items-center gap-4 p-4 rounded-xl cursor-pointer transition-all ${
+                                perfMode === mode
+                                    ? 'bg-red-900/30 border border-red-500/40'
+                                    : 'bg-white/5 hover:bg-white/10 border border-transparent'
+                            }`}
+                        >
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                                perfMode === mode ? 'bg-red-500/20' : 'bg-white/10'
+                            }`}>
+                                <Icon size={20} className={perfMode === mode ? 'text-red-400' : 'text-white/70'} />
+                            </div>
+                            <div className="flex-1">
+                                <p className={`font-medium ${perfMode === mode ? 'text-white' : 'text-white/80'}`}>{label}</p>
+                                <p className="text-xs text-white/50">{desc}</p>
+                            </div>
+                            {perfMode === mode && <Check size={18} className="text-red-400" />}
+                        </div>
+                    ))}
+                </div>
             </div>
 
             {/* Data & Export Section */}

@@ -2,6 +2,10 @@ ext {
     minSdkVersion = 24
     compileSdkVersion = 36
     targetSdkVersion = 36
+
+    // CRITICAL: Enable Google Sign-In for @capacitor-firebase/authentication
+    // Without this, Google auth dependencies are compileOnly (not in APK) → null object crash
+    rgcfaIncludeGoogle = true
     androidxAppCompatVersion = '1.6.1'
     androidxCoreKTXVersion = '1.12.0'
     androidxEspressoCoreVersion = '3.5.1'

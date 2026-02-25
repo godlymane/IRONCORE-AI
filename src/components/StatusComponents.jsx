@@ -1,30 +1,37 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { WifiOff, RefreshCw, AlertTriangle } from 'lucide-react';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
 
-// Offline Indicator - shows when user loses internet
+// Offline Indicator - shows when user loses internet + sync banner on reconnect
 export const OfflineIndicator = () => {
-    const [isOffline, setIsOffline] = useState(!navigator.onLine);
-
-    useEffect(() => {
-        const handleOnline = () => setIsOffline(false);
-        const handleOffline = () => setIsOffline(true);
-
-        window.addEventListener('online', handleOnline);
-        window.addEventListener('offline', handleOffline);
-
-        return () => {
-            window.removeEventListener('online', handleOnline);
-            window.removeEventListener('offline', handleOffline);
-        };
-    }, []);
-
-    if (!isOffline) return null;
+    const { isOnline, showSyncBanner } = useNetworkStatus();
 
     return (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-orange-600 text-white px-4 py-2 flex items-center justify-center gap-2 animate-in slide-in-from-top">
-            <WifiOff size={16} />
-            <span className="text-sm font-bold">You're offline - some features may be limited</span>
-        </div>
+        <AnimatePresence>
+            {!isOnline && (
+                <motion.div
+                    initial={{ y: -40, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: -40, opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="fixed top-0 left-0 right-0 z-[9999] bg-amber-600 text-white text-center py-1.5 text-xs font-medium safe-area-top"
+                >
+                    📡 You're offline — workouts will sync when connected
+                </motion.div>
+            )}
+            {isOnline && showSyncBanner && (
+                <motion.div
+                    initial={{ y: -40, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: -40, opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="fixed top-0 left-0 right-0 z-[9999] bg-emerald-600 text-white text-center py-1.5 text-xs font-medium safe-area-top"
+                >
+                    ✅ Back online — syncing your workouts...
+                </motion.div>
+            )}
+        </AnimatePresence>
     );
 };
 

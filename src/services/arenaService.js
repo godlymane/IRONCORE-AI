@@ -284,58 +284,53 @@ export const subscribeToBoss = (callback) => {
 export const updateBossProgress = async (userId, username, damage) => {
     try {
         const bossRef = doc(db, 'community_boss', 'current');
-        const bossSnap = await getDoc(bossRef);
 
-        if (!bossSnap.exists()) {
-            console.error('No active boss found');
-            return null;
-        }
+        return await runTransaction(db, async (transaction) => {
+            const bossDoc = await transaction.get(bossRef);
+            if (!bossDoc.exists()) {
+                console.error("No active community boss to damage.");
+                return null;
+            }
 
-        const bossData = bossSnap.data();
-        const newHP = Math.max(0, bossData.currentHP - damage);
+            const data = bossDoc.data();
+            if (data.status === 'defeated') return { newHP: 0, defeated: true };
 
-        // Update boss HP
-        const updates = {
-            currentHP: newHP,
-            lastDamageAt: serverTimestamp()
-        };
+            const currentHP = data.currentHP || data.totalHP;
+            const newHP = Math.max(0, currentHP - damage);
+            const isDefeated = newHP === 0;
 
-        // Check if boss is defeated
-        if (newHP === 0) {
-            updates.status = 'defeated';
-            updates.defeatedAt = serverTimestamp();
-        }
+            const updates = {
+                currentHP: newHP,
+                lastDamageAt: serverTimestamp()
+            };
 
-        await updateDoc(bossRef, updates);
+            if (isDefeated) {
+                updates.status = 'defeated';
+                updates.defeatedAt = serverTimestamp();
+            }
 
-        // Add to contributors if not already there
-        const contributors = bossData.contributors || [];
-        const existingContributor = contributors.find(c => c.userId === userId);
+            // Handle Contributors Array safely within transaction
+            let contributors = data.contributors || [];
+            const existingIndex = contributors.findIndex(c => c.userId === userId);
 
-        if (existingContributor) {
-            // Update existing contributor's damage
-            const updatedContributors = contributors.map(c =>
-                c.userId === userId
-                    ? { ...c, damageDealt: c.damageDealt + damage }
-                    : c
-            );
-            await updateDoc(bossRef, { contributors: updatedContributors });
-        } else {
-            // Add new contributor
-            await updateDoc(bossRef, {
-                contributors: arrayUnion({
+            if (existingIndex >= 0) {
+                contributors[existingIndex].damageDealt += damage;
+            } else {
+                contributors.push({
                     userId,
                     username,
                     damageDealt: damage,
-                    joinedAt: new Date().toISOString()
-                })
-            });
-        }
+                    joinedAt: new Date().toISOString(),
+                    claimedXP: false
+                });
+            }
+            updates.contributors = contributors;
 
-        // Boss damage dealt
-        return { newHP, defeated: newHP === 0 };
+            transaction.update(bossRef, updates);
+            return { newHP, defeated: isDefeated };
+        });
     } catch (error) {
-        console.error('Error updating boss progress:', error);
+        console.error('Error updating Boss HP transaction:', error);
         throw error;
     }
 };
@@ -347,11 +342,19 @@ export const updateBossProgress = async (userId, username, damage) => {
 export const createCommunityBoss = async (bossData) => {
     try {
         const bossRef = doc(db, 'community_boss', 'current');
+        const snap = await getDoc(bossRef);
+
+        // Prevent accidental overwrites of an active boss
+        if (snap.exists() && snap.data().status === 'active') {
+            console.log("Boss already active, skipping creation.");
+            return;
+        }
+
         await setDoc(bossRef, {
             bossId: bossData.bossId || `boss_${Date.now()}`,
-            name: bossData.name,
-            totalHP: bossData.totalHP,
-            currentHP: bossData.totalHP,
+            name: bossData.name || "Colossus Prime",
+            totalHP: bossData.totalHP || 500000,
+            currentHP: bossData.totalHP || 500000,
             contributors: [],
             status: 'active',
             startedAt: serverTimestamp(),

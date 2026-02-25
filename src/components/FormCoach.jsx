@@ -1,11 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Video, VideoOff, AlertCircle, CheckCircle, XCircle, Camera, RotateCcw, ChevronDown } from 'lucide-react';
+import { Video, VideoOff, AlertCircle, CheckCircle, XCircle, Camera, RotateCcw, ChevronDown, Gauge } from 'lucide-react';
 import { Button } from './UIComponents';
+import { initializeTFBackend, resetBackend } from '../lib/tfBackend';
+import { createPerformanceMonitor, getPerformanceMode, setPerformanceMode as savePerfMode } from '../lib/performanceMonitor';
 
 /**
  * AI Form Coach — Real-time pose detection & exercise feedback
- * Fixed: mirrored video, multi-exercise, real form checks, rep counting, canvas sync
+ *
+ * Memory-safe: detector + TF backend are initialized on mount and fully
+ * disposed on unmount. All inference runs inside tf.tidy() to prevent
+ * tensor leaks that crash iOS Safari.
  */
 
 const EXERCISES = {
@@ -86,8 +91,10 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', onComplete }) =
     const [error, setError] = useState(null);
     const [exercise, setExercise] = useState(initialExercise);
     const [showPicker, setShowPicker] = useState(false);
-    const [facingMode, setFacingMode] = useState('environment'); // rear camera by default
+    const [facingMode, setFacingMode] = useState('environment');
     const [coachedTip, setCoachedTip] = useState('');
+    const [liveFPS, setLiveFPS] = useState(0);
+    const [showLowFPSPrompt, setShowLowFPSPrompt] = useState(false);
 
     const animationRef = useRef(null);
     const isStreamingRef = useRef(false);
@@ -95,30 +102,55 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', onComplete }) =
     const scoreHistoryRef = useRef([]);
     const feedbackCountRef = useRef(0);
     const lastInferenceRef = useRef(0);
-    const TARGET_FPS = 15;
+    const detectorRef = useRef(null);      // mirror of state for cleanup
+    const perfMonitorRef = useRef(null);
+    const tfRef = useRef(null);            // hold tf module reference for tidy()
+
+    const perfMode = getPerformanceMode();
+    const TARGET_FPS = perfMode === 'low_power' ? 10 : 15;
     const FRAME_INTERVAL = 1000 / TARGET_FPS;
 
     const currentExercise = EXERCISES[exercise] || EXERCISES.squat;
 
-    // Initialize TensorFlow and MoveNet
+    // ── Initialize TF Backend + MoveNet (lazy — only when this component mounts) ──
     useEffect(() => {
-        let cleanup = false;
+        // Manual mode = skip all AI initialization
+        if (perfMode === 'manual') {
+            setIsLoading(false);
+            return;
+        }
+
+        let disposed = false;
 
         const init = async () => {
             try {
+                // 1. Initialize the fastest available backend (WebGL → WASM → CPU)
+                await initializeTFBackend();
+
+                // 2. Dynamic-import TF and pose-detection (code-split from main bundle)
                 const tf = await import('@tensorflow/tfjs');
-                await tf.ready();
+                tfRef.current = tf;
+
                 const poseDetection = await import('@tensorflow-models/pose-detection');
                 const poseDetector = await poseDetection.createDetector(
                     poseDetection.SupportedModels.MoveNet,
-                    { modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING }
+                    {
+                        modelType: perfMode === 'low_power'
+                            ? poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING
+                            : poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING
+                    }
                 );
-                if (!cleanup) {
+
+                if (!disposed) {
+                    detectorRef.current = poseDetector;
                     setDetector(poseDetector);
                     setIsLoading(false);
+                } else {
+                    // Component already unmounted — dispose immediately
+                    poseDetector.dispose();
                 }
             } catch (err) {
-                if (!cleanup) {
+                if (!disposed) {
                     setError('Failed to load AI model. Check your connection and try again.');
                     setIsLoading(false);
                 }
@@ -126,23 +158,50 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', onComplete }) =
         };
 
         init();
+
+        // ── CLEANUP: dispose detector + TF tensors + backend state ──
         return () => {
-            cleanup = true;
+            disposed = true;
             if (animationRef.current) cancelAnimationFrame(animationRef.current);
+
+            // Dispose pose detector model
+            if (detectorRef.current) {
+                try { detectorRef.current.dispose(); } catch (_) {}
+                detectorRef.current = null;
+            }
+
+            // Dispose all lingering tensors and reset backend state
+            resetBackend();
+
+            // Kill performance monitor
+            perfMonitorRef.current?.destroy();
         };
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // ── Performance Monitor ──
+    useEffect(() => {
+        perfMonitorRef.current = createPerformanceMonitor({
+            onLowFPS: () => {
+                setShowLowFPSPrompt(true);
+            }
+        });
+        return () => perfMonitorRef.current?.destroy();
     }, []);
 
     // Start camera
     const startCamera = async () => {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({
+            const constraints = {
                 video: {
                     facingMode,
-                    width: { ideal: 640 },
-                    height: { ideal: 480 },
+                    width: { ideal: perfMode === 'low_power' ? 320 : 480, max: 640 },
+                    height: { ideal: perfMode === 'low_power' ? 240 : 360, max: 480 },
+                    frameRate: { ideal: perfMode === 'low_power' ? 15 : 24, max: 30 }
                 },
                 audio: false,
-            });
+            };
+
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
@@ -155,6 +214,7 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', onComplete }) =
                     setFormScore(0);
                     scoreHistoryRef.current = [];
                     repStateRef.current = { phase: 'up', lastY: 0, threshold: 30, cooldown: false };
+                    perfMonitorRef.current?.reset();
                     setCoachedTip('Position yourself so your full body is visible');
                     detectPose();
                 };
@@ -172,7 +232,7 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', onComplete }) =
         canvasRef.current.height = v.videoHeight || 480;
     };
 
-    // Stop camera
+    // Stop camera + release stream tracks
     const stopCamera = () => {
         isStreamingRef.current = false;
         if (videoRef.current?.srcObject) {
@@ -191,18 +251,18 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', onComplete }) =
 
     useEffect(() => {
         if (isStreaming && detector) {
-            // Restart camera with new facing mode
             stopCamera();
             setTimeout(() => startCamera(), 200);
         }
     }, [facingMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Main detection loop
+    // ── Main detection loop (wrapped in tf.tidy to prevent tensor leaks) ──
     const detectPose = async () => {
         if (!detector || !videoRef.current || !canvasRef.current) return;
         const video = videoRef.current;
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
+        const tf = tfRef.current;
 
         const detect = async (timestamp) => {
             if (!isStreamingRef.current) return;
@@ -223,7 +283,22 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', onComplete }) =
                 }
 
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                const poses = await detector.estimatePoses(video);
+
+                // Wrap inference in tf.tidy() to auto-dispose intermediate tensors
+                let poses;
+                if (tf) {
+                    poses = await tf.tidy(() => detector.estimatePoses(video));
+                } else {
+                    poses = await detector.estimatePoses(video);
+                }
+
+                // Tick performance monitor after each inference
+                perfMonitorRef.current?.tick();
+
+                // Update live FPS display every ~30 frames
+                if (feedbackCountRef.current % 30 === 0) {
+                    setLiveFPS(perfMonitorRef.current?.getFPS() || 0);
+                }
 
                 if (poses.length > 0) {
                     const pose = poses[0];
@@ -312,17 +387,14 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', onComplete }) =
                 const lankle = kp(pose, 'left_ankle'), rankle = kp(pose, 'right_ankle');
                 const lshoulder = kp(pose, 'left_shoulder');
 
-                // Depth: hip below knee
                 const hipY = lhip?.y ?? rhip?.y;
                 const kneeY = lknee?.y ?? rknee?.y;
                 const depthOk = hipY && kneeY ? hipY >= kneeY - 25 : null;
 
-                // Knee tracking: knee shouldn't cave inward past ankle
                 const kneeX = lknee?.x ?? rknee?.x;
                 const ankleX = lankle?.x ?? rankle?.x;
                 const kneeOk = kneeX && ankleX ? Math.abs(kneeX - ankleX) < 60 : null;
 
-                // Back: torso angle
                 const backAngle = angle(lshoulder, lhip || rhip, lknee || rknee);
                 const backOk = backAngle ? backAngle >= 55 : null;
 
@@ -337,15 +409,12 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', onComplete }) =
                 const ls = kp(pose, 'left_shoulder'), le = kp(pose, 'left_elbow'), lw = kp(pose, 'left_wrist');
                 const lh = kp(pose, 'left_hip'), la = kp(pose, 'left_ankle');
 
-                // Elbow angle at bottom
                 const elbowAngle = angle(ls, le, lw);
                 const elbowOk = elbowAngle ? (elbowAngle >= 40 && elbowAngle <= 130) : null;
 
-                // Hip alignment (straight body)
                 const bodyAngle = angle(ls, lh, la);
                 const hipOk = bodyAngle ? bodyAngle >= 145 : null;
 
-                // Depth
                 const depthOk = ls && le ? ls.y >= le.y - 25 : null;
 
                 results = [
@@ -358,14 +427,11 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', onComplete }) =
             case 'deadlift': {
                 const ls = kp(pose, 'left_shoulder'), lh = kp(pose, 'left_hip'), lk = kp(pose, 'left_knee');
 
-                // Neutral spine
                 const spineAngle = angle(ls, lh, lk);
                 const spineOk = spineAngle ? spineAngle >= 140 : null;
 
-                // Hip hinge: hip should push back
-                const hingeOk = lh && lk ? lh.x < lk.x + 30 : null; // Hip behind knee
+                const hingeOk = lh && lk ? lh.x < lk.x + 30 : null;
 
-                // Lockout
                 const lockoutAngle = angle(ls, lh, lk);
                 const lockoutOk = lockoutAngle ? lockoutAngle >= 155 : null;
 
@@ -381,14 +447,11 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', onComplete }) =
                 const ls = kp(pose, 'left_shoulder');
                 const rk = kp(pose, 'right_knee');
 
-                // Front knee ~90°
                 const kneeAngle = angle(lh, lk, la);
                 const kneeOk = kneeAngle ? (kneeAngle >= 70 && kneeAngle <= 110) : null;
 
-                // Upright torso
                 const torsoOk = ls && lh ? Math.abs(ls.x - lh.x) < 40 : null;
 
-                // Back knee near ground (lower y = closer to floor in screen coords)
                 const backKneeOk = rk && lk ? rk.y > lk.y - 20 : null;
 
                 results = [
@@ -401,13 +464,10 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', onComplete }) =
             case 'shoulder_press': {
                 const ls = kp(pose, 'left_shoulder'), le = kp(pose, 'left_elbow'), lw = kp(pose, 'left_wrist');
 
-                // Straight bar path: wrist should be above shoulder
                 const pathOk = lw && ls ? Math.abs(lw.x - ls.x) < 40 : null;
 
-                // Elbows under wrists
                 const elbowOk = le && lw ? Math.abs(le.x - lw.x) < 35 : null;
 
-                // Lockout: full arm extension
                 const pressAngle = angle(ls, le, lw);
                 const lockoutOk = pressAngle ? pressAngle >= 150 : null;
 
@@ -423,14 +483,11 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', onComplete }) =
                 const lw = kp(pose, 'left_wrist');
                 const nose = kp(pose, 'nose');
 
-                // Hip line
                 const bodyAngle = angle(ls, lh, la);
                 const hipOk = bodyAngle ? bodyAngle >= 150 : null;
 
-                // Shoulders over wrists
                 const shoulderOk = ls && lw ? Math.abs(ls.x - lw.x) < 50 : null;
 
-                // Neutral head
                 const headOk = nose && ls ? Math.abs(nose.y - ls.y) < 60 : null;
 
                 results = [
@@ -446,7 +503,6 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', onComplete }) =
 
         setFeedback(results);
 
-        // Score: only count checks that have valid data (not null)
         const valid = results.filter(r => r.passed !== null);
         const passed = valid.filter(r => r.passed).length;
         const score = valid.length > 0 ? Math.round((passed / valid.length) * 100) : 0;
@@ -463,7 +519,7 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', onComplete }) =
             if (failing) {
                 setCoachedTip(`Focus on: ${failing.desc}`);
             } else if (avg >= 90) {
-                setCoachedTip('Great form! Keep it up 💪');
+                setCoachedTip('Great form! Keep it up');
             }
         }
     };
@@ -471,7 +527,7 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', onComplete }) =
     // Rep counter using joint position tracking
     const detectRep = (pose) => {
         const config = currentExercise.repDetect;
-        if (!config) return; // Plank = no rep detection
+        if (!config) return;
 
         const joint = kp(pose, config.joint);
         if (!joint) return;
@@ -483,7 +539,6 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', onComplete }) =
         if (state.cooldown) return;
 
         if (config.direction === 'down') {
-            // Squat/lunge/pushup: goes down then comes back up
             if (state.phase === 'up' && delta > state.threshold) {
                 state.phase = 'down';
             } else if (state.phase === 'down' && delta < -state.threshold) {
@@ -493,7 +548,6 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', onComplete }) =
                 setTimeout(() => { repStateRef.current.cooldown = false; }, 500);
             }
         } else {
-            // Shoulder press/deadlift: goes up then comes back down
             if (state.phase === 'up' && delta < -state.threshold) {
                 state.phase = 'down';
             } else if (state.phase === 'down' && delta > state.threshold) {
@@ -511,6 +565,75 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', onComplete }) =
     const scoreColor = formScore >= 80 ? 'text-green-400' : formScore >= 50 ? 'text-yellow-400' : 'text-red-400';
     const scoreBg = formScore >= 80 ? 'from-green-500/20 to-green-600/10 border-green-500/30' : formScore >= 50 ? 'from-yellow-500/20 to-yellow-600/10 border-yellow-500/30' : 'from-red-500/20 to-red-600/10 border-red-500/30';
 
+    // ── Manual Mode: no camera, just rep/form logging ──
+    if (perfMode === 'manual') {
+        return (
+            <div className="space-y-4">
+                {/* Exercise Picker */}
+                <div className="flex items-center justify-between gap-3">
+                    <button
+                        onClick={() => setShowPicker(!showPicker)}
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm font-bold"
+                    >
+                        <span>{currentExercise.icon}</span>
+                        <span>{currentExercise.name}</span>
+                        <ChevronDown size={14} className={`transition-transform ${showPicker ? 'rotate-180' : ''}`} />
+                    </button>
+                    <div className="text-center">
+                        <div className="text-2xl font-black text-white">{repCount}</div>
+                        <div className="text-[10px] text-gray-500 uppercase font-bold">Reps</div>
+                    </div>
+                </div>
+
+                <AnimatePresence>
+                    {showPicker && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="overflow-hidden"
+                        >
+                            <div className="grid grid-cols-3 gap-2 pb-2">
+                                {Object.entries(EXERCISES).map(([key, ex]) => (
+                                    <button
+                                        key={key}
+                                        onClick={() => { setExercise(key); setShowPicker(false); setRepCount(0); }}
+                                        className={`p-3 rounded-xl border text-center transition-all ${exercise === key
+                                            ? 'border-red-500 bg-red-900/30'
+                                            : 'border-white/10 bg-white/5 hover:bg-white/10'
+                                        }`}
+                                    >
+                                        <div className="text-xl mb-1">{ex.icon}</div>
+                                        <div className={`text-[11px] font-bold ${exercise === key ? 'text-white' : 'text-gray-400'}`}>{ex.name}</div>
+                                    </button>
+                                ))}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Manual rep buttons */}
+                <div className="flex flex-col items-center gap-4 py-8">
+                    <div className="px-4 py-2 rounded-xl bg-orange-500/10 border border-orange-500/30 text-xs text-orange-400 font-medium text-center">
+                        Manual Mode — Camera disabled to save battery. Tap to count reps.
+                    </div>
+                    <div className="flex gap-3">
+                        <Button onClick={() => setRepCount(prev => Math.max(0, prev - 1))} variant="secondary">
+                            - Rep
+                        </Button>
+                        <Button onClick={() => setRepCount(prev => prev + 1)} variant="primary" className="px-8">
+                            + Rep
+                        </Button>
+                    </div>
+                </div>
+
+                <Button onClick={() => onComplete?.()} variant="primary" className="w-full">
+                    Done ({repCount} reps)
+                </Button>
+            </div>
+        );
+    }
+
     if (error) {
         return (
             <div className="p-6 text-center">
@@ -523,6 +646,44 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', onComplete }) =
 
     return (
         <div className="space-y-3">
+            {/* Low FPS Prompt */}
+            <AnimatePresence>
+                {showLowFPSPrompt && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="p-3 rounded-xl bg-orange-500/15 border border-orange-500/30 flex items-start gap-3"
+                    >
+                        <Gauge size={18} className="text-orange-400 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1">
+                            <p className="text-xs text-orange-300 font-bold">Low performance detected</p>
+                            <p className="text-[11px] text-orange-400/70 mt-0.5">
+                                Your device is struggling below {liveFPS} FPS. Switch to Manual Mode for a smoother experience.
+                            </p>
+                            <div className="flex gap-2 mt-2">
+                                <button
+                                    onClick={() => {
+                                        stopCamera();
+                                        savePerfMode('manual');
+                                        window.location.reload();
+                                    }}
+                                    className="px-3 py-1.5 rounded-lg bg-orange-500/20 text-orange-300 text-[11px] font-bold"
+                                >
+                                    Switch to Manual
+                                </button>
+                                <button
+                                    onClick={() => setShowLowFPSPrompt(false)}
+                                    className="px-3 py-1.5 rounded-lg bg-white/5 text-gray-400 text-[11px]"
+                                >
+                                    Dismiss
+                                </button>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* Exercise Picker + Score */}
             <div className="flex items-center justify-between gap-3">
                 <button
@@ -536,6 +697,16 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', onComplete }) =
 
                 {isStreaming && (
                     <div className="flex items-center gap-3">
+                        {/* Live FPS badge */}
+                        {liveFPS > 0 && (
+                            <div className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold ${
+                                liveFPS >= 12 ? 'bg-green-500/10 text-green-400' :
+                                liveFPS >= 8 ? 'bg-yellow-500/10 text-yellow-400' :
+                                'bg-red-500/10 text-red-400'
+                            }`}>
+                                {liveFPS} FPS
+                            </div>
+                        )}
                         <div className="text-center">
                             <div className="text-2xl font-black text-white">{repCount}</div>
                             <div className="text-[10px] text-gray-500 uppercase font-bold">Reps</div>

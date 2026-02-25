@@ -4,7 +4,7 @@ import {
   Check, Camera, ScanLine, ShoppingBag, Snowflake, ArrowUpCircle,
   ChefHat, Utensils, Trophy, Sparkles, X
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Card, MacroBadge, Button, useToast, Skeleton, GlassCard, staggerContainer, slideUp } from '../components/UIComponents';
 import { DashboardSkeleton } from '../components/ViewSkeletons';
 import { PremiumIcon } from '../components/PremiumIcon';
@@ -246,6 +246,22 @@ export const DashboardView = () => {
 
   return (
     <motion.div variants={staggerContainer} initial="initial" animate="animate" className="space-y-5 pb-4 relative">
+      <AnimatePresence>
+        {aiStatus === "Scanning..." && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          >
+            <div className="relative">
+              <ScanLine size={80} className="text-red-500 animate-pulse" />
+              <div className="absolute top-0 left-0 w-full h-1 bg-white/50 shadow-[0_0_15px_rgba(255,255,255,0.8)] animate-[scan_2s_ease-in-out_infinite]" />
+            </div>
+            <p className="absolute bottom-1/3 text-red-500 font-bold uppercase tracking-widest text-sm animate-pulse">Running Neural Vision...</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Header Section */}
       <motion.div variants={slideUp} className="flex justify-between items-center">
@@ -481,42 +497,51 @@ export const DashboardView = () => {
             </Button>
           </div>
         ) : (
-          <div className="flex gap-2">
+          <div className="space-y-3">
+            {/* Premium AI Vision Button */}
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => foodInputRef.current?.click()}
+              className="w-full relative overflow-hidden rounded-2xl h-14 flex items-center justify-center gap-2 transition-all border border-red-500/30 group shadow-[0_0_20px_rgba(220,38,38,0.15)]"
+              style={{
+                background: 'linear-gradient(135deg, rgba(220,38,38,0.2) 0%, rgba(185,28,28,0.05) 100%)',
+              }}
+            >
+              {/* Animated Background Shine */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
+
+              <ScanLine size={20} className="text-red-400 group-hover:text-red-300 transition-colors" />
+              <span className="font-black italic text-red-100 uppercase tracking-widest text-sm drop-shadow-md">
+                Log with AI Vision
+              </span>
+            </motion.button>
+            <input type="file" ref={foodInputRef} onChange={handleFoodScan} className="hidden" accept="image/*" capture="environment" />
+
+            {/* Manual Text Input Fallback */}
             <div className="relative flex-grow">
               <input
                 value={mealText}
                 onChange={e => setMealText(e.target.value)}
-                placeholder="e.g. 200g chicken breast and rice"
-                className="w-full p-4 pr-14 rounded-2xl text-sm focus:ring-2 focus:ring-red-600 outline-none text-white transition-all"
+                placeholder="Or type e.g. 200g chicken..."
+                className="w-full p-4 pr-14 rounded-2xl text-sm focus:ring-2 focus:ring-red-600 outline-none text-gray-300 transition-all placeholder:text-gray-600"
                 style={{
                   background: 'linear-gradient(145deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.2) 100%)',
-                  border: '1px solid rgba(255,255,255,0.1)',
+                  border: '1px solid rgba(255,255,255,0.05)',
                 }}
                 onKeyDown={e => e.key === 'Enter' && spotMacros()}
               />
               <button
                 onClick={spotMacros}
-                disabled={quickLogLoading}
-                className="absolute right-2 top-2 bottom-2 w-10 rounded-xl flex items-center justify-center text-white transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+                disabled={quickLogLoading || (!mealText && !foodInputRef.current?.value)}
+                className="absolute right-2 top-2 bottom-2 w-10 rounded-xl flex items-center justify-center text-white transition-all hover:scale-105 active:scale-95 disabled:opacity-30"
                 style={{
                   background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-                  boxShadow: '0 4px 15px rgba(220, 38, 38, 0.5)',
                 }}
               >
-                {quickLogLoading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Plus size={18} />}
+                {quickLogLoading && aiStatus !== "Scanning..." ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Plus size={18} />}
               </button>
             </div>
-            <button
-              onClick={() => foodInputRef.current?.click()}
-              className="rounded-2xl h-[52px] w-14 flex items-center justify-center transition-all hover:scale-105 active:scale-95"
-              style={{
-                background: 'linear-gradient(145deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%)',
-                border: '1px solid rgba(255,255,255,0.1)',
-              }}
-            >
-              <ScanLine size={20} className="text-white" />
-            </button>
-            <input type="file" ref={foodInputRef} onChange={handleFoodScan} className="hidden" accept="image/*" capture="environment" />
           </div>
         )}
 

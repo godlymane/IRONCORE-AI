@@ -55,6 +55,9 @@ dependencies {
     // Firebase Authentication
     implementation 'com.google.firebase:firebase-auth'
     
+    // Google Sign-In (Required by @capacitor-firebase/authentication for google.com provider)
+    implementation 'com.google.android.gms:play-services-auth:21.0.0'
+
     // Firebase Analytics (optional but recommended)
     implementation 'com.google.firebase:firebase-analytics'
 }

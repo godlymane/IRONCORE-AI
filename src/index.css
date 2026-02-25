@@ -867,6 +867,20 @@ body.keyboard-open [data-keyboard-hide] {
 }
 
 /* =============================================
+   SHIMMER (used by Battle Pass XP bar etc.)
+   ============================================= */
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* =============================================
    PROGRESS BAR SHIMMER
    ============================================= */
 

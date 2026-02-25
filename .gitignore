@@ -1,1 +1,61 @@
-# Dependencies\nnode_modules/\n.pnp\n.pnp.js\n\n# Build\ndist/\nbuild/\n.vite/\n\n# Environment & secrets\n.env\n.env.local\n.env.production\n.env.*.local\n\n# Firebase secrets & mocks\nauth_users.json\nandroid/app/google-services.json\nios/App/App/GoogleService-Info.plist\nios-native/**/GoogleService-Info.plist\n**/serviceAccountKey*.json\n\n# Android signing\n*.jks\n*.keystore\n\n# IDE\n.idea/\n.vscode/\n*.swp\n*.swo\n*~\n\n# OS files\n.DS_Store\nThumbs.db\nnul\n\n# Logs\nnpm-debug.log*\nyarn-debug.log*\nyarn-error.log*\nfirebase-debug.log\n\n# Vercel\n.vercel/\n\n# Claude worktrees\n.claude/worktrees/\n\n# Debug screenshots\n1 (*.png\n\n# Python cache\n__pycache__/\n*.pyc
+# Dependencies
+node_modules/
+node_modules
+.pnp
+.pnp.js
+
+# Build
+dist/
+build/
+.vite/
+
+# Auto-generated WASM binaries (copied from node_modules at build time)
+public/wasm/
+
+# Environment & secrets
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Firebase secrets & mocks
+auth_users.json
+android/app/google-services.json
+ios/App/App/GoogleService-Info.plist
+ios-native/**/GoogleService-Info.plist
+**/serviceAccountKey*.json
+
+# Android signing
+*.jks
+*.keystore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+nul
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+firebase-debug.log
+
+# Vercel
+.vercel/
+
+# Claude worktrees
+.claude/worktrees/
+
+# Debug screenshots
+1 (*.png
+
+# Python cache
+__pycache__/
+*.pyc

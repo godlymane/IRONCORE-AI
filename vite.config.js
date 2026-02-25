@@ -1,9 +1,31 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import path from 'path'
+import { copyFileSync, mkdirSync, readdirSync } from 'fs'
+import { resolve, join } from 'path'
+
+/**
+ * Vite plugin: copies TensorFlow.js WASM binaries from node_modules
+ * into public/wasm/ so the AI engine works 100% offline.
+ */
+function copyTfjsWasm() {
+  return {
+    name: 'copy-tfjs-wasm',
+    buildStart() {
+      const wasmSrc = resolve('node_modules/@tensorflow/tfjs-backend-wasm/dist')
+      const wasmDest = resolve('public/wasm')
+      mkdirSync(wasmDest, { recursive: true })
+
+      const wasmFiles = readdirSync(wasmSrc).filter(f => f.endsWith('.wasm'))
+      for (const file of wasmFiles) {
+        copyFileSync(join(wasmSrc, file), join(wasmDest, file))
+      }
+      console.log(`[tfjs-wasm] Copied ${wasmFiles.length} WASM binaries to public/wasm/`)
+    }
+  }
+}
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), copyTfjsWasm()],
   esbuild: {
     drop: ['console', 'debugger'],
   },
@@ -32,7 +54,7 @@ export default defineConfig({
   publicDir: 'public',
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': resolve(__dirname, './src'),
     }
   },
   optimizeDeps: {

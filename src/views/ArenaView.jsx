@@ -1,13 +1,20 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Trophy, Swords, Crown, Medal, MessageCircle, Send, Zap,
-    TrendingUp, Users, Flame, Lock
+    TrendingUp, Users, Flame, Lock, Scroll
 } from 'lucide-react';
 import { GlassCard } from '../components/UIComponents';
 import { LEVELS } from '../data/constants';
 import { getLevel } from '../utils/helpers';
 import { usePremium } from '../context/PremiumContext';
+import { CommunityBoss } from '../components/Arena/CommunityBoss';
+import { GuildDashboard } from '../components/Gamification/GuildDashboard';
+
+// Lazy-load heavy sub-views — only fetched when user taps their tab
+const BattlePassView = React.lazy(() => import('./BattlePassView').then(m => ({ default: m.BattlePassView })));
+const GhostMatchView = React.lazy(() => import('./GhostMatchView').then(m => ({ default: m.GhostMatchView })));
+const AchievementsView = React.lazy(() => import('./AchievementsView').then(m => ({ default: m.AchievementsView })));
 
 // Season config — single source of truth (move to Firestore config when dynamic seasons launch)
 export const CURRENT_SEASON = 'Season 1';
@@ -20,6 +27,9 @@ export const ArenaView = ({
     sendMessage, battles = [], createBattle
 }) => {
     const [arenaTab, setArenaTab] = useState('leaderboard');
+    const [showBattlePass, setShowBattlePass] = useState(false);
+    const [showGhostMatch, setShowGhostMatch] = useState(false);
+    const [showAchievements, setShowAchievements] = useState(false);
     const { isPremium, requirePremium } = usePremium();
     const [chatText, setChatText] = useState('');
     const chatEndRef = useRef(null);
@@ -70,18 +80,31 @@ export const ArenaView = ({
                         <p className="text-[11px] text-gray-500 font-bold uppercase tracking-widest">{CURRENT_SEASON} — Live</p>
                     </div>
                 </div>
-                {userRank && (
-                    <div
-                        className="px-3 py-2 rounded-xl text-center"
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setShowBattlePass(true)}
+                        className="px-3 py-2 rounded-xl flex items-center gap-1.5 transition-all hover:scale-[1.02] active:scale-95"
                         style={{
-                            background: 'linear-gradient(145deg, rgba(220, 38, 38, 0.15) 0%, rgba(220, 38, 38, 0.05) 100%)',
-                            border: '1px solid rgba(220, 38, 38, 0.3)',
+                            background: 'linear-gradient(135deg, rgba(234, 179, 8, 0.2) 0%, rgba(249, 115, 22, 0.15) 100%)',
+                            border: '1px solid rgba(234, 179, 8, 0.3)',
                         }}
                     >
-                        <p className="text-lg font-black text-white">#{userRank}</p>
-                        <p className="text-[10px] text-red-400 font-bold uppercase">Rank</p>
-                    </div>
-                )}
+                        <Scroll size={14} className="text-yellow-400" />
+                        <span className="text-[10px] font-black text-yellow-400 uppercase tracking-wider">Pass</span>
+                    </button>
+                    {userRank && (
+                        <div
+                            className="px-3 py-2 rounded-xl text-center"
+                            style={{
+                                background: 'linear-gradient(145deg, rgba(220, 38, 38, 0.15) 0%, rgba(220, 38, 38, 0.05) 100%)',
+                                border: '1px solid rgba(220, 38, 38, 0.3)',
+                            }}
+                        >
+                            <p className="text-lg font-black text-white">#{userRank}</p>
+                            <p className="text-[10px] text-red-400 font-bold uppercase">Rank</p>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* User League Card */}
@@ -115,13 +138,42 @@ export const ArenaView = ({
                 </div>
             </GlassCard>
 
-            {/* Tab Switcher — Polished Pill */}
+            {/* Community Boss Area */}
+            <CommunityBoss />
+
+            {/* Quick Action Buttons — Ghost Match + Arsenal */}
+            <div className="flex gap-2">
+                <button
+                    onClick={() => setShowGhostMatch(true)}
+                    className="flex-1 py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02] active:scale-95"
+                    style={{
+                        background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(99, 102, 241, 0.1) 100%)',
+                        border: '1px solid rgba(139, 92, 246, 0.3)',
+                    }}
+                >
+                    <span className="text-sm">👻</span>
+                    <span className="text-[10px] font-black text-purple-300 uppercase tracking-wider">Ghost Match</span>
+                </button>
+                <button
+                    onClick={() => setShowAchievements(true)}
+                    className="flex-1 py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02] active:scale-95"
+                    style={{
+                        background: 'linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(249, 115, 22, 0.1) 100%)',
+                        border: '1px solid rgba(234, 179, 8, 0.3)',
+                    }}
+                >
+                    <Trophy size={14} className="text-yellow-400" />
+                    <span className="text-[10px] font-black text-yellow-300 uppercase tracking-wider">Arsenal</span>
+                </button>
+            </div>
+
+            {/* Tab Switcher — Polished Pill (4 tabs) */}
             <div className="relative flex p-1 rounded-2xl border border-white/10" style={{ background: 'rgba(255,255,255,0.04)' }}>
                 {/* Sliding Active Indicator */}
                 <motion.div
                     className="absolute z-0 rounded-xl"
                     style={{
-                        width: `calc((100% - 8px) / 3)`,
+                        width: `calc((100% - 8px) / 4)`,
                         height: 'calc(100% - 8px)',
                         top: '4px',
                         background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.5) 0%, rgba(185, 28, 28, 0.3) 100%)',
@@ -129,14 +181,15 @@ export const ArenaView = ({
                         border: '1px solid rgba(220, 38, 38, 0.4)',
                     }}
                     animate={{
-                        left: `calc(${['leaderboard', 'chat', 'battles'].indexOf(arenaTab)} * (100% - 8px) / 3 + 4px)`,
+                        left: `calc(${['leaderboard', 'chat', 'battles', 'guild'].indexOf(arenaTab)} * (100% - 8px) / 4 + 4px)`,
                     }}
                     transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                 />
                 {[
                     { id: 'leaderboard', label: 'Ranks', icon: Trophy, premium: false },
-                    { id: 'chat', label: 'Locker Room', icon: MessageCircle, premium: false },
+                    { id: 'chat', label: 'Chat', icon: MessageCircle, premium: false },
                     { id: 'battles', label: 'Battles', icon: Swords, premium: true },
+                    { id: 'guild', label: 'Guild', icon: Users, premium: true },
                 ].map(tab => (
                     <button
                         key={tab.id}
@@ -147,14 +200,14 @@ export const ArenaView = ({
                             }
                             setArenaTab(tab.id);
                         }}
-                        className={`relative z-10 flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5 ${arenaTab === tab.id
+                        className={`relative z-10 flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors flex items-center justify-center gap-1 ${arenaTab === tab.id
                             ? 'text-white'
                             : 'text-gray-500 hover:text-gray-300'
                             }`}
                     >
-                        <tab.icon size={14} />
+                        <tab.icon size={12} />
                         {tab.label}
-                        {tab.premium && !isPremium && <Lock size={10} className="text-yellow-400" />}
+                        {tab.premium && !isPremium && <Lock size={9} className="text-yellow-400" />}
                     </button>
                 ))}
             </div>
@@ -342,7 +395,60 @@ export const ArenaView = ({
                         </GlassCard>
                     </motion.div>
                 )}
+                {arenaTab === 'guild' && (
+                    <GuildDashboard user={user} />
+                )}
             </AnimatePresence>
+
+            {/* Ghost Match Overlay */}
+            {showGhostMatch && (
+                <div className="fixed inset-0 z-[80] bg-black overflow-y-auto p-5">
+                    <Suspense fallback={
+                        <div className="flex items-center justify-center h-screen">
+                            <div className="w-10 h-10 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                        </div>
+                    }>
+                        <GhostMatchView
+                            user={user}
+                            profile={profile}
+                            workouts={workouts}
+                            onBack={() => setShowGhostMatch(false)}
+                        />
+                    </Suspense>
+                </div>
+            )}
+
+            {/* Achievements / Arsenal Overlay */}
+            {showAchievements && (
+                <div className="fixed inset-0 z-[80] bg-black overflow-y-auto p-5">
+                    <Suspense fallback={
+                        <div className="flex items-center justify-center h-screen">
+                            <div className="w-10 h-10 border-4 border-yellow-600 border-t-transparent rounded-full animate-spin" />
+                        </div>
+                    }>
+                        <div>
+                            <button
+                                onClick={() => setShowAchievements(false)}
+                                className="mb-4 p-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors"
+                            >
+                                <span className="text-xs font-bold text-gray-400">← Back to Arena</span>
+                            </button>
+                            <AchievementsView profile={profile} workouts={workouts} meals={meals} />
+                        </div>
+                    </Suspense>
+                </div>
+            )}
+
+            {/* Battle Pass Overlay */}
+            {showBattlePass && (
+                <Suspense fallback={
+                    <div className="fixed inset-0 z-[90] bg-black flex items-center justify-center">
+                        <div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                }>
+                    <BattlePassView onClose={() => setShowBattlePass(false)} />
+                </Suspense>
+            )}
         </div>
     );
 };

@@ -151,8 +151,8 @@ export const analyzeFood = async (mealText, imageBase64 = null, retries = 0) => 
 
   // Fallback to direct API
   const prompt = imageBase64
-    ? `Identify the food in this image and return JSON: { "mealName": "string", "calories": number, "protein": number, "carbs": number, "fat": number }. Estimate realistic macros for a typical serving.`
-    : `Return JSON: { "mealName": "string", "calories": number, "protein": number, "carbs": number, "fat": number } for "${mealText}"`;
+    ? `Act as an expert nutritionist AI. Analyze this image with EXTREME precision. Identify all visible ingredients, estimate exact portion sizes (in grams or ml), account for likely cooking oils or hidden sauces, and calculate the exact macronutrients. Return JSON: { "mealName": "string", "calories": number, "protein": number, "carbs": number, "fat": number }.`
+    : `Act as an expert nutritionist AI. For the meal "${mealText}", return JSON: { "mealName": "string", "calories": number, "protein": number, "carbs": number, "fat": number }. Make educated but highly precise estimations down to the gram.`;
 
   return callGemini(prompt, "Nutrition API. JSON Only.", imageBase64, true, retries, 'nutrition');
 };
