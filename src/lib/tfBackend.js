@@ -1,75 +1,71 @@
-let tfInitialized = false;
-let tfInitPromise = null;
+/**
+ * TensorFlow.js Backend Initializer
+ * Tries WebGL first (GPU-accelerated), falls back to WASM, then CPU.
+ * Keeps backend state so cleanup can properly dispose tensors.
+ */
 
-export async function initTfBackend() {
-  if (tfInitialized) return;
-  if (tfInitPromise) return tfInitPromise;
+let backendReady = false;
 
-  tfInitPromise = (async () => {
-    try {
-      const [tfModule, wasmModule, webglModule] = await Promise.all([
-        import('@tensorflow/tfjs'),
-        import('@tensorflow/tfjs-backend-wasm'),
-        import('@tensorflow/tfjs-backend-webgl')
-      ]);
+/**
+ * Initialize the fastest available TF.js backend.
+ * WebGL → WASM (with correct wasmPaths) → CPU
+ */
+export async function initializeTFBackend() {
+  if (backendReady) return;
 
-      const tf = tfModule.default || tfModule;
+  const tf = await import('@tensorflow/tfjs');
 
-      await tf.setWasmPath(
-        'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm@latest/dist/'
-      );
+  // Try WebGL first (fastest on most devices)
+  try {
+    await tf.setBackend('webgl');
+    await tf.ready();
+    backendReady = true;
+    console.log('[tfBackend] Using WebGL');
+    return;
+  } catch (_) {
+    console.warn('[tfBackend] WebGL failed, trying WASM...');
+  }
 
-      let backendSet = false;
+  // Try WASM (good fallback, uses public/wasm/ binaries)
+  try {
+    const wasmBackend = await import('@tensorflow/tfjs-backend-wasm');
+    wasmBackend.setWasmPaths('/wasm/');
+    await tf.setBackend('wasm');
+    await tf.ready();
+    backendReady = true;
+    console.log('[tfBackend] Using WASM');
+    return;
+  } catch (_) {
+    console.warn('[tfBackend] WASM failed, falling back to CPU...');
+  }
 
-      try {
-        await tf.ready();
-        const webglSupported = tf.ENV.getBool('WEBGL_RENDER_FLOAT32_ENABLED') &&
-                               tf.ENV.getBool('WEBGL_RENDER_FLOAT32_CAPABLE');
-
-        if (webglSupported) {
-          await tf.setBackend('webgl');
-          await tf.ready();
-          backendSet = true;
-          console.log('[TF.js] WebGL backend initialized');
-        }
-      } catch (e) {
-        console.warn('[TF.js] WebGL initialization failed:', e);
-      }
-
-      if (!backendSet) {
-        try {
-          await tf.setBackend('wasm');
-          await tf.ready();
-          backendSet = true;
-          console.log('[TF.js] WASM backend initialized');
-        } catch (e) {
-          console.warn('[TF.js] WASM initialization failed:', e);
-        }
-      }
-
-      if (!backendSet) {
-        await tf.setBackend('cpu');
-        await tf.ready();
-        console.warn('[TF.js] Fallback to CPU backend');
-      }
-
-      tfInitialized = true;
-      return tf;
-    } catch (error) {
-      console.error('[TF.js] Failed to initialize:', error);
-      throw error;
-    }
-  })();
-
-  return tfInitPromise;
+  // CPU fallback (slowest but always works)
+  await tf.setBackend('cpu');
+  await tf.ready();
+  backendReady = true;
+  console.log('[tfBackend] Using CPU (slowest)');
 }
 
-export async function loadPoseDetection() {
-  await initTfBackend();
-  const poseDetection = await import('@tensorflow-models/pose-detection');
-  return poseDetection;
+/**
+ * Dispose all TF tensors and reset backend state.
+ * Called on component unmount to prevent memory leaks.
+ */
+export function resetBackend() {
+  try {
+    import('@tensorflow/tfjs').then(tf => {
+      tf.disposeVariables();
+      if (tf.engine()?.registeredVariables) {
+        // Clear any lingering tensors
+        const backend = tf.engine().backend;
+        if (backend?.dispose) backend.dispose();
+      }
+    });
+  } catch (_) {
+    // Silently ignore — component may already be torn down
+  }
+  backendReady = false;
 }
 
 export function isTfInitialized() {
-  return tfInitialized;
+  return backendReady;
 }
