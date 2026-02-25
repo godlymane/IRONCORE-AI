@@ -88,18 +88,11 @@ service cloud.firestore {
       allow delete: if isOwner(userId);
 
       // ── User profile subcollection ──
-      // users/{uid}/data/profile — biometric data, goals, settings
+      // users/{uid}/data/profile — biometric data, goals, settings, identity
       match /data/profile {
         allow read: if isOwner(userId);
-
-        allow create: if isOwner(userId)
-                      && noServerFieldsOnCreate()
-                      && hasReasonableFieldCount();
-
-        allow update: if isOwner(userId)
-                      && noServerFieldsOnUpdate()
-                      && hasReasonableFieldCount();
-
+        allow create: if isOwner(userId) && hasReasonableFieldCount();
+        allow update: if isOwner(userId) && hasReasonableFieldCount();
         allow delete: if isOwner(userId);
       }
 

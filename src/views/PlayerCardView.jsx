@@ -346,6 +346,8 @@ export const PlayerCardView = ({ onComplete, onRecover }) => {
       const { doc, setDoc } = await import('firebase/firestore');
       const { db } = await import('../firebase');
       await setDoc(doc(db, 'users', uid, 'data', 'profile'), { pinHash }, { merge: true });
+      // Save PIN hash to localStorage — auth gate needs this on return visits
+      localStorage.setItem(`ironcore_pin_${uid}`, pinHash);
       setStep('reveal');
     } catch (e) {
       console.error('PIN save error:', e);

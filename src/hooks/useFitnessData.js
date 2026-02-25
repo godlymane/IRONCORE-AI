@@ -407,6 +407,8 @@ export function useFitnessData() {
     useEffect(() => {
         const { profile, progress, meals, workouts } = useStore.getState();
         if (migrationRanRef.current || !user || !db || !profileLoaded || !dataLoaded) return;
+        // Skip migration for brand new accounts (no profile data yet)
+        if (!profile.username && !profile.weight && !profile.goal) return;
         if ((profile.schemaVersion || 0) >= CURRENT_SCHEMA_VERSION) return;
         migrationRanRef.current = true;
 
