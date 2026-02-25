@@ -1,3 +1,42 @@
+/* ═══════════════════════════════════════════
+   NATIVE APP FEEL — Remove all web artifacts
+   ═══════════════════════════════════════════ */
+* {
+  -webkit-touch-callout: none;
+  /* iOS Safari: disable callout menu */
+  -webkit-user-select: none;
+  /* Safari: disable text selection */
+  user-select: none;
+  /* Standard: disable text selection */
+  -webkit-tap-highlight-color: transparent;
+  /* Remove blue/gray tap flash */
+  -webkit-overflow-scrolling: touch;
+  /* Momentum scrolling on iOS */
+}
+
+/* Re-enable selection for form inputs */
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: auto;
+  user-select: auto;
+}
+
+/* Prevent pull-to-refresh on Android Chrome */
+body {
+  overscroll-behavior-y: contain;
+}
+
+/* Disable long-press image save dialog */
+img {
+  -webkit-touch-callout: none;
+  pointer-events: none;
+}
+
+img.interactive {
+  pointer-events: auto;
+}
+
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
@@ -75,7 +114,8 @@ body {
 }
 
 /* Allow text selection in inputs despite user-select: none on body */
-input, textarea {
+input,
+textarea {
   -webkit-user-select: auto;
   user-select: auto;
 }
@@ -143,7 +183,24 @@ html {
   }
 }
 
+/* Keyboard safe zone */
+.keyboard-open .keyboard-safe {
+  padding-bottom: var(--keyboard-height, 0px);
+  transition: padding-bottom 0.25s ease;
+}
 
+/* Slide bottom nav off-screen when keyboard opens */
+body.keyboard-open [data-nav="bottom"] {
+  transform: translateY(120px) !important;
+  transition: transform 0.2s ease !important;
+}
+
+/* Hide floating action buttons when keyboard is open */
+body.keyboard-open [data-keyboard-hide] {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.15s ease !important;
+}
 
 /* Custom Scrollbar Styling */
 .scrollbar-hide::-webkit-scrollbar {
@@ -388,8 +445,15 @@ html {
 }
 
 @keyframes nav-edge-shimmer {
-  0%, 100% { transform: translateX(-30%); }
-  50% { transform: translateX(30%); }
+
+  0%,
+  100% {
+    transform: translateX(-30%);
+  }
+
+  50% {
+    transform: translateX(30%);
+  }
 }
 
 .glass-nav-pill::after {
@@ -960,7 +1024,9 @@ html {
    MOBILE MINIMUM FONT SIZE SAFETY NET
    ============================================= */
 @media (max-width: 768px) {
-  .text-\\[9px\\], .text-\\[10px\\] {
+
+  .text-\\[9px\\],
+  .text-\\[10px\\] {
     font-size: 11px !important;
   }
 }
@@ -972,6 +1038,7 @@ html {
    are the #1 cause of jank in mobile WebViews.
    ============================================= */
 @media (max-width: 768px) {
+
   /* Kill ALL backdrop-blur — the single biggest perf killer */
   .glass,
   .liquid-glass,
@@ -995,7 +1062,8 @@ html {
   }
 
   .liquid-glass::before {
-    display: none !important; /* Kill shimmer animation */
+    display: none !important;
+    /* Kill shimmer animation */
   }
 
   .glass-nav,
@@ -1005,7 +1073,8 @@ html {
   }
 
   .glass-nav-pill::after {
-    display: none !important; /* Kill nav shine overlay */
+    display: none !important;
+    /* Kill nav shine overlay */
   }
 
   .card-glass {
@@ -1019,7 +1088,11 @@ html {
   }
 
   /* Kill glow effects — they cause paint on every frame */
-  .glow-red, .glow-crimson, .glow-gold, .glow-green, .glow-orange {
+  .glow-red,
+  .glow-crimson,
+  .glow-gold,
+  .glow-green,
+  .glow-orange {
     box-shadow: none !important;
   }
 

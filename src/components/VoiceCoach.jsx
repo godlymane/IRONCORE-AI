@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Mic, MicOff, X, Volume2 } from 'lucide-react';
 import { useStore } from '../hooks/useStore';
 import { callGemini } from '../utils/helpers';
+import { Capacitor } from '@capacitor/core';
+import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 
 // ===========================
 // INTENT PARSER
@@ -232,19 +234,74 @@ const VoiceCoach = ({ updateData, analyzeFood, cleanAIResponse }) => {
         });
     }, [getStats, updateData, analyzeFood, cleanAIResponse]);
 
-    const startListening = useCallback(() => {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
+    const startListening = useCallback(async () => {
+        clearTimeout(timeoutRef.current);
+        window.speechSynthesis?.cancel();
+
+        const isNative = Capacitor.isNativePlatform();
+
+        if (isNative) {
+            try {
+                // Request permissions first
+                const permissions = await SpeechRecognition.checkPermissions();
+                if (permissions.speechRecognition !== 'granted') {
+                    const req = await SpeechRecognition.requestPermissions();
+                    if (req.speechRecognition !== 'granted') {
+                        setCoachText("Microphone permission denied.");
+                        setShowBubble(true);
+                        setTimeout(() => setShowBubble(false), 3000);
+                        return;
+                    }
+                }
+
+                setState('listening');
+                setTranscript('');
+                setCoachText('');
+                setShowBubble(true);
+
+                // Start native listening
+                SpeechRecognition.start({
+                    language: "en-US",
+                    maxResults: 1,
+                    prompt: "Coach Iron is listening...",
+                    partialResults: true,
+                    popup: false,
+                });
+
+                // Listen for native results
+                SpeechRecognition.addListener("partialResults", (data) => {
+                    if (data.matches && data.matches.length > 0) {
+                        setTranscript(data.matches[0]);
+                    }
+                });
+
+                // Listen for when native listening stops naturally or manually
+                // We add a one-off listener to handle the final result if native supports it this way
+                // Or wait for the stop command
+
+                // Capacitor SpeechRecognition resolves the promise when listening finishes (either by timeout or manual stop)
+                // However, the standard behavior in v8 is that it just emits events. We'll handle cleanup in `stopListening`
+
+            } catch (e) {
+                console.error("Native SpeechRecognition Error:", e);
+                setCoachText("Voice input failed. Try again.");
+                setShowBubble(true);
+                setTimeout(() => setShowBubble(false), 3000);
+                setState('idle');
+            }
+            return;
+        }
+
+        // --- WEB FALLBACK ---
+        const WebSpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!WebSpeechRecognition) {
             setCoachText("Sorry, your browser doesn't support voice input.");
             setShowBubble(true);
             setTimeout(() => setShowBubble(false), 3000);
             return;
         }
 
-        clearTimeout(timeoutRef.current);
-        window.speechSynthesis?.cancel();
-
-        const recognition = new SpeechRecognition();
+        const recognition = new WebSpeechRecognition();
         recognition.lang = 'en-US';
         recognition.interimResults = false;
         recognition.maxAlternatives = 1;
@@ -276,10 +333,27 @@ const VoiceCoach = ({ updateData, analyzeFood, cleanAIResponse }) => {
         setShowBubble(true);
     }, [handleResult, state]);
 
-    const stopListening = useCallback(() => {
-        recognitionRef.current?.stop();
-        setState('idle');
-    }, []);
+    const stopListening = useCallback(async () => {
+        const isNative = Capacitor.isNativePlatform();
+
+        if (isNative) {
+            try {
+                await SpeechRecognition.stop();
+                // If we have a transcript from partial results, submit it
+                if (transcript.trim() !== '') {
+                    handleResult(transcript);
+                } else {
+                    setState('idle');
+                }
+            } catch (e) {
+                console.error("Failed to stop native speech:", e);
+                setState('idle');
+            }
+        } else {
+            recognitionRef.current?.stop();
+            // the onresult/onerror/onend handlers deal with state transitions for web
+        }
+    }, [transcript, handleResult]);
 
     const toggleListening = () => {
         if (state === 'listening') stopListening();
@@ -302,7 +376,7 @@ const VoiceCoach = ({ updateData, analyzeFood, cleanAIResponse }) => {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
                         transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                        className="fixed bottom-28 right-4 z-50 max-w-[280px]"
+                        className="fixed bottom-28 left-4 z-50 max-w-[280px]"
                     >
                         <div
                             className="relative rounded-2xl p-4 shadow-2xl"
@@ -375,9 +449,10 @@ const VoiceCoach = ({ updateData, analyzeFood, cleanAIResponse }) => {
 
             {/* Floating Mic Button */}
             <motion.button
+                data-keyboard-hide
                 onClick={toggleListening}
                 whileTap={{ scale: 0.9 }}
-                className="fixed bottom-24 right-4 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl"
+                className="fixed bottom-28 left-4 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl"
                 style={{
                     background: state === 'listening'
                         ? 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)'

@@ -464,7 +464,7 @@ export const FloatingActionButton = ({ actions = [], mainIcon }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="fixed right-4 z-50" style={{ bottom: 'calc(80px + env(safe-area-inset-bottom, 0px) + 16px)' }}>
+    <div data-keyboard-hide className="fixed right-4 z-50" style={{ bottom: 'calc(80px + env(safe-area-inset-bottom, 0px) + 16px)' }}>
       <AnimatePresence>
         {isOpen && (
           <motion.div
