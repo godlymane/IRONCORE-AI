@@ -33,6 +33,7 @@ import { ThemeProvider } from './context/ThemeContext';
 // ArenaProvider removed — Arena now uses useFitnessData leaderboard directly
 import { PremiumProvider } from './context/PremiumContext';
 import PremiumPaywall from './components/PremiumPaywall';
+import * as Sentry from '@sentry/react';
 
 // Tab order for directional page transitions
 const TAB_ORDER = { dashboard: 0, arena: 1, workout: 2, ailab: 3, cardio: 4, profile: 5 };
@@ -406,6 +407,10 @@ class ViewErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error(`[${this.props.viewName || 'View'}] Error:`, error, errorInfo);
+    Sentry.captureException(error, {
+      contexts: { react: { componentStack: errorInfo?.componentStack } },
+      tags: { view: this.props.viewName || 'unknown' },
+    });
   }
 
   render() {
@@ -449,6 +454,10 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error("ErrorBoundary caught an error", error, errorInfo);
+    Sentry.captureException(error, {
+      contexts: { react: { componentStack: errorInfo?.componentStack } },
+      tags: { boundary: 'app-root' },
+    });
   }
 
   render() {
