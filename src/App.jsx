@@ -6,7 +6,9 @@ import {
 import { Capacitor } from '@capacitor/core';
 
 // Static imports — needed before auth resolves
-import { LoginView } from './views/LoginView';
+import { PlayerCardView } from './views/PlayerCardView';
+import { RecoveryView } from './views/RecoveryView';
+import { PinEntryView } from './views/PinEntryView';
 import { OnboardingView } from './views/OnboardingView';
 
 // Lazy-loaded views — only fetched when user navigates to tab
@@ -16,6 +18,8 @@ const CardioView = React.lazy(() => import('./views/CardioView').then(m => ({ de
 const ArenaView = React.lazy(() => import('./views/ArenaView').then(m => ({ default: m.ArenaView })));
 const ProfileHub = React.lazy(() => import('./views/ProfileHub').then(m => ({ default: m.ProfileHub })));
 const AILabView = React.lazy(() => import('./views/AILabView').then(m => ({ default: m.AILabView })));
+const AchievementsView = React.lazy(() => import('./views/AchievementsView').then(m => ({ default: m.AchievementsView })));
+const GhostMatchView = React.lazy(() => import('./views/GhostMatchView').then(m => ({ default: m.GhostMatchView })));
 
 import { NavBtn, ToastProvider, useToast, PageTransition, SkeletonCard, FloatingActionButton } from './components/UIComponents';
 import { OfflineIndicator } from './components/StatusComponents';
@@ -33,6 +37,8 @@ import { ThemeProvider } from './context/ThemeContext';
 // ArenaProvider removed — Arena now uses useFitnessData leaderboard directly
 import { PremiumProvider } from './context/PremiumContext';
 import PremiumPaywall from './components/PremiumPaywall';
+import { ExpBar } from './components/Gamification/ExpBar';
+import { StreakHUD } from './components/Gamification/StreakHUD';
 import * as Sentry from '@sentry/react';
 
 // Tab order for directional page transitions
@@ -46,6 +52,8 @@ const MainContent = () => {
   const prevTabRef = useRef('dashboard');
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
+  const [authGate, setAuthGate] = useState('checking'); // checking | card | recovery | biometric | pin | pin_setup | passed
+  const authGateResolved = useRef(false);
   const { addToast } = useToast();
 
   const {
@@ -56,11 +64,51 @@ const MainContent = () => {
   } = useStore();
 
   const {
-    login, logout, uploadProfilePic, uploadProgressPhoto,
+    logout, uploadProfilePic, uploadProgressPhoto,
     sendMessage, toggleFollow, createPost, sendPrivateMessage,
     updateData, deleteEntry, completeDailyDrop, buyItem, createBattle,
     isStorageReady, refreshData, clearError
   } = useFitnessData();
+
+  // AUTH GATE — decide initial auth screen once Firebase auth resolves
+  useEffect(() => {
+    if (loading || authGateResolved.current) return;
+
+    if (!user) {
+      // Check if there's a saved uid — returning user whose session expired
+      const savedUid = localStorage.getItem('ironcore_uid');
+      setAuthGate(savedUid ? 'pin' : 'card');
+      authGateResolved.current = true;
+      return;
+    }
+
+    authGateResolved.current = true;
+
+    // Returning user — check for PIN/biometric gate
+    const storedPin = localStorage.getItem(`ironcore_pin_${user.uid}`);
+    if (!storedPin) {
+      // No PIN on this device — skip gate
+      setAuthGate('passed');
+      return;
+    }
+
+    // Try biometric first, fall back to PIN
+    (async () => {
+      try {
+        const { isBiometricAvailable, authenticateWithBiometrics } = await import('./utils/biometrics');
+        const available = await isBiometricAvailable();
+        if (available) {
+          const success = await authenticateWithBiometrics('Unlock IronCore');
+          if (success) {
+            Haptics.success();
+            setAuthGate('passed');
+            return;
+          }
+        }
+      } catch {}
+      setAuthGate('pin');
+    })();
+  }, [user, loading]);
 
   // Sync local activeTab to the Zustand store
   useEffect(() => {
@@ -234,8 +282,41 @@ const MainContent = () => {
     return <SplashScreen onComplete={() => setShowSplash(false)} />;
   }
 
-  if (loading) return <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4"><div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin" /><p className="text-xs text-gray-500 font-black uppercase tracking-widest animate-pulse">Syncing Cloud Data...</p></div>;
-  if (!user) return <LoginView onLogin={login} />;
+  if (loading || authGate === 'checking') return <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4"><div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin" /><p className="text-xs text-gray-500 font-black uppercase tracking-widest animate-pulse">Syncing Cloud Data...</p></div>;
+
+  // AUTH GATE — new Web3-style Player Card flow
+  if (authGate === 'card') return <PlayerCardView onComplete={() => setAuthGate('passed')} onRecover={() => setAuthGate('recovery')} />;
+  if (authGate === 'recovery') return (
+    <RecoveryView
+      onRecovered={() => {
+        // After recovery, set up PIN on this new device
+        const uid = localStorage.getItem('ironcore_uid');
+        const hasPin = uid && localStorage.getItem(`ironcore_pin_${uid}`);
+        setAuthGate(hasPin ? 'passed' : 'pin_setup');
+      }}
+      onBack={() => setAuthGate('card')}
+    />
+  );
+  if (authGate === 'pin') return (
+    <PinEntryView
+      mode="verify"
+      storedPinHash={localStorage.getItem(`ironcore_pin_${user?.uid || localStorage.getItem('ironcore_uid')}`)}
+      onComplete={() => { Haptics.success(); setAuthGate('passed'); }}
+      onForgot={() => setAuthGate('recovery')}
+    />
+  );
+  if (authGate === 'pin_setup') return (
+    <PinEntryView
+      mode="setup"
+      onComplete={(hashedPin) => {
+        const uid = user?.uid || localStorage.getItem('ironcore_uid');
+        if (uid) localStorage.setItem(`ironcore_pin_${uid}`, hashedPin);
+        Haptics.success();
+        setAuthGate('passed');
+      }}
+    />
+  );
+  if (authGate !== 'passed') return <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4"><div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin" /></div>;
 
   // Wait for Firestore profile to load before deciding onboarding — prevents flash
   if (!profileLoaded) return <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4"><div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin" /><p className="text-xs text-gray-500 font-black uppercase tracking-widest animate-pulse">Loading Profile...</p></div>;
@@ -258,10 +339,21 @@ const MainContent = () => {
 
         <div className="max-w-md mx-auto min-h-screen relative shadow-2xl overflow-hidden md:border-x md:border-gray-900/50" style={{ backgroundColor: 'var(--color-background)' }}>
 
-          {/* THEME TOGGLE REMOVED */}
-          {/* <div className="fixed top-4 right-4 z-50 md:absolute md:right-6">
-            <ThemeToggle />
-          </div> */}
+          {/* GAMIFICATION HUD — Global EXP Bar + Streak Counter */}
+          <div className="sticky top-0 z-40 pt-[env(safe-area-inset-top,0px)]" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.8) 70%, transparent 100%)' }}>
+            <div className="px-3 pt-1 pb-2">
+              <div className="flex items-start gap-2">
+                <div className="flex-1 pt-1">
+                  <ExpBar xp={profile?.xp || 0} />
+                </div>
+                <StreakHUD
+                  currentStreak={profile?.currentStreak || 0}
+                  longestStreak={profile?.longestStreak || 0}
+                  streakFreezeCount={profile?.streakFreezeCount || 0}
+                />
+              </div>
+            </div>
+          </div>
 
           {/* VIEWPORT */}
           <PullToRefresh onRefresh={async () => {

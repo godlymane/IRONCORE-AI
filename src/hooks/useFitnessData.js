@@ -1,10 +1,9 @@
 import { useEffect, useCallback, useRef } from 'react';
 import {
-    signInWithPopup,
-    GoogleAuthProvider,
+    signInAnonymously,
+    signInWithCustomToken,
     signOut,
-    onAuthStateChanged,
-    signInWithCredential
+    onAuthStateChanged
 } from 'firebase/auth';
 import {
     doc, setDoc, collection, addDoc, getDoc, runTransaction,
@@ -20,6 +19,7 @@ import { db, auth as firebaseAuth, storage as firebaseStorage, isStorageConfigur
 import { runMigrations, CURRENT_SCHEMA_VERSION } from '../utils/migrations';
 import imageCompression from 'browser-image-compression';
 import { useStore } from './useStore';
+import { updateBossProgress } from '../services/arenaService';
 
 // --- Input validation helpers ---
 const MAX_MESSAGE_LENGTH = 500;
@@ -84,38 +84,31 @@ export function useFitnessData() {
         return () => unsubscribe();
     }, []);
 
-    // --- AUTH ACTIONS ---
-    const login = async () => {
+    // --- AUTH ACTIONS (Web3 Player Card) ---
+    const loginAnonymous = async () => {
         try {
-            const isNative = Capacitor.isNativePlatform();
-
-            if (isNative) {
-                const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
-                const result = await FirebaseAuthentication.signInWithGoogle();
-                const credential = GoogleAuthProvider.credential(result.credential?.idToken);
-                await signInWithCredential(firebaseAuth, credential);
-            } else {
-                const provider = new GoogleAuthProvider();
-                await signInWithPopup(firebaseAuth, provider);
-            }
+            const result = await signInAnonymously(firebaseAuth);
+            return result.user;
         } catch (e) {
-            console.error('Login error:', e);
-            if (e.code === 'auth/popup-closed-by-user' || e.message?.includes('canceled')) {
-                // Login cancelled by user
-            } else {
-                setError('Login Error: ' + (e.message || e.code));
-            }
+            console.error('Anonymous login error:', e);
+            setError('Login Error: ' + (e.message || e.code));
+            throw e;
+        }
+    };
+
+    const recoverWithToken = async (token) => {
+        try {
+            const result = await signInWithCustomToken(firebaseAuth, token);
+            return result.user;
+        } catch (e) {
+            console.error('Token login error:', e);
+            setError('Recovery Error: ' + (e.message || e.code));
+            throw e;
         }
     };
 
     const logout = async () => {
         try {
-            if (Capacitor.isNativePlatform()) {
-                try {
-                    const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
-                    await FirebaseAuthentication.signOut();
-                } catch (e) { /* native signout failed, continue with web signout */ }
-            }
             await signOut(firebaseAuth);
 
             clearStore();
@@ -503,6 +496,20 @@ export function useFitnessData() {
                     if (xpGain > 0 && Math.floor(oldXp / 500) < Math.floor(newXp / 500)) {
                         broadcastEvent('level', 'leveled up!', 'Reached ' + newXp + ' XP');
                     }
+
+                    // Apply Boss Damage based on Workout Volume
+                    if (col === 'workouts' && workoutVolume > 0) {
+                        try {
+                            const bossResult = await updateBossProgress(user.uid, leaderboardData.username, workoutVolume);
+                            if (bossResult && !bossResult.defeated) {
+                                broadcastEvent('boss_hit', 'Critical Hit!', `Dealt ${workoutVolume} damage to the Boss!`);
+                            } else if (bossResult && bossResult.defeated) {
+                                broadcastEvent('boss_kill', 'Boss Defeated!', `You struck the final blow!`);
+                            }
+                        } catch (err) {
+                            console.error("Failed to apply boss damage:", err);
+                        }
+                    }
                 }
             } catch (e) { console.error("Write Error", e); }
         } else if (action === 'update') {
@@ -518,7 +525,7 @@ export function useFitnessData() {
     // Return the stable functions and API so existing components don't break immediately
     // Note: To fully benefit from Zustand, components should import `useStore` directly and stop destructuring from this hook.
     return {
-        login, logout, uploadProfilePic, uploadProgressPhoto,
+        loginAnonymous, recoverWithToken, logout, uploadProfilePic, uploadProgressPhoto,
         sendMessage, toggleFollow, sendPrivateMessage, createPost,
         buyItem, completeDailyDrop, broadcastEvent, createBattle,
         isStorageReady, updateData, deleteEntry: (col, id) => updateData('delete', col, null, id),
