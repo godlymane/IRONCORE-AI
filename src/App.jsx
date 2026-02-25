@@ -26,7 +26,9 @@ import { DashboardSkeleton, WorkoutSkeleton, CardioSkeleton, ArenaSkeleton, Prof
 import { EliteFlameIcon, EliteSwordsIcon, EliteDumbbellIcon, EliteBrainIcon, EliteHeartIcon, EliteCrownIcon } from './components/EliteIcons';
 import { useFitnessData } from './hooks/useFitnessData';
 import { useStore } from './hooks/useStore';
+import { useScrollIntoView } from './hooks/useScrollIntoView';
 import { SFX, Haptics } from './utils/audio';
+import { initKeyboardHandling } from './utils/keyboardSetup';
 import { ThemeProvider } from './context/ThemeContext';
 // ArenaProvider removed — Arena now uses useFitnessData leaderboard directly
 import { PremiumProvider } from './context/PremiumContext';
@@ -98,6 +100,8 @@ const MainContent = () => {
   const touchRef = useRef({ startX: 0, startY: 0, startTime: 0 });
   const viewportRef = useRef(null);
 
+  useScrollIntoView(viewportRef);
+
   useEffect(() => {
     const el = viewportRef.current;
     if (!el) return;
@@ -131,7 +135,7 @@ const MainContent = () => {
     };
   }, [activeTab, handleTabChange]);
 
-  // Configure status bar on native platforms
+  // Configure status bar + keyboard on native platforms
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
       import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
@@ -139,6 +143,9 @@ const MainContent = () => {
         StatusBar.setBackgroundColor({ color: '#000000' });
         StatusBar.setOverlaysWebView({ overlay: true });
       }).catch(() => { });
+
+      // Initialize keyboard handling for native
+      initKeyboardHandling();
     }
   }, []);
 
@@ -345,6 +352,7 @@ const MainContent = () => {
           <VoiceCoach updateData={updateData} />
           {/* BOTTOM NAV - LIQUID GLASS FLOATING DOCK */}
           <motion.div
+            data-nav="bottom"
             className="fixed bottom-0 left-0 right-0 z-40 p-3"
             animate={{ y: navVisible ? 0 : 120 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
