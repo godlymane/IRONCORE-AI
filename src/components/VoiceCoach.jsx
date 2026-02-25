@@ -376,7 +376,8 @@ const VoiceCoach = ({ updateData, analyzeFood, cleanAIResponse }) => {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
                         transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                        className="fixed bottom-28 left-4 z-50 max-w-[280px]"
+                        className="fixed left-4 z-50 max-w-[280px]"
+                        style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 7rem)' }}
                     >
                         <div
                             className="relative rounded-2xl p-4 shadow-2xl"
@@ -452,8 +453,9 @@ const VoiceCoach = ({ updateData, analyzeFood, cleanAIResponse }) => {
                 data-keyboard-hide
                 onClick={toggleListening}
                 whileTap={{ scale: 0.9 }}
-                className="fixed bottom-28 left-4 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl"
+                className="fixed left-4 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl"
                 style={{
+                    bottom: 'calc(env(safe-area-inset-bottom, 0px) + 7rem)',
                     background: state === 'listening'
                         ? 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)'
                         : 'linear-gradient(135deg, rgba(30, 30, 30, 0.95) 0%, rgba(20, 20, 20, 0.95) 100%)',
