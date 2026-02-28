@@ -22,7 +22,7 @@ struct AILabView: View {
                 tabSwitcher
 
                 if labTab == 0 {
-                    coachPlaceholder
+                    CoachChatView()
                 } else {
                     visionLabContent
                 }

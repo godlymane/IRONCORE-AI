@@ -1,4 +1,6 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../services/firebase';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Zap, Palette, Frame, Award, Mic, FileText, Sparkles, Star,
@@ -202,17 +204,12 @@ const SEASON_TIERS = [
   },
 ];
 
-// ─── Hardcoded player state (placeholder until Firestore integration) ──────────
-const currentTier = 7;
-const currentXP = 340;
-const xpForNextTier = 500;
-const claimedFreeRewards = [1, 2, 3, 4, 5, 6, 7];
 
 // ─── Helper: get icon component from reward type ───────────────────────────────
 const getRewardIcon = (type) => REWARD_ICONS[type] || Star;
 
 // ─── Reward Card Component ─────────────────────────────────────────────────────
-const RewardCard = ({ reward, side, tierNum, isClaimed, isLocked, isPremiumTrack, isPremium, onPremiumTap }) => {
+const RewardCard = ({ reward, side, tierNum, isClaimed, isLocked, isPremiumTrack, isPremium, onPremiumTap, currentTier }) => {
   const Icon = getRewardIcon(reward.type);
   const isReachable = tierNum <= currentTier;
 
@@ -336,11 +333,35 @@ const TierCircle = ({ tierNum, isCompleted, isCurrent, isLast }) => {
 };
 
 // ─── Main BattlePassView ───────────────────────────────────────────────────────
-export const BattlePassView = ({ onClose }) => {
+export const BattlePassView = ({ onClose, user }) => {
   const { isPremium, requirePremium } = usePremium();
   const currentTierRef = useRef(null);
 
-  const claimedPremiumRewards = isPremium ? [1, 2, 3, 4, 5, 6, 7] : [];
+  const [bpData, setBpData] = useState({
+    currentTier: 1,
+    currentXP: 0,
+    xpForNextTier: 100,
+    claimedFreeRewards: [],
+    claimedPremiumRewards: [],
+  });
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    getDoc(doc(db, 'users', user.uid, 'data', 'battlePass')).then(snap => {
+      if (snap.exists()) {
+        const d = snap.data();
+        setBpData({
+          currentTier: d.currentTier || 1,
+          currentXP: d.currentXP || 0,
+          xpForNextTier: d.xpForNextTier || 100,
+          claimedFreeRewards: d.claimedFreeRewards || [],
+          claimedPremiumRewards: d.claimedPremiumRewards || [],
+        });
+      }
+    }).catch(() => {});
+  }, [user?.uid]);
+
+  const { currentTier, currentXP, xpForNextTier, claimedFreeRewards, claimedPremiumRewards } = bpData;
 
   // Auto-scroll to current tier on mount
   useEffect(() => {
@@ -472,6 +493,7 @@ export const BattlePassView = ({ onClose }) => {
                   isPremiumTrack={false}
                   isPremium={isPremium}
                   onPremiumTap={handlePremiumTap}
+                  currentTier={currentTier}
                 />
 
                 {/* Tier Circle (center) */}
@@ -492,6 +514,7 @@ export const BattlePassView = ({ onClose }) => {
                   isPremiumTrack={true}
                   isPremium={isPremium}
                   onPremiumTap={handlePremiumTap}
+                  currentTier={currentTier}
                 />
               </div>
             );

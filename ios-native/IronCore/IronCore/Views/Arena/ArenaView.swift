@@ -88,9 +88,14 @@ struct ArenaView: View {
     // MARK: - Tab Picker
 
     private var tabPicker: some View {
-        HStack(spacing: 0) {
-            tabButton("League", icon: "crown.fill", tag: 0)
-            tabButton("Battles", icon: "bolt.fill", tag: 1)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 0) {
+                tabButton("League", icon: "crown.fill", tag: 0)
+                tabButton("Battles", icon: "bolt.fill", tag: 1)
+                tabButton("Ghost", icon: "figure.run", tag: 2)
+                tabButton("Boss", icon: "flame.circle.fill", tag: 3)
+                tabButton("Pass", icon: "star.fill", tag: 4)
+            }
         }
         .padding(4)
         .background(
@@ -139,15 +144,24 @@ struct ArenaView: View {
 
     @ViewBuilder
     private var tabContent: some View {
-        if activeTab == 0 {
+        switch activeTab {
+        case 0:
             LeagueView(vm: leagueVM, uid: uid, profile: authVM.profile)
-        } else {
+        case 1:
             BattlesView(
                 arenaVM: arenaVM,
                 leagueVM: leagueVM,
                 uid: uid,
                 profile: authVM.profile
             )
+        case 2:
+            GhostMatchView()
+        case 3:
+            CommunityBossView()
+        case 4:
+            BattlePassView()
+        default:
+            LeagueView(vm: leagueVM, uid: uid, profile: authVM.profile)
         }
     }
 }

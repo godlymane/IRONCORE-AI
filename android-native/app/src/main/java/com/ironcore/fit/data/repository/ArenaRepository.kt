@@ -1,10 +1,12 @@
 package com.ironcore.fit.data.repository
 
 import com.google.firebase.Timestamp
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.ironcore.fit.data.model.*
+import com.ironcore.fit.data.remote.CloudFunctions
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -12,12 +14,82 @@ import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Repository for arena PvP matches, battles, community boss, and tournaments.
+ *
+ * The new ArenaMatch model (used by Cloud Functions matchmaking) lives
+ * alongside the legacy Battle model for backwards compatibility.
+ * New features should use ArenaMatch + Cloud Functions; legacy battle
+ * methods are kept for existing data.
+ */
 @Singleton
 class ArenaRepository @Inject constructor(
-    private val db: FirebaseFirestore
+    private val auth: FirebaseAuth,
+    private val db: FirebaseFirestore,
+    private val cloudFunctions: CloudFunctions
 ) {
+    private val uid get() = auth.currentUser?.uid
+        ?: throw IllegalStateException("Not authenticated")
 
-    // ── Battles ─────────────────────────────────────────────────
+    // ── Arena Matches (new Cloud Functions-based PvP) ─────────────
+
+    /**
+     * Real-time stream of active arena matches the current user is in.
+     * Queries both player1Id and player2Id since Firestore does not
+     * support OR queries on different fields in a single listener.
+     */
+    fun activeMatchesFlow(): Flow<List<ArenaMatch>> = callbackFlow {
+        val listener1 = db.collection("arenaMatches")
+            .whereEqualTo("status", "active")
+            .whereEqualTo("player1Id", uid)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) { close(error); return@addSnapshotListener }
+                val matches1 = snapshot?.documents?.mapNotNull { doc ->
+                    doc.toObject(ArenaMatch::class.java)?.copy(id = doc.id)
+                } ?: emptyList()
+                // Merge with player2 matches via second query
+                val listener2Ref = db.collection("arenaMatches")
+                    .whereEqualTo("status", "active")
+                    .whereEqualTo("player2Id", uid)
+                    .addSnapshotListener { snapshot2, error2 ->
+                        if (error2 != null) return@addSnapshotListener
+                        val matches2 = snapshot2?.documents?.mapNotNull { doc ->
+                            doc.toObject(ArenaMatch::class.java)?.copy(id = doc.id)
+                        } ?: emptyList()
+                        val combined = (matches1 + matches2).distinctBy { it.id }
+                        trySend(combined)
+                    }
+            }
+        awaitClose { listener1.remove() }
+    }
+
+    /**
+     * Real-time stream of recently completed matches for the user.
+     */
+    fun matchHistoryFlow(limit: Int = 20): Flow<List<ArenaMatch>> = callbackFlow {
+        val listener = db.collection("arenaMatches")
+            .whereEqualTo("status", "completed")
+            .orderBy("completedAt", Query.Direction.DESCENDING)
+            .limit(limit.toLong())
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) { close(error); return@addSnapshotListener }
+                val matches = snapshot?.documents?.mapNotNull { doc ->
+                    doc.toObject(ArenaMatch::class.java)?.copy(id = doc.id)
+                }?.filter { it.player1Id == uid || it.player2Id == uid }
+                    ?: emptyList()
+                trySend(matches)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    /** Request matchmaking via Cloud Function. */
+    suspend fun findMatch(): Map<String, Any> = cloudFunctions.matchmake()
+
+    /** Submit score for an active arena match. */
+    suspend fun submitScore(matchId: String, score: Int): Map<String, Any> =
+        cloudFunctions.submitArenaScore(matchId, score)
+
+    // ── Legacy Battles ───────────────────────────────────────────
 
     fun pendingBattlesFlow(userId: String): Flow<List<Battle>> = callbackFlow {
         val listener = db.collection("battles")
@@ -34,7 +106,6 @@ class ArenaRepository @Inject constructor(
     }
 
     suspend fun getUserBattles(userId: String, status: String? = null): List<Battle> {
-        // Get battles where user is challenger
         val challengerQuery = db.collection("battles")
             .whereEqualTo("challenger.userId", userId)
         val opponentQuery = db.collection("battles")
@@ -104,7 +175,7 @@ class ArenaRepository @Inject constructor(
         ).await()
     }
 
-    // ── Community Boss ──────────────────────────────────────────
+    // ── Community Boss ────────────────────────────────────────────
 
     fun bossFlow(): Flow<CommunityBoss?> = callbackFlow {
         val listener = db.collection("community_boss").document("current")
@@ -115,43 +186,11 @@ class ArenaRepository @Inject constructor(
         awaitClose { listener.remove() }
     }
 
-    suspend fun dealBossDamage(userId: String, username: String, damage: Long) {
-        val bossRef = db.collection("community_boss").document("current")
-        db.runTransaction { transaction ->
-            val boss = transaction.get(bossRef).toObject(CommunityBoss::class.java)
-                ?: return@runTransaction
+    /** Deal damage to the community boss via Cloud Function. */
+    suspend fun dealBossDamage(bossId: String, damage: Int): Map<String, Any> =
+        cloudFunctions.dealBossDamage(bossId, damage)
 
-            val newHP = maxOf(0, boss.currentHP - damage)
-            val existingContributor = boss.contributors.find { it.userId == userId }
-
-            val updatedContributors = if (existingContributor != null) {
-                boss.contributors.map {
-                    if (it.userId == userId) it.copy(damageDealt = it.damageDealt + damage)
-                    else it
-                }
-            } else {
-                boss.contributors + BossContributor(
-                    userId = userId,
-                    username = username,
-                    damageDealt = damage,
-                    joinedAt = java.time.Instant.now().toString()
-                )
-            }
-
-            val updates = mutableMapOf<String, Any>(
-                "currentHP" to newHP,
-                "contributors" to updatedContributors,
-                "lastDamageAt" to Timestamp.now()
-            )
-            if (newHP <= 0) {
-                updates["status"] = "defeated"
-                updates["defeatedAt"] = Timestamp.now()
-            }
-            transaction.update(bossRef, updates)
-        }.await()
-    }
-
-    // ── Tournaments ─────────────────────────────────────────────
+    // ── Tournaments ──────────────────────────────────────────────
 
     fun activeTournamentFlow(): Flow<Tournament?> = callbackFlow {
         val listener = db.collection("tournaments")

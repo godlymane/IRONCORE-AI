@@ -61,8 +61,14 @@ final class AuthViewModel: ObservableObject {
                     self.startProfileListener(uid: user.uid)
                     // Retry any onboarding writes that failed previously
                     await self.retryPendingOnboarding()
+                    // Request push notification permission + start in-app notification listener
+                    Task {
+                        let _ = await NotificationService.shared.requestPermission()
+                        NotificationService.shared.startListening(uid: user.uid)
+                    }
                 } else {
                     self.stopProfileListener()
+                    NotificationService.shared.stopListening()
                     self.profile = nil
                     self.authState = .unauthenticated
                 }

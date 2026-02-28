@@ -9,11 +9,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavHostController
 import com.ironcore.fit.ui.components.GlassCard
 import com.ironcore.fit.ui.theme.*
 
 @Composable
-fun ProgressScreen() {
+fun ProgressScreen(navController: NavHostController? = null) {
     Column(
         modifier = Modifier
             .fillMaxSize()

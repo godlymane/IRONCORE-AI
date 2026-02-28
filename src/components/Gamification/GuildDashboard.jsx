@@ -3,36 +3,13 @@
  * Visual-first shell with mock data. Shows team progress, member avatars, weekly goals.
  * Designed to embed inside ArenaView as a tab or section.
  */
-import React, { useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../../services/firebase';
 import { motion } from 'framer-motion';
 import { Users, Target, Trophy, Shield, Flame, TrendingUp } from 'lucide-react';
 import { GlassCard } from '../UIComponents';
 
-// Mock guild data — replace with Firestore when backend is ready
-const MOCK_GUILD = {
-  name: 'Iron Legion',
-  tag: 'IRON',
-  level: 7,
-  xp: 34200,
-  motto: 'Forged in fire, united in iron.',
-  members: [
-    { id: '1', name: 'Captain', photo: null, weeklyVolume: 12400, role: 'Leader' },
-    { id: '2', name: 'BladeRunner', photo: null, weeklyVolume: 9800, role: 'Officer' },
-    { id: '3', name: 'PhantomLift', photo: null, weeklyVolume: 8200, role: 'Member' },
-    { id: '4', name: 'IronMaiden', photo: null, weeklyVolume: 7600, role: 'Member' },
-    { id: '5', name: 'GhostRep', photo: null, weeklyVolume: 5400, role: 'Recruit' },
-  ],
-  weeklyGoals: [
-    { id: 'vol', label: 'Lift 50,000 kg as a team', icon: '🏋️', current: 43400, target: 50000, unit: 'kg' },
-    { id: 'workouts', label: 'Complete 30 team workouts', icon: '💪', current: 22, target: 30, unit: '' },
-    { id: 'streak', label: 'All members active 5 days', icon: '🔥', current: 3, target: 5, unit: 'days' },
-  ],
-  recentActivity: [
-    { member: 'Captain', action: 'crushed a Leg Day workout', time: '2h ago', xp: 50 },
-    { member: 'BladeRunner', action: 'hit a new PR on Bench Press', time: '4h ago', xp: 75 },
-    { member: 'IronMaiden', action: 'completed a Ghost Match victory', time: '6h ago', xp: 150 },
-  ],
-};
 
 const GoalProgressBar = ({ goal }) => {
   const pct = Math.min((goal.current / goal.target) * 100, 100);
@@ -116,11 +93,39 @@ const MemberRow = ({ member, rank }) => {
 };
 
 export const GuildDashboard = ({ user }) => {
-  const guild = MOCK_GUILD;
+  const [guild, setGuild] = useState(null);
+
+  useEffect(() => {
+    if (!user?.guildId) return;
+    const unsub = onSnapshot(doc(db, 'guilds', user.guildId), snap => {
+      if (snap.exists()) setGuild({ id: snap.id, ...snap.data() });
+      else setGuild(null);
+    });
+    return () => unsub();
+  }, [user?.guildId]);
+
   const totalWeeklyVolume = useMemo(
-    () => guild.members.reduce((sum, m) => sum + m.weeklyVolume, 0),
-    [guild.members]
+    () => (guild?.members || []).reduce((sum, m) => sum + (m.weeklyVolume || 0), 0),
+    [guild?.members]
   );
+
+  if (!user?.guildId) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center space-y-3">
+        <Shield size={40} className="text-gray-700" />
+        <p className="text-sm font-bold text-gray-500 uppercase tracking-wider">No Guild</p>
+        <p className="text-xs text-gray-600 max-w-[240px]">Join or create a guild to see your team dashboard here.</p>
+      </div>
+    );
+  }
+
+  if (!guild) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="w-6 h-6 rounded-full border-2 border-red-500 border-t-transparent animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <motion.div

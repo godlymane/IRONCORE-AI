@@ -136,34 +136,39 @@ export const WorkoutView = () => {
     const finishSession = async () => {
         if (sessionExercises.length === 0) { setIsSessionActive(false); return; }
 
-        // Auto-compute and save 1RM estimates for each exercise
-        const oneRMUpdates = {};
-        sessionExercises.forEach(ex => {
-            let best1RM = 0;
-            ex.sets.forEach(s => {
-                const weight = parseFloat(s.w);
-                const reps = parseFloat(s.r);
-                if (weight > 0 && reps > 0 && reps <= 30) {
-                    const estimated = Math.round(weight * (1 + reps / 30));
-                    if (estimated > best1RM) best1RM = estimated;
-                }
+        try {
+            // Auto-compute and save 1RM estimates for each exercise
+            const oneRMUpdates = {};
+            sessionExercises.forEach(ex => {
+                let best1RM = 0;
+                ex.sets.forEach(s => {
+                    const weight = parseFloat(s.w);
+                    const reps = parseFloat(s.r);
+                    if (weight > 0 && reps > 0 && reps <= 30) {
+                        const estimated = Math.round(weight * (1 + reps / 30));
+                        if (estimated > best1RM) best1RM = estimated;
+                    }
+                });
+                if (best1RM > 0) oneRMUpdates[ex.name] = best1RM;
             });
-            if (best1RM > 0) oneRMUpdates[ex.name] = best1RM;
-        });
 
-        await updateData('add', 'workouts', { name: sessionName, exercises: sessionExercises, duration: elapsed });
+            await updateData('add', 'workouts', { name: sessionName, exercises: sessionExercises, duration: elapsed });
 
-        // Save 1RM records to profile (merge — only updates if new record is higher)
-        if (Object.keys(oneRMUpdates).length > 0) {
-            await updateData('add', 'profile', { oneRMRecords: oneRMUpdates });
+            // Save 1RM records to profile (merge — only updates if new record is higher)
+            if (Object.keys(oneRMUpdates).length > 0) {
+                await updateData('add', 'profile', { oneRMRecords: oneRMUpdates });
+            }
+
+            SFX.levelUp();
+
+            // Trigger post-workout upsell (component handles all frequency/suppression rules)
+            setLastWorkoutData({ exercises: sessionExercises, duration: elapsed });
+            setShowUpsell(true);
+        } catch (e) {
+            console.error('Failed to save workout:', e);
+        } finally {
+            setIsSessionActive(false);
         }
-
-        setIsSessionActive(false);
-        SFX.levelUp();
-
-        // Trigger post-workout upsell (component handles all frequency/suppression rules)
-        setLastWorkoutData({ exercises: sessionExercises, duration: elapsed });
-        setShowUpsell(true);
     };
 
     const cancelRest = () => {

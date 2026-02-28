@@ -108,13 +108,13 @@ class SocialRepository @Inject constructor(
         return ref.id
     }
 
-    suspend fun joinGuild(guildId: String, member: GuildMember) {
+    suspend fun joinGuild(guildId: String, memberId: String) {
         val guildRef = db.collection("guilds").document(guildId)
         db.runTransaction { transaction ->
             val guild = transaction.get(guildRef).toObject(Guild::class.java) ?: return@runTransaction
             if (guild.memberCount >= guild.maxMembers) return@runTransaction
             transaction.update(guildRef, mapOf(
-                "members" to guild.members + member,
+                "members" to guild.members + memberId,
                 "memberCount" to guild.memberCount + 1
             ))
         }.await()
@@ -125,7 +125,7 @@ class SocialRepository @Inject constructor(
         db.runTransaction { transaction ->
             val guild = transaction.get(guildRef).toObject(Guild::class.java) ?: return@runTransaction
             transaction.update(guildRef, mapOf(
-                "members" to guild.members.filter { it.userId != userId },
+                "members" to guild.members.filter { it != userId },
                 "memberCount" to maxOf(0, guild.memberCount - 1)
             ))
         }.await()

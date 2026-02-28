@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "723716819080",
+    "project_id": "ironcore-f68c2",
+    "storage_bucket": "ironcore-f68c2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:723716819080:android:01ca231fa4270dd931b73d",
+        "android_client_info": {
+          "package_name": "com.ironcore.fit"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "723716819080-3biun90h4k7ioavmr37k7jq5cfpep7fl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ironcore.fit",
+            "certificate_hash": "93d0bd3df4fd708e80ed0e863665afefcb2c30b8"
+          }
+        },
+        {
+          "client_id": "723716819080-nfju204ii76e82nirltnvdgqeeg51cgb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCvkKvSLej2uKqPTUOXpInkfEcYlzBxlmc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "723716819080-nfju204ii76e82nirltnvdgqeeg51cgb.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

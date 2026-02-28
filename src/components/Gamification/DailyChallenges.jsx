@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '../../services/firebase';
 import { Target, Check, Gift, Clock, Flame } from 'lucide-react';
 
-export const DailyChallenges = ({ onClaim, todayWorkouts = [], todayMeals = [], todayBurned = 0 }) => {
+export const DailyChallenges = ({ onClaim, user, todayWorkouts = [], todayMeals = [], todayBurned = 0 }) => {
     // Calculate dynamic challenges based on actual data
     const challenges = useMemo(() => {
         const workoutCount = todayWorkouts.length;
@@ -41,9 +43,27 @@ export const DailyChallenges = ({ onClaim, todayWorkouts = [], todayMeals = [], 
 
     const [claimedIds, setClaimedIds] = useState([]);
 
-    const handleClaim = (id) => {
-        setClaimedIds(prev => [...prev, id]);
+    // Load claimed IDs from Firestore on mount
+    useEffect(() => {
+        if (!user?.uid) return;
+        const today = new Date().toISOString().slice(0, 10);
+        getDoc(doc(db, 'users', user.uid, 'challengeClaims', today)).then(snap => {
+            if (snap.exists()) setClaimedIds(snap.data().claimedIds || []);
+        }).catch(() => {});
+    }, [user?.uid]);
+
+    const handleClaim = async (id) => {
+        const updated = [...claimedIds, id];
+        setClaimedIds(updated);
         if (onClaim) onClaim(id);
+        if (user?.uid) {
+            const today = new Date().toISOString().slice(0, 10);
+            await setDoc(
+                doc(db, 'users', user.uid, 'challengeClaims', today),
+                { claimedIds: updated },
+                { merge: true }
+            ).catch(() => {});
+        }
     };
 
     // Calculate time until midnight reset

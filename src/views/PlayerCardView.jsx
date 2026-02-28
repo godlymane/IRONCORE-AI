@@ -1,14 +1,53 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
-import { Shield, Copy, Check, Download, ChevronRight, AlertCircle, Loader2, Dumbbell, KeyRound } from 'lucide-react';
+import { Shield, Copy, Check, Download, ChevronRight, AlertCircle, Loader2, Dumbbell, LogIn, UserPlus } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { generatePhrase, hashPhrase, validateUsername } from '../utils/playerIdentity';
 import { PinEntryView } from './PinEntryView';
 import { SFX, Haptics } from '../utils/audio';
 
+// ─── Landing Screen ─────────────────────────────────────────────
+const LandingScreen = ({ onCreateAccount, onLogin }) => (
+  <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6">
+    <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm text-center">
+      {/* Logo */}
+      <div className="flex justify-center mb-8">
+        <div className="relative">
+          <div className="absolute inset-0 rounded-3xl blur-xl opacity-60" style={{ background: 'linear-gradient(135deg, rgba(220,38,38,0.8), rgba(185,28,28,0.8))', transform: 'scale(1.2)' }} />
+          <div className="relative p-5 rounded-3xl" style={{ background: 'linear-gradient(135deg, rgba(220,38,38,0.9), rgba(185,28,28,0.9))', boxShadow: '0 20px 60px rgba(220,38,38,0.4), inset 0 2px 0 rgba(255,255,255,0.2)' }}>
+            <Dumbbell size={56} className="text-white" />
+          </div>
+        </div>
+      </div>
+
+      <h1 className="text-4xl font-black text-white uppercase tracking-tight mb-2">IronCore</h1>
+      <p className="text-sm text-gray-500 mb-12">Your Phone. Your Trainer.</p>
+
+      {/* Create Account */}
+      <button
+        onClick={onCreateAccount}
+        className="w-full py-4 rounded-2xl font-black uppercase tracking-widest text-sm text-white mb-3 flex items-center justify-center gap-2"
+        style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)', boxShadow: '0 15px 50px rgba(220,38,38,0.3)' }}
+      >
+        <UserPlus size={18} />
+        Create Account
+      </button>
+
+      {/* Log In */}
+      <button
+        onClick={onLogin}
+        className="w-full py-4 rounded-2xl font-bold uppercase tracking-wider text-sm text-white border border-white/10 bg-white/5 active:bg-white/10 transition-all flex items-center justify-center gap-2"
+      >
+        <LogIn size={18} className="text-red-400" />
+        Log In
+      </button>
+    </motion.div>
+  </div>
+);
+
 // ─── Username Creation Screen ───────────────────────────────────
-const UsernameScreen = ({ onNext, onRecover, createError }) => {
+const UsernameScreen = ({ onNext, onBack, createError }) => {
   const [username, setUsername] = useState('');
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState('');
@@ -54,18 +93,13 @@ const UsernameScreen = ({ onNext, onRecover, createError }) => {
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6">
       <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm text-center">
-        {/* Logo */}
-        <div className="flex justify-center mb-6">
-          <div className="relative">
-            <div className="absolute inset-0 rounded-3xl blur-xl opacity-60" style={{ background: 'linear-gradient(135deg, rgba(220,38,38,0.8), rgba(185,28,28,0.8))', transform: 'scale(1.2)' }} />
-            <div className="relative p-4 rounded-3xl" style={{ background: 'linear-gradient(135deg, rgba(220,38,38,0.9), rgba(185,28,28,0.9))', boxShadow: '0 20px 60px rgba(220,38,38,0.4), inset 0 2px 0 rgba(255,255,255,0.2)' }}>
-              <Dumbbell size={48} className="text-white" />
-            </div>
-          </div>
-        </div>
+        {/* Back */}
+        <button onClick={onBack} className="flex items-center gap-1 text-xs text-gray-500 mb-8 self-start">
+          <ChevronRight size={14} className="rotate-180" /> Back
+        </button>
 
         <h1 className="text-3xl font-black text-white uppercase tracking-tight mb-1">Choose Your Handle</h1>
-        <p className="text-xs text-gray-500 mb-8">This is your identity. No email. No password. Just you.</p>
+        <p className="text-xs text-gray-500 mb-8">This is your identity in IronCore.</p>
 
         {/* Username Input */}
         <div className="relative mb-4">
@@ -92,43 +126,27 @@ const UsernameScreen = ({ onNext, onRecover, createError }) => {
         {createError && <p className="text-xs text-orange-400 mb-4 p-2 bg-orange-500/10 rounded-lg">{createError}</p>}
         {available && <p className="text-xs text-green-400 mb-4">@{username} is available</p>}
 
-        {/* Create Button */}
         <button
           onClick={handleSubmit}
           disabled={!available || checking}
           className="w-full py-4 rounded-2xl font-black uppercase tracking-widest text-sm text-white transition-all disabled:opacity-30"
           style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)', boxShadow: available ? '0 15px 50px rgba(220,38,38,0.3)' : 'none' }}
         >
-          Create My Identity
-        </button>
-
-        {/* Divider */}
-        <div className="flex items-center gap-3 mt-8 mb-4">
-          <div className="flex-1 h-px bg-white/10" />
-          <span className="text-[10px] text-gray-600 uppercase tracking-widest">or</span>
-          <div className="flex-1 h-px bg-white/10" />
-        </div>
-
-        {/* Recovery / Login Button */}
-        <button
-          onClick={onRecover}
-          className="w-full py-3.5 rounded-2xl font-bold uppercase tracking-wider text-sm text-white border border-white/10 bg-white/5 active:bg-white/10 transition-all flex items-center justify-center gap-2"
-        >
-          <KeyRound size={16} className="text-red-400" />
-          I Have a Recovery Phrase
+          Next
         </button>
       </motion.div>
     </div>
   );
 };
 
-// ─── Card Reveal Screen ─────────────────────────────────────────
+// ─── Card Reveal Screen (QR + words as composite image) ─────────
 const CardRevealScreen = ({ username, phrase, onSaved }) => {
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [saving, setSaving] = useState(false);
   const cardRef = useRef(null);
+  const compositeRef = useRef(null);
   const words = phrase.split(' ');
 
   const copyPhrase = async () => {
@@ -144,7 +162,8 @@ const CardRevealScreen = ({ username, phrase, onSaved }) => {
     setSaving(true);
     try {
       const { toPng } = await import('html-to-image');
-      const dataUrl = await toPng(cardRef.current, { backgroundColor: '#000', pixelRatio: 3 });
+      // Use composite ref which includes QR + recovery words
+      const dataUrl = await toPng(compositeRef.current, { backgroundColor: '#000', pixelRatio: 3 });
 
       if (Capacitor.isNativePlatform()) {
         const { Filesystem, Directory } = await import('@capacitor/filesystem');
@@ -156,8 +175,8 @@ const CardRevealScreen = ({ username, phrase, onSaved }) => {
           directory: Directory.Cache,
         });
         await Share.share({
-          title: 'IronCore Player Card',
-          text: 'My IronCore Player Identity',
+          title: 'IronCore Recovery Card',
+          text: 'My IronCore recovery card — DO NOT SHARE',
           url: result.uri,
         });
       } else {
@@ -183,7 +202,7 @@ const CardRevealScreen = ({ username, phrase, onSaved }) => {
         transition={{ duration: 0.6, ease: 'easeOut' }}
         className="w-full max-w-sm pb-[env(safe-area-inset-bottom,24px)]"
       >
-        {/* ── The Player Card ── */}
+        {/* ── The Player Card (on-screen display) ── */}
         <div
           ref={cardRef}
           className="relative rounded-3xl overflow-hidden mb-6"
@@ -192,20 +211,9 @@ const CardRevealScreen = ({ username, phrase, onSaved }) => {
             border: '1px solid rgba(255,255,255,0.08)',
           }}
         >
-          {/* Holographic shimmer */}
-          <div
-            className="absolute inset-0 pointer-events-none opacity-20"
-            style={{
-              background: 'linear-gradient(135deg, transparent 20%, rgba(220,38,38,0.3) 30%, rgba(249,115,22,0.2) 40%, rgba(168,85,247,0.2) 50%, rgba(59,130,246,0.2) 60%, transparent 80%)',
-              backgroundSize: '200% 200%',
-              animation: 'holographic 4s ease-in-out infinite',
-            }}
-          />
-          {/* Border glow */}
+          <div className="absolute inset-0 pointer-events-none opacity-20" style={{ background: 'linear-gradient(135deg, transparent 20%, rgba(220,38,38,0.3) 30%, rgba(249,115,22,0.2) 40%, rgba(168,85,247,0.2) 50%, rgba(59,130,246,0.2) 60%, transparent 80%)', backgroundSize: '200% 200%', animation: 'holographic 4s ease-in-out infinite' }} />
           <div className="absolute inset-0 rounded-3xl pointer-events-none" style={{ boxShadow: 'inset 0 0 30px rgba(220,38,38,0.1), 0 0 40px rgba(220,38,38,0.05)' }} />
-
           <div className="relative p-6">
-            {/* Header */}
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-2">
                 <Dumbbell size={18} className="text-red-500" />
@@ -213,29 +221,21 @@ const CardRevealScreen = ({ username, phrase, onSaved }) => {
               </div>
               <Shield size={16} className="text-red-500/50" />
             </div>
-
-            {/* Username */}
-            <h2 className="text-3xl font-black text-white mb-1" style={{ textShadow: '0 0 30px rgba(220,38,38,0.3)' }}>
-              @{username}
-            </h2>
+            <h2 className="text-3xl font-black text-white mb-1" style={{ textShadow: '0 0 30px rgba(220,38,38,0.3)' }}>@{username}</h2>
             <p className="text-[10px] text-gray-600 uppercase tracking-widest mb-6">IronCore Athlete</p>
-
-            {/* QR + Date */}
             <div className="flex items-end justify-between">
               <div className="bg-white p-2 rounded-xl">
                 <QRCodeSVG value={phrase} size={100} level="M" />
               </div>
               <div className="text-right">
                 <p className="text-[9px] text-gray-600 uppercase tracking-widest">Member Since</p>
-                <p className="text-xs text-gray-400 font-bold">
-                  {new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                </p>
+                <p className="text-xs text-gray-400 font-bold">{new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ── Recovery Phrase ── */}
+        {/* ── Recovery Phrase (on-screen) ── */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs text-gray-500 font-bold uppercase tracking-wide">Recovery Phrase</p>
@@ -245,13 +245,7 @@ const CardRevealScreen = ({ username, phrase, onSaved }) => {
           </div>
           <div className="grid grid-cols-2 gap-2">
             {words.map((word, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 + i * 0.08 }}
-                className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/5 border border-white/5"
-              >
+              <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 + i * 0.08 }} className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/5 border border-white/5">
                 <span className="text-[10px] text-gray-600 font-bold w-4">{i + 1}</span>
                 <span className="text-sm text-white font-bold">{word}</span>
               </motion.div>
@@ -262,11 +256,11 @@ const CardRevealScreen = ({ username, phrase, onSaved }) => {
         {/* Warning */}
         <div className="p-3 rounded-xl bg-red-500/5 border border-red-500/10 mb-4">
           <p className="text-[11px] text-red-400/80 leading-relaxed">
-            This phrase is your <strong>ONLY</strong> way to recover your account on a new device. Save it now. IronCore cannot reset it.
+            This phrase is your <strong>ONLY</strong> way to recover your account. Save it now. IronCore cannot reset it.
           </p>
         </div>
 
-        {/* Confirmation checkbox */}
+        {/* Confirm + Save + Continue */}
         <button className="flex items-center gap-3 mb-4 w-full text-left" onClick={() => setConfirmed(!confirmed)}>
           <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors shrink-0 ${confirmed ? 'bg-red-500 border-red-500' : 'border-gray-700'}`}>
             {confirmed && <Check size={12} className="text-white" />}
@@ -274,13 +268,8 @@ const CardRevealScreen = ({ username, phrase, onSaved }) => {
           <span className="text-xs text-gray-400">I've saved my recovery phrase</span>
         </button>
 
-        {/* Save + Continue */}
         <div className="flex flex-col gap-3">
-          <button
-            onClick={saveToDevice}
-            disabled={saving}
-            className="w-full py-4 rounded-2xl font-bold text-sm text-white flex items-center justify-center gap-2 bg-white/5 border border-white/10 active:bg-white/10 transition-colors"
-          >
+          <button onClick={saveToDevice} disabled={saving} className="w-full py-4 rounded-2xl font-bold text-sm text-white flex items-center justify-center gap-2 bg-white/5 border border-white/10 active:bg-white/10 transition-colors">
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
             Save Card to Device
           </button>
@@ -288,15 +277,40 @@ const CardRevealScreen = ({ username, phrase, onSaved }) => {
             onClick={onSaved}
             disabled={!confirmed}
             className="w-full py-4 rounded-2xl font-black uppercase tracking-widest text-sm text-white transition-all disabled:opacity-30"
-            style={{
-              background: confirmed ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'rgba(255,255,255,0.05)',
-              boxShadow: confirmed ? '0 15px 50px rgba(220,38,38,0.3)' : 'none',
-            }}
+            style={{ background: confirmed ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'rgba(255,255,255,0.05)', boxShadow: confirmed ? '0 15px 50px rgba(220,38,38,0.3)' : 'none' }}
           >
             Continue <ChevronRight size={14} className="inline ml-1" />
           </button>
         </div>
       </motion.div>
+
+      {/* ── Hidden Composite for save (QR + words in one image) ── */}
+      <div
+        ref={compositeRef}
+        style={{ position: 'absolute', left: '-9999px', width: '375px', padding: '24px', background: '#000', fontFamily: 'system-ui, -apple-system, sans-serif' }}
+      >
+        <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+          <p style={{ color: '#dc2626', fontWeight: 900, fontSize: '10px', letterSpacing: '0.2em', marginBottom: '4px', textTransform: 'uppercase' }}>IronCore Recovery Card</p>
+          <p style={{ color: '#fff', fontWeight: 900, fontSize: '28px' }}>@{username}</p>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+          <div style={{ background: '#fff', padding: '10px', borderRadius: '12px' }}>
+            <QRCodeSVG value={phrase} size={160} level="M" />
+          </div>
+        </div>
+        <p style={{ color: '#666', fontSize: '9px', textAlign: 'center', fontWeight: 700, letterSpacing: '0.15em', marginBottom: '12px', textTransform: 'uppercase' }}>Recovery Phrase</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '16px' }}>
+          {words.map((word, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+              <span style={{ color: '#666', fontSize: '10px', fontWeight: 700, width: '16px' }}>{i + 1}</span>
+              <span style={{ color: '#fff', fontSize: '14px', fontWeight: 700 }}>{word}</span>
+            </div>
+          ))}
+        </div>
+        <p style={{ color: '#dc2626', fontSize: '9px', textAlign: 'center', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase' }}>
+          DO NOT SHARE — THIS IS YOUR ONLY RECOVERY METHOD
+        </p>
+      </div>
 
       <style>{`
         @keyframes holographic {
@@ -309,20 +323,29 @@ const CardRevealScreen = ({ username, phrase, onSaved }) => {
 };
 
 // ─── Main Orchestrator ──────────────────────────────────────────
-export const PlayerCardView = ({ onComplete, onRecover }) => {
-  const [step, setStep] = useState('username'); // 'username' | 'creating' | 'pin' | 'reveal'
+export const PlayerCardView = ({ onComplete, onLogin }) => {
+  const [step, setStep] = useState('landing'); // landing | username | pin | creating | reveal
   const [username, setUsername] = useState('');
   const [phrase, setPhrase] = useState('');
   const [uid, setUid] = useState('');
+  const [pinHash, setPinHash] = useState('');
   const [createError, setCreateError] = useState('');
 
-  const handleUsernameChosen = async (name) => {
+  // Step 1: Username chosen → go to PIN
+  const handleUsernameChosen = (name) => {
     setUsername(name);
+    setCreateError('');
+    setStep('pin');
+  };
+
+  // Step 2: PIN set → create account (single Firestore write with all data)
+  const handlePinSet = async (hash) => {
+    setPinHash(hash);
     setStep('creating');
     setCreateError('');
 
     try {
-      // Step 1: Anonymous sign-in
+      // Anonymous sign-in
       let user;
       try {
         const { signInAnonymously } = await import('firebase/auth');
@@ -341,34 +364,38 @@ export const PlayerCardView = ({ onComplete, onRecover }) => {
       const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
       const { db } = await import('../firebase');
 
-      // Step 2: Claim username
+      // Claim username
       try {
         const { getDoc: gd } = await import('firebase/firestore');
-        const unSnap = await gd(doc(db, 'usernames', name));
+        const unSnap = await gd(doc(db, 'usernames', username));
         if (unSnap.exists() && unSnap.data().uid !== user.uid) {
-          throw new Error('Username taken by another account. Try a different name.');
+          throw new Error('Username taken. Go back and try a different name.');
         }
-        await setDoc(doc(db, 'usernames', name), {
+        await setDoc(doc(db, 'usernames', username), {
           uid: user.uid,
           createdAt: serverTimestamp(),
         });
       } catch (unErr) {
-        if (unErr.message?.includes('Try a different')) throw unErr;
+        if (unErr.message?.includes('taken')) throw unErr;
         throw new Error(`Username claim failed: ${unErr.code || unErr.message}`);
       }
 
-      // Step 3: Write profile
+      // Write full profile in one shot (username + phraseHash + pinHash)
       try {
         await setDoc(doc(db, 'users', user.uid, 'data', 'profile'), {
-          username: name,
+          username,
           phraseHash: phraseH,
+          pinHash: hash,
           createdAt: serverTimestamp(),
         }, { merge: true });
       } catch (profErr) {
         throw new Error(`Profile write failed: ${profErr.code || profErr.message}`);
       }
 
-      setStep('pin');
+      // Save PIN to localStorage for returning-user gate
+      localStorage.setItem(`ironcore_pin_${user.uid}`, hash);
+
+      setStep('reveal');
     } catch (e) {
       console.error('Account creation error:', e);
       setCreateError(e.message || String(e));
@@ -376,21 +403,7 @@ export const PlayerCardView = ({ onComplete, onRecover }) => {
     }
   };
 
-  const handlePinSet = async (pinHash) => {
-    try {
-      const { doc, setDoc } = await import('firebase/firestore');
-      const { db } = await import('../firebase');
-      await setDoc(doc(db, 'users', uid, 'data', 'profile'), { pinHash }, { merge: true });
-      // Save PIN hash to localStorage — auth gate needs this on return visits
-      localStorage.setItem(`ironcore_pin_${uid}`, pinHash);
-      setStep('reveal');
-    } catch (e) {
-      console.error('PIN save error:', e);
-      setCreateError(`PIN save failed: ${e.code || e.message}`);
-      setStep('username');
-    }
-  };
-
+  // Step 3: Card saved → biometric prompt → main app
   const handleCardSaved = async () => {
     const { isBiometricAvailable, authenticateWithBiometrics } = await import('../utils/biometrics');
     const bioAvail = await isBiometricAvailable();
@@ -413,16 +426,16 @@ export const PlayerCardView = ({ onComplete, onRecover }) => {
     onComplete({ username, biometricsEnabled: bioEnabled });
   };
 
-  if (step === 'creating') {
-    return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4">
-        <div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
-        <p className="text-xs text-gray-500 font-black uppercase tracking-widest animate-pulse">Forging Identity...</p>
-      </div>
-    );
-  }
-
-  if (step === 'pin') return <PinEntryView mode="setup" onComplete={handlePinSet} />;
+  // ── Render by step ──
+  if (step === 'landing') return <LandingScreen onCreateAccount={() => setStep('username')} onLogin={onLogin} />;
+  if (step === 'username') return <UsernameScreen onNext={handleUsernameChosen} onBack={() => setStep('landing')} createError={createError} />;
+  if (step === 'pin') return <PinEntryView mode="setup" skipConfirm onComplete={handlePinSet} />;
+  if (step === 'creating') return (
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4">
+      <div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
+      <p className="text-xs text-gray-500 font-black uppercase tracking-widest animate-pulse">Forging Identity...</p>
+    </div>
+  );
   if (step === 'reveal') return <CardRevealScreen username={username} phrase={phrase} onSaved={handleCardSaved} />;
-  return <UsernameScreen onNext={handleUsernameChosen} onRecover={onRecover} createError={createError} />;
+  return null;
 };

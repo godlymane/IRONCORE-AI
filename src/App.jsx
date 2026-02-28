@@ -7,6 +7,7 @@ import { Capacitor } from '@capacitor/core';
 
 // Static imports — needed before auth resolves
 import { PlayerCardView } from './views/PlayerCardView';
+import { LoginScreen } from './views/LoginScreen';
 import { RecoveryView } from './views/RecoveryView';
 import { PinEntryView } from './views/PinEntryView';
 import { OnboardingView } from './views/OnboardingView';
@@ -52,7 +53,7 @@ const MainContent = () => {
   const prevTabRef = useRef('dashboard');
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
-  const [authGate, setAuthGate] = useState('checking'); // checking | card | recovery | biometric | pin | pin_setup | passed
+  const [authGate, setAuthGate] = useState('checking'); // checking | card | login | recovery | biometric | pin | pin_setup | passed
   const authGateResolved = useRef(false);
   const { addToast } = useToast();
 
@@ -77,7 +78,8 @@ const MainContent = () => {
     if (!user) {
       // Check if there's a saved uid — returning user whose session expired
       const savedUid = localStorage.getItem('ironcore_uid');
-      setAuthGate(savedUid ? 'pin' : 'card');
+      const savedUser = localStorage.getItem('ironcore_username');
+      setAuthGate(savedUid && savedUser ? 'login' : 'card');
       authGateResolved.current = true;
       return;
     }
@@ -285,11 +287,23 @@ const MainContent = () => {
   if (loading || authGate === 'checking') return <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4"><div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin" /><p className="text-xs text-gray-500 font-black uppercase tracking-widest animate-pulse">Syncing Cloud Data...</p></div>;
 
   // AUTH GATE — new Web3-style Player Card flow
-  if (authGate === 'card') return <PlayerCardView onComplete={() => setAuthGate('passed')} onRecover={() => setAuthGate('recovery')} />;
+  if (authGate === 'card') return <PlayerCardView onComplete={() => setAuthGate('passed')} onLogin={() => setAuthGate('login')} />;
+  if (authGate === 'login') return (
+    <LoginScreen
+      defaultUsername={localStorage.getItem('ironcore_username') || ''}
+      onLoggedIn={() => {
+        authGateResolved.current = true; // login already verified PIN server-side
+        setAuthGate('passed');
+      }}
+      onBack={() => setAuthGate('card')}
+      onRecovery={() => setAuthGate('recovery')}
+    />
+  );
   if (authGate === 'recovery') return (
     <RecoveryView
       onRecovered={() => {
         // After recovery, set up PIN on this new device
+        authGateResolved.current = true; // prevent auth gate effect from overriding
         const uid = localStorage.getItem('ironcore_uid');
         const hasPin = uid && localStorage.getItem(`ironcore_pin_${uid}`);
         setAuthGate(hasPin ? 'passed' : 'pin_setup');
@@ -311,6 +325,7 @@ const MainContent = () => {
       onComplete={(hashedPin) => {
         const uid = user?.uid || localStorage.getItem('ironcore_uid');
         if (uid) localStorage.setItem(`ironcore_pin_${uid}`, hashedPin);
+        authGateResolved.current = true;
         Haptics.success();
         setAuthGate('passed');
       }}

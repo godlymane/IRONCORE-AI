@@ -56,6 +56,8 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons)
     implementation(libs.compose.runtime)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.animation)
     debugImplementation(libs.compose.ui.tooling)
 
     // Core
@@ -88,6 +90,9 @@ dependencies {
     implementation(libs.camerax.camera2)
     implementation(libs.camerax.lifecycle)
     implementation(libs.camerax.view)
+
+    // Guava (required for CameraX ListenableFuture)
+    implementation(libs.guava)
 
     // ML Kit Pose Detection
     implementation(libs.mlkit.pose)

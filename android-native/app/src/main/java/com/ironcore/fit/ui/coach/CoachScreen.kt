@@ -18,10 +18,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavHostController
 import com.ironcore.fit.ui.theme.*
 
 @Composable
-fun CoachScreen(viewModel: CoachViewModel = hiltViewModel()) {
+fun CoachScreen(
+    navController: NavHostController? = null,
+    viewModel: CoachViewModel = hiltViewModel()
+) {
     val uiState by viewModel.uiState.collectAsState()
 
     val permissionLauncher = rememberLauncherForActivityResult(

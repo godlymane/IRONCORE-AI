@@ -96,13 +96,14 @@ export const CommunityBoss = () => {
                 <ShieldAlert size={32} className="mx-auto text-gray-500 mb-3" />
                 <h3 className="text-lg font-black uppercase text-gray-400">All Clear</h3>
                 <p className="text-xs text-gray-500 mb-4">No active threat detected in the sector.</p>
-                {/* DEV SPANNER FOR TESTING */}
-                <button
-                    onClick={handleSpawnBoss}
-                    className="px-4 py-2 bg-red-600/20 text-red-500 rounded-lg text-xs font-bold border border-red-500/30 uppercase tracking-wider"
-                >
-                    Spawn Boss (Dev)
-                </button>
+                {import.meta.env.DEV && (
+                    <button
+                        onClick={handleSpawnBoss}
+                        className="px-4 py-2 bg-red-600/20 text-red-500 rounded-lg text-xs font-bold border border-red-500/30 uppercase tracking-wider"
+                    >
+                        Spawn Boss (Dev)
+                    </button>
+                )}
             </GlassCard>
         );
     }

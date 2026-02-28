@@ -336,9 +336,9 @@ export const AILabView = () => {
                     const newLogs = { ...dailySuppLogs, [id]: newValue };
 
                     // Update profile with merged logs for today
-                    updateData('add', 'profile', {
+                    updateData?.('add', 'profile', {
                         supplementsLogs: {
-                            ...(profile.supplementsLogs || {}),
+                            ...(profile?.supplementsLogs || {}),
                             [today]: newLogs
                         }
                     });

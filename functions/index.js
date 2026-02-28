@@ -44,42 +44,47 @@ async function checkRateLimit(uid, feature, db) {
   const docId = `${uid}_${feature}`;
   const now = Date.now();
 
-  // Check in-memory cache first
+  // Quick reject from in-memory cache (avoids Firestore read on obvious over-limit)
   const cached = rateLimitCache.get(docId);
-  let data;
   if (cached && (now - cached._cachedAt) < CACHE_TTL) {
-    data = cached;
-  } else {
-    const rateLimitRef = db.collection("rateLimits").doc(docId);
-    const snap = await rateLimitRef.get();
-    data = snap.exists ? snap.data() : { count: 0, windowStart: now };
-  }
-
-  const windowAge = now - data.windowStart;
-
-  if (windowAge < config.windowMs) {
-    if (data.count >= config.maxRequests) {
+    const windowAge = now - cached.windowStart;
+    if (windowAge < config.windowMs && cached.count >= config.maxRequests) {
       const retryAfter = Math.ceil((config.windowMs - windowAge) / 1000);
       throw new HttpsError(
         "resource-exhausted",
-        JSON.stringify({
-          message: "Rate limit exceeded.",
-          retryAfter,
-          remaining: 0,
-          feature,
-        })
+        JSON.stringify({ message: "Rate limit exceeded.", retryAfter, remaining: 0, feature })
       );
     }
-    const updated = { count: data.count + 1, windowStart: data.windowStart };
-    await db.collection("rateLimits").doc(docId).set(updated);
-    rateLimitCache.set(docId, { ...updated, _cachedAt: now });
-    return { remaining: config.maxRequests - data.count - 1, retryAfter: 0 };
-  } else {
-    const updated = { count: 1, windowStart: now };
-    await db.collection("rateLimits").doc(docId).set(updated);
-    rateLimitCache.set(docId, { ...updated, _cachedAt: now });
-    return { remaining: config.maxRequests - 1, retryAfter: 0 };
   }
+
+  // Atomic read-check-write via transaction (prevents TOCTOU race)
+  const rateLimitRef = db.collection("rateLimits").doc(docId);
+  const result = await db.runTransaction(async (t) => {
+    const snap = await t.get(rateLimitRef);
+    const data = snap.exists ? snap.data() : { count: 0, windowStart: now };
+    const windowAge = now - data.windowStart;
+
+    if (windowAge < config.windowMs) {
+      if (data.count >= config.maxRequests) {
+        const retryAfter = Math.ceil((config.windowMs - windowAge) / 1000);
+        throw new HttpsError(
+          "resource-exhausted",
+          JSON.stringify({ message: "Rate limit exceeded.", retryAfter, remaining: 0, feature })
+        );
+      }
+      const updated = { count: data.count + 1, windowStart: data.windowStart };
+      t.set(rateLimitRef, updated);
+      return { remaining: config.maxRequests - data.count - 1, retryAfter: 0, _cache: updated };
+    } else {
+      const updated = { count: 1, windowStart: now };
+      t.set(rateLimitRef, updated);
+      return { remaining: config.maxRequests - 1, retryAfter: 0, _cache: updated };
+    }
+  });
+
+  // Update cache after successful transaction
+  rateLimitCache.set(docId, { ...result._cache, _cachedAt: now });
+  return { remaining: result.remaining, retryAfter: result.retryAfter };
 }
 
 // --- Daily AI Call Limit Config ---
@@ -112,8 +117,17 @@ async function checkDailyAiLimit(uid, db) {
 
   const data = counterSnap.data();
 
+  // Re-validate premium status from source of truth (user profile)
+  const userSnap = await db.doc(`users/${uid}`).get();
+  const isPremium = userSnap.exists && userSnap.data().isPremium === true;
+
+  // Sync if premium status changed
+  if (isPremium !== (data.isPremium === true)) {
+    await counterRef.update({ isPremium });
+  }
+
   // Premium users have unlimited calls
-  if (data.isPremium === true) {
+  if (isPremium) {
     await counterRef.update({
       callsUsedToday: admin.firestore.FieldValue.increment(1),
     });
@@ -161,6 +175,16 @@ exports.callGemini = onCall(
     const { prompt, systemPrompt, imageBase64, expectJson, feature } = request.data;
     if (!prompt || typeof prompt !== "string") {
       throw new HttpsError("invalid-argument", "prompt is required.");
+    }
+    // Input size limits — prevent abuse via oversized payloads
+    if (prompt.length > 10000) {
+      throw new HttpsError("invalid-argument", "Prompt too long (max 10,000 chars).");
+    }
+    if (systemPrompt && systemPrompt.length > 5000) {
+      throw new HttpsError("invalid-argument", "System prompt too long (max 5,000 chars).");
+    }
+    if (imageBase64 && imageBase64.length > 5 * 1024 * 1024) {
+      throw new HttpsError("invalid-argument", "Image too large (max 5MB).");
     }
 
     // 2. Daily AI call limit (free: 3/day, premium: unlimited)
@@ -367,8 +391,8 @@ exports.verifyPayment = onCall(
       throw new HttpsError("unauthenticated", "Must be logged in.");
     }
 
-    const { paymentId, orderId, signature, planId } = request.data;
-    if (!paymentId || !orderId || !signature || !planId) {
+    const { paymentId, orderId, signature } = request.data;
+    if (!paymentId || !orderId || !signature) {
       throw new HttpsError("invalid-argument", "Missing payment verification data.");
     }
 
@@ -378,7 +402,7 @@ exports.verifyPayment = onCall(
       .update(`${orderId}|${paymentId}`)
       .digest("hex");
 
-    if (expectedSig !== signature) {
+    if (!crypto.timingSafeEqual(Buffer.from(expectedSig, 'hex'), Buffer.from(signature, 'hex'))) {
       throw new HttpsError("permission-denied", "Invalid payment signature.");
     }
 
@@ -396,17 +420,18 @@ exports.verifyPayment = onCall(
       throw new HttpsError("already-exists", "This payment has already been processed.");
     }
 
-    // 4. Activate subscription
+    // 4. Activate subscription — read planId from server-side order doc, not client input
+    const serverPlanId = orderDoc.data().planId || "pro_monthly";
     const now = new Date();
     const expiryDate = new Date(now);
-    if (planId === "pro_yearly") {
+    if (serverPlanId === "pro_yearly") {
       expiryDate.setFullYear(expiryDate.getFullYear() + 1);
     } else {
       expiryDate.setMonth(expiryDate.getMonth() + 1);
     }
 
     const subscriptionData = {
-      planId,
+      planId: serverPlanId,
       status: "active",
       startDate: now.toISOString(),
       expiryDate: expiryDate.toISOString(),
@@ -539,8 +564,8 @@ exports.verifyAppleReceipt = onCall(
 
     // Map Apple product IDs to our plan IDs
     const APPLE_PRODUCT_MAP = {
-      "com.ironcore.fit.pro_monthly": "pro_monthly",
-      "com.ironcore.fit.pro_yearly": "pro_yearly",
+      "pro_monthly": "pro_monthly",
+      "pro_yearly": "pro_yearly",
     };
 
     const planId = APPLE_PRODUCT_MAP[productId];
@@ -1409,10 +1434,10 @@ exports.weeklyGuildChallengeTally = onSchedule(
           });
 
           const leaderRef = db.doc(`leaderboard/${memberId}`);
-          batch.update(leaderRef, {
+          batch.set(leaderRef, {
             xp: admin.firestore.FieldValue.increment(bonusXp),
             lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-          });
+          }, { merge: true });
         }
 
         await batch.commit();
@@ -1468,25 +1493,25 @@ exports.recoverAccount = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "Recovery phrase must be exactly 12 words.");
   }
 
-  // Rate limit by IP — max 5 attempts per hour
+  // Rate limit by IP — max 5 attempts per hour (skip if IP unavailable)
   const db = admin.firestore();
-  const ip = request.rawRequest?.ip || "unknown";
-  const rateLimitRef = db.collection("rateLimits").doc(`recovery_${ip}`);
-  const rateLimitSnap = await rateLimitRef.get();
+  const ip = request.rawRequest?.ip;
   const now = Date.now();
 
-  if (rateLimitSnap.exists) {
-    const data = rateLimitSnap.data();
-    if (now - data.windowStart < 3600000 && data.count >= 5) {
-      throw new HttpsError("resource-exhausted", "Too many recovery attempts. Try again later.");
-    }
-    if (now - data.windowStart >= 3600000) {
-      await rateLimitRef.set({ count: 1, windowStart: now });
-    } else {
-      await rateLimitRef.update({ count: admin.firestore.FieldValue.increment(1) });
-    }
-  } else {
-    await rateLimitRef.set({ count: 1, windowStart: now });
+  if (ip) {
+    const rateLimitRef = db.collection("rateLimits").doc(`recovery_${ip}`);
+    await db.runTransaction(async (t) => {
+      const snap = await t.get(rateLimitRef);
+      const data = snap.exists ? snap.data() : { count: 0, windowStart: now };
+      if (now - data.windowStart < 3600000) {
+        if (data.count >= 5) {
+          throw new HttpsError("resource-exhausted", "Too many recovery attempts. Try again later.");
+        }
+        t.set(rateLimitRef, { count: data.count + 1, windowStart: data.windowStart });
+      } else {
+        t.set(rateLimitRef, { count: 1, windowStart: now });
+      }
+    });
   }
 
   // Hash the phrase (same algorithm as client-side)
@@ -1513,3 +1538,139 @@ exports.recoverAccount = onCall(async (request) => {
 
   return { token, username };
 });
+
+// ─── LOGIN WITH USERNAME + PIN ─────────────────────────────────────
+exports.loginWithPin = onCall(async (request) => {
+  const { username, pinHash } = request.data || {};
+
+  // Validate inputs
+  if (!username || typeof username !== "string" || username.length < 3 || username.length > 20) {
+    throw new HttpsError("not-found", "Invalid username or PIN.");
+  }
+  if (!pinHash || typeof pinHash !== "string" || pinHash.length !== 64) {
+    throw new HttpsError("not-found", "Invalid username or PIN.");
+  }
+
+  const db = admin.firestore();
+  const normalizedUsername = username.toLowerCase().replace(/^@/, "").trim();
+  const now = Date.now();
+
+  // Rate limit by IP — max 5 attempts per hour (skip if IP unavailable to avoid shared-bucket DoS)
+  const ip = request.rawRequest?.ip;
+  if (ip) {
+    const ipRef = db.collection("rateLimits").doc(`loginpin_ip_${ip}`);
+    await db.runTransaction(async (t) => {
+      const ipSnap = await t.get(ipRef);
+      const d = ipSnap.exists ? ipSnap.data() : { count: 0, windowStart: now };
+      if (now - d.windowStart < 3600000) {
+        if (d.count >= 5) {
+          throw new HttpsError("resource-exhausted", "Too many login attempts. Try again later.");
+        }
+        t.set(ipRef, { count: d.count + 1, windowStart: d.windowStart });
+      } else {
+        t.set(ipRef, { count: 1, windowStart: now });
+      }
+    });
+  }
+
+  // Rate limit by username — max 10 attempts per hour (transaction-safe)
+  const userRef = db.collection("rateLimits").doc(`loginpin_u_${normalizedUsername}`);
+  await db.runTransaction(async (t) => {
+    const userSnap = await t.get(userRef);
+    const d = userSnap.exists ? userSnap.data() : { count: 0, windowStart: now };
+    if (now - d.windowStart < 3600000) {
+      if (d.count >= 10) {
+        throw new HttpsError("resource-exhausted", "Too many login attempts. Try again later.");
+      }
+      t.set(userRef, { count: d.count + 1, windowStart: d.windowStart });
+    } else {
+      t.set(userRef, { count: 1, windowStart: now });
+    }
+  });
+
+  // Look up username → uid
+  const usernameDoc = await db.collection("usernames").doc(normalizedUsername).get();
+  if (!usernameDoc.exists) {
+    throw new HttpsError("not-found", "Invalid username or PIN.");
+  }
+
+  const uid = usernameDoc.data().uid;
+
+  // Fetch profile and compare pinHash
+  const profileDoc = await db.doc(`users/${uid}/data/profile`).get();
+  if (!profileDoc.exists || !profileDoc.data().pinHash) {
+    throw new HttpsError("not-found", "Invalid username or PIN.");
+  }
+
+  const storedPinHash = profileDoc.data().pinHash;
+
+  // Timing-safe comparison to prevent side-channel attacks
+  try {
+    const a = Buffer.from(pinHash, "hex");
+    const b = Buffer.from(storedPinHash, "hex");
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      throw new HttpsError("not-found", "Invalid username or PIN.");
+    }
+  } catch (e) {
+    if (e instanceof HttpsError) throw e;
+    throw new HttpsError("not-found", "Invalid username or PIN.");
+  }
+
+  // Mint custom token
+  const token = await admin.auth().createCustomToken(uid);
+  return { token, username: profileDoc.data().username || normalizedUsername };
+});
+
+/**
+ * Scheduled: check for expired subscriptions and revoke premium access.
+ * Runs daily at 01:00 UTC. Queries subscriptions where expiryDate < now
+ * and status is active, then marks the user as non-premium.
+ */
+exports.checkExpiredSubscriptions = onSchedule(
+  { schedule: "0 1 * * *", timeZone: "UTC" },
+  async () => {
+    const db = admin.firestore();
+    const now = new Date().toISOString();
+
+    const expiredSnap = await db
+      .collection("subscriptions")
+      .where("status", "==", "active")
+      .where("expiryDate", "<=", now)
+      .get();
+
+    if (expiredSnap.empty) {
+      console.log("[checkExpiredSubscriptions] No expired subscriptions found.");
+      return;
+    }
+
+    const batch = db.batch();
+    let count = 0;
+
+    expiredSnap.forEach((subDoc) => {
+      const { userId } = subDoc.data();
+      if (!userId) return;
+
+      // Mark subscription as expired
+      batch.update(subDoc.ref, { status: "expired" });
+
+      // Revoke premium on user doc
+      batch.set(
+        db.doc(`users/${userId}`),
+        { isPremium: false, subscription: { status: "expired" } },
+        { merge: true }
+      );
+
+      // Revoke premium on profile doc (useFitnessData reads this)
+      batch.set(
+        db.doc(`users/${userId}/data/profile`),
+        { isPremium: false, subscription: { status: "expired" } },
+        { merge: true }
+      );
+
+      count++;
+    });
+
+    await batch.commit();
+    console.log(`[checkExpiredSubscriptions] Expired ${count} subscription(s).`);
+  }
+);

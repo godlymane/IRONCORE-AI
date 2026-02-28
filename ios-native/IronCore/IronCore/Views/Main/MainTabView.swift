@@ -40,6 +40,19 @@ struct MainTabView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: premiumVM.showPaywall)
+        // Push notification deep link handlers
+        .onReceive(NotificationCenter.default.publisher(for: .navigateToDashboard)) { _ in
+            withAnimation { selectedTab = TabItem.home.rawValue }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .navigateToArena)) { _ in
+            withAnimation { selectedTab = TabItem.arena.rawValue }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .navigateToWorkout)) { _ in
+            withAnimation { selectedTab = TabItem.workout.rawValue }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .navigateToProfile)) { _ in
+            withAnimation { selectedTab = TabItem.profile.rawValue }
+        }
     }
 
     // MARK: - Custom Tab Bar (matches React tab navigation)

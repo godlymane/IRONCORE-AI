@@ -162,6 +162,12 @@ struct UserProfile: Codable {
     // Guild
     var guildId: String?
 
+    // Player Identity (matches PlayerCardView.jsx)
+    var username: String?
+    var pinHash: String?
+    var phraseHash: String?
+    var biometricsEnabled: Bool?
+
     // Founder
     var founderBadge: Bool?
 

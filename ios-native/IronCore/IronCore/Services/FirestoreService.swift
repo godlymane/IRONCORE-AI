@@ -253,6 +253,27 @@ final class FirestoreService {
             }
     }
 
+    // MARK: - Username System (matches PlayerCardView.jsx)
+
+    /// Check if a username is already taken
+    func isUsernameAvailable(_ username: String) async throws -> Bool {
+        let doc = try await db.collection("usernames").document(username).getDocument()
+        return !doc.exists
+    }
+
+    /// Claim a username — writes to usernames/{username} with the uid
+    func claimUsername(_ username: String, uid: String) async throws {
+        try await db.collection("usernames").document(username).setData([
+            "uid": uid,
+            "createdAt": FieldValue.serverTimestamp()
+        ])
+    }
+
+    /// Release a username (for account deletion or rename)
+    func releaseUsername(_ username: String) async throws {
+        try await db.collection("usernames").document(username).delete()
+    }
+
     // MARK: - Helpers
 
     static func todayString() -> String {

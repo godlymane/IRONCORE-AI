@@ -61,6 +61,12 @@ final class DashboardViewModel: ObservableObject {
         profile?.dailyFat ?? 60
     }
 
+    /// Meal count for today — used by DailyChallengesCard
+    var todaysMealCount: Int {
+        let today = FirestoreService.todayString()
+        return meals.filter { ($0["date"] as? String) == today }.count
+    }
+
     var netCalories: Int {
         max(0, caloriesIn - caloriesOut)
     }
@@ -327,5 +333,13 @@ final class DashboardViewModel: ObservableObject {
     func checkDailyDropStatus(profile: UserProfile?) {
         // Profile doesn't have dailyDrops in Codable — check via raw Firestore
         // For now, rely on the published flag set after completion
+    }
+
+    // MARK: - Add XP (used by DailyChallengesCard)
+
+    func addXP(uid: String, amount: Int) async {
+        try? await firestore.saveProfile(uid: uid, data: [
+            "xp": FieldValue.increment(Int64(amount))
+        ])
     }
 }

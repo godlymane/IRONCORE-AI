@@ -1,31 +1,19 @@
 package com.ironcore.fit.data.model
 
 import com.google.firebase.Timestamp
-import com.google.firebase.firestore.ServerTimestamp
 
 /**
- * Firestore path: /users/{userId}/progress/{entryId}
+ * Firestore path: users/{uid}/progress/{entryId}
+ *
+ * Body-weight and body-composition tracking entries.
+ * [weight] and [bodyFatPercentage] are nullable because
+ * a user may log only one of them per entry.
  */
 data class ProgressEntry(
     val id: String = "",
-    val date: String = "",
-    val userId: String = "",
-    val weight: Double = 0.0,
+    val weight: Double? = null,
     val bodyFatPercentage: Double? = null,
+    val date: String = "",                // "YYYY-MM-DD"
     val notes: String = "",
-    val mood: String? = null,
-    @ServerTimestamp val createdAt: Timestamp? = null
-)
-
-/**
- * Firestore path: /users/{userId}/photos/{photoId}
- */
-data class ProgressPhoto(
-    val id: String = "",
-    val url: String = "",
-    val storagePath: String = "",
-    val note: String = "",
-    val type: String = "front",
-    val date: String = "",
-    @ServerTimestamp val createdAt: Timestamp? = null
+    val timestamp: Timestamp? = null
 )

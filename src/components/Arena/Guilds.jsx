@@ -16,6 +16,27 @@ const Guilds = () => {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
+    // Hooks must be called unconditionally before any conditional return
+    useEffect(() => {
+        setGuildId(currentUser?.guildId);
+    }, [currentUser]);
+
+    // Subscribe to guild if user is in one
+    useEffect(() => {
+        if (!guildId) {
+            setCurrentGuild(null);
+            setLoading(false);
+            return;
+        }
+
+        const unsubscribe = subscribeToGuild(guildId, (data) => {
+            setCurrentGuild(data);
+            setLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [guildId]);
+
     // Premium gate — guilds are premium-only
     if (!isPremium) {
         return (
@@ -37,26 +58,6 @@ const Guilds = () => {
             </div>
         );
     }
-
-    useEffect(() => {
-        setGuildId(currentUser?.guildId);
-    }, [currentUser]);
-
-    // Subscribe to guild if user is in one
-    useEffect(() => {
-        if (!guildId) {
-            setCurrentGuild(null);
-            setLoading(false);
-            return;
-        }
-
-        const unsubscribe = subscribeToGuild(guildId, (data) => {
-            setCurrentGuild(data);
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
-    }, [guildId]);
 
     const handleCreateGuild = async (name, desc) => {
         try {

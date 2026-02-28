@@ -15,6 +15,16 @@ struct DashboardView: View {
                 headerSection
                 mainStatsCard
                 quickLogButtons
+                DailyChallengesCard(
+                    todayWorkoutCount: viewModel.todaysWorkoutCount,
+                    todayMealCount: viewModel.todaysMealCount,
+                    todayCaloriesBurned: viewModel.caloriesOut,
+                    onXPClaimed: { xp in
+                        if let uid = Auth.auth().currentUser?.uid {
+                            Task { await viewModel.addXP(uid: uid, amount: xp) }
+                        }
+                    }
+                )
                 nutritionLink
                 aiSearchCard
                 dailyDropCard
@@ -73,6 +83,12 @@ struct DashboardView: View {
             }
 
             Spacer()
+
+            // Notification bell
+            if let uid = Auth.auth().currentUser?.uid {
+                NotificationBellButton(uid: uid)
+                    .padding(.trailing, 8)
+            }
 
             // XP badge
             HStack(spacing: 4) {

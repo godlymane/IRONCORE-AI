@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Trophy, Users, Flame, Crown, Sword, Search, X, BarChart2, MessageSquare, Send, UserPlus, UserCheck, Heart, Image as ImageIcon, Camera, Mail, Swords, Skull, Sparkles } from 'lucide-react';
+import { Trophy, Users, Flame, Crown, Search, X, BarChart2, MessageSquare, Send, UserPlus, UserCheck, Heart, Image as ImageIcon, Camera, Mail, Swords, Skull, Sparkles } from 'lucide-react';
 import { Button, GlassCard, useToast } from '../components/UIComponents';
 import { getLevel } from '../utils/helpers';
 import { LEVELS } from '../utils/constants';
@@ -76,7 +76,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                     border: '1px solid rgba(255, 255, 255, 0.08)',
                 }}
             >
-                <NavBtn id="arena" label="Arena" icon={<Sword size={14} />} active={subTab} set={setSubTab} />
+                <NavBtn id="arena" label="Arena" icon={<Swords size={14} />} active={subTab} set={setSubTab} />
                 <NavBtn id="battles" label="Battles" icon={<Swords size={14} />} active={subTab} set={setSubTab} />
                 <NavBtn id="media" label="Media" icon={<ImageIcon size={14} />} active={subTab} set={setSubTab} />
                 <NavBtn id="chat" label="Locker" icon={<MessageSquare size={14} />} active={subTab} set={setSubTab} />
@@ -96,7 +96,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                                 }}
                             />
                             <div className="absolute top-0 right-0 p-6 opacity-20">
-                                <Sword size={80} className="text-red-600" />
+                                <Swords size={80} className="text-red-600" />
                             </div>
                             <div className="relative z-10">
                                 <div className="flex items-center gap-2 mb-2">
@@ -192,7 +192,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                                             : '0 10px 30px rgba(220, 38, 38, 0.3)',
                                     }}
                                 >
-                                    <Sword size={16} />
+                                    <Swords size={16} />
                                     {userDamage > 0 ? 'Deal MORE Damage' : 'Join the Fight'}
                                 </button>
                             </div>

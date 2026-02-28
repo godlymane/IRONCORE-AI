@@ -106,6 +106,13 @@ final class AuthService {
         return hashedData.compactMap { String(format: "%02x", $0) }.joined()
     }
 
+    // MARK: - Anonymous Sign-In (used by Player Card account creation)
+
+    func signInAnonymously() async throws -> User {
+        let result = try await Auth.auth().signInAnonymously()
+        return result.user
+    }
+
     // MARK: - Logout (matches logout in useFitnessData.js)
 
     func signOut() throws {

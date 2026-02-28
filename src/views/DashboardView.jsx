@@ -171,6 +171,9 @@ export const DashboardView = () => {
       await completeDailyDrop(dailyDrop.xp);
       addToast(`Boom! ${dailyDrop.xp} XP Claimed!`, 'success');
     } catch (e) {
+      console.error('Drop claim failed:', e);
+      addToast('Failed to claim drop. Try again.', 'error');
+    } finally {
       setDropClaiming(false);
     }
   };

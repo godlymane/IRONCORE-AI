@@ -48,7 +48,7 @@ class FitnessRepository @Inject constructor(
     /** Total volume = sum(w * r) for all sets across all exercises. */
     fun calculateVolume(workout: Workout): Long {
         return workout.exercises.sumOf { exercise ->
-            exercise.sets.sumOf { set -> (set.w * set.r).toLong() }
+            exercise.sets.sumOf { set -> (set.weight * set.reps).toLong() }
         }
     }
 

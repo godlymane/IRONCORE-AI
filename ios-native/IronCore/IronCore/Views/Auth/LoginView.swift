@@ -7,6 +7,7 @@ import AuthenticationServices
 struct LoginView: View {
     @EnvironmentObject var authVM: AuthViewModel
     @State private var showEmailAuth = false
+    @State private var showPlayerCard = false
     @State private var email = ""
     @State private var password = ""
     @State private var isCreatingAccount = false
@@ -17,30 +18,40 @@ struct LoginView: View {
             Color.black.ignoresSafeArea()
             AnimatedBackground()
 
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 32) {
-                    Spacer(minLength: 60)
+            if showPlayerCard {
+                PlayerCardView(onDismiss: { showPlayerCard = false })
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            } else {
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 32) {
+                        Spacer(minLength: 60)
 
-                    // Logo
-                    logoSection
+                        // Logo
+                        logoSection
 
-                    // Title
-                    titleSection
+                        // Title
+                        titleSection
 
-                    // Feature Cards
-                    featureCards
+                        // Feature Cards
+                        featureCards
 
-                    // Auth Buttons
-                    authButtons
+                        // Auth Buttons
+                        authButtons
 
-                    // Version Badge
-                    versionBadge
+                        // Player Card / Recovery Login
+                        playerCardSection
 
-                    Spacer(minLength: 40)
+                        // Version Badge
+                        versionBadge
+
+                        Spacer(minLength: 40)
+                    }
+                    .padding(.horizontal, 24)
                 }
-                .padding(.horizontal, 24)
+                .transition(.move(edge: .leading).combined(with: .opacity))
             }
         }
+        .animation(.easeInOut(duration: 0.3), value: showPlayerCard)
     }
 
     // MARK: - Logo (matches React glass logo container)
@@ -283,6 +294,61 @@ struct LoginView: View {
         }
         .padding(16)
         .glassCard()
+    }
+
+    // MARK: - Player Card / Recovery Section
+    private var playerCardSection: some View {
+        VStack(spacing: 12) {
+            // Divider with "or"
+            HStack(spacing: 12) {
+                Rectangle()
+                    .fill(Color.white.opacity(0.08))
+                    .frame(height: 1)
+                Text("OR")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.textTertiary)
+                    .tracking(2)
+                Rectangle()
+                    .fill(Color.white.opacity(0.08))
+                    .frame(height: 1)
+            }
+
+            // Recovery Phrase / Player Card button
+            Button {
+                withAnimation { showPlayerCard = true }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "key.fill")
+                        .font(.system(size: 14))
+                    Text("Login with Recovery Phrase")
+                        .font(.system(size: 14, weight: .bold))
+                }
+                .foregroundColor(.ironRedLight)
+                .frame(maxWidth: .infinity)
+                .frame(height: 48)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(Color.ironRed.opacity(0.08))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(Color.ironRed.opacity(0.2), lineWidth: 1)
+                        )
+                )
+            }
+
+            // Create with Phrase button
+            Button {
+                withAnimation { showPlayerCard = true }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "shield.checkered")
+                        .font(.system(size: 13))
+                    Text("Create Account with Player Card")
+                        .font(.system(size: 13, weight: .medium))
+                }
+                .foregroundColor(.textSecondary)
+            }
+        }
     }
 
     // MARK: - Version Badge

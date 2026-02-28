@@ -235,12 +235,14 @@ service cloud.firestore {
                     && request.resource.data.memberCount is number
                     && request.resource.data.memberCount <= 1;
 
-      // ONLY the guild owner can update guild data.
-      // Members join/leave via Cloud Functions (server manages members array).
-      // This prevents users from force-joining guilds or manipulating member lists.
-      allow update: if isAuth()
-                    && resource.data.ownerId == request.auth.uid
-                    && noServerFieldsOnUpdate();
+      // Owner can update any guild fields (except server-only).
+      // Any authenticated user can update ONLY memberIds + memberCount (join/leave).
+      allow update: if (isAuth()
+                        && resource.data.ownerId == request.auth.uid
+                        && noServerFieldsOnUpdate())
+                    || (isAuth()
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['memberIds', 'memberCount']));
 
       // Only owner can delete
       allow delete: if isAuth()

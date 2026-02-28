@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { ShieldCheck, Delete, AlertTriangle } from 'lucide-react';
 import { Haptics } from '../utils/audio';
 
-export const PinEntryView = ({ mode = 'verify', onComplete, onForgot, storedPinHash }) => {
+export const PinEntryView = ({ mode = 'verify', onComplete, onForgot, storedPinHash, skipConfirm = false }) => {
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [step, setStep] = useState(mode === 'setup' ? 'create' : 'verify');
@@ -35,6 +35,11 @@ export const PinEntryView = ({ mode = 'verify', onComplete, onForgot, storedPinH
     const { hashPin } = await import('../utils/playerIdentity');
 
     if (step === 'create') {
+      if (skipConfirm) {
+        const hashed = await hashPin(value);
+        onComplete(hashed);
+        return;
+      }
       setStep('confirm');
       setConfirmPin('');
       return;
@@ -71,8 +76,8 @@ export const PinEntryView = ({ mode = 'verify', onComplete, onForgot, storedPinH
   };
 
   const dots = step === 'confirm' ? confirmPin : pin;
-  const title = step === 'create' ? 'Create Your PIN' : step === 'confirm' ? 'Confirm Your PIN' : 'Enter PIN';
-  const subtitle = step === 'create' ? 'Choose a 6-digit PIN for quick access' : step === 'confirm' ? 'Enter the same PIN again' : 'Unlock IronCore';
+  const title = step === 'create' ? (skipConfirm ? 'Set Your PIN' : 'Create Your PIN') : step === 'confirm' ? 'Confirm Your PIN' : 'Enter PIN';
+  const subtitle = step === 'create' ? (skipConfirm ? 'Choose a 6-digit PIN to secure your account' : 'Choose a 6-digit PIN for quick access') : step === 'confirm' ? 'Enter the same PIN again' : 'Unlock IronCore';
 
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6">

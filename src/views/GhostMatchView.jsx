@@ -90,6 +90,7 @@ export const GhostMatchView = ({ user, profile = {}, workouts = [], onBack }) =>
   const [elapsedTime, setElapsedTime] = useState(0);
   const [playerStats, setPlayerStats] = useState({ formScore: 0, totalVolume: 0, totalReps: 0 });
   const timerRef = useRef(null);
+  const autoCompleteRef = useRef(null);
 
   const userLevel = profile?.level || Math.floor((profile?.xp || 0) / 500) + 1;
 
@@ -122,14 +123,17 @@ export const GhostMatchView = ({ user, profile = {}, workouts = [], onBack }) =>
     }, 1000);
 
     // Auto-complete after 8 seconds (simulated match)
-    setTimeout(() => {
+    autoCompleteRef.current = setTimeout(() => {
       clearInterval(timerRef.current);
       setMatchState('result');
     }, 8000);
   }, [userLevel, workouts]);
 
   useEffect(() => {
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (autoCompleteRef.current) clearTimeout(autoCompleteRef.current);
+    };
   }, []);
 
   // Calculate winner

@@ -1,10 +1,10 @@
 package com.ironcore.fit.di
 
-import com.ironcore.fit.data.repository.ArenaRepository
-import com.ironcore.fit.data.repository.BillingRepository
-import com.ironcore.fit.data.repository.FitnessRepository
-import com.ironcore.fit.data.repository.SocialRepository
-import com.ironcore.fit.data.repository.UserRepository
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.functions.FirebaseFunctions
+import com.ironcore.fit.data.remote.CloudFunctions
+import com.ironcore.fit.data.repository.*
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -12,9 +12,49 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
 /**
- * Repositories are constructor-injected, so Hilt resolves them automatically.
- * This module exists as a placeholder for future custom bindings (e.g. interfaces).
+ * Hilt module providing repository and Cloud Functions instances.
+ *
+ * All repositories use constructor injection but are explicitly
+ * provided here so Hilt can resolve the dependency graph cleanly.
+ * Firebase SDK instances come from AppModule.
  */
 @Module
 @InstallIn(SingletonComponent::class)
-object RepositoryModule
+object RepositoryModule {
+
+    @Provides
+    @Singleton
+    fun provideCloudFunctions(functions: FirebaseFunctions): CloudFunctions =
+        CloudFunctions(functions)
+
+    @Provides
+    @Singleton
+    fun provideUserRepository(auth: FirebaseAuth, db: FirebaseFirestore): UserRepository =
+        UserRepository(auth, db)
+
+    @Provides
+    @Singleton
+    fun provideWorkoutRepository(auth: FirebaseAuth, db: FirebaseFirestore): WorkoutRepository =
+        WorkoutRepository(auth, db)
+
+    @Provides
+    @Singleton
+    fun provideNutritionRepository(auth: FirebaseAuth, db: FirebaseFirestore): NutritionRepository =
+        NutritionRepository(auth, db)
+
+    @Provides
+    @Singleton
+    fun provideArenaRepository(
+        auth: FirebaseAuth,
+        db: FirebaseFirestore,
+        cf: CloudFunctions
+    ): ArenaRepository = ArenaRepository(auth, db, cf)
+
+    @Provides
+    @Singleton
+    fun provideGuildRepository(
+        auth: FirebaseAuth,
+        db: FirebaseFirestore,
+        cf: CloudFunctions
+    ): GuildRepository = GuildRepository(auth, db, cf)
+}

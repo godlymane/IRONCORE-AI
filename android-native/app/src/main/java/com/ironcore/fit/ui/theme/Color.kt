@@ -21,10 +21,12 @@ val IronTextPrimary = Color(0xFFFFFFFF)
 val IronTextSecondary = Color(0xFFA3A3A3)
 val IronTextTertiary = Color(0xFF737373)
 
-// Status
+// Status / gamification
 val IronGreen = Color(0xFF22C55E)
-val IronYellow = Color(0xFFEAB308)
+val IronYellow = Color(0xFFFBBF24)
 val IronBlue = Color(0xFF3B82F6)
+val IronOrange = Color(0xFFF97316)
+val IronPurple = Color(0xFFA855F7)
 
 // Glass effect overlay
 val GlassWhite = Color(0x1AFFFFFF)        // 10% white

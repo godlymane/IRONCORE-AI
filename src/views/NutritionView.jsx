@@ -31,9 +31,14 @@ export const NutritionView = ({ meals, burned, profile, updateData, onBack }) =>
     };
 
     const handleAddMeal = async (mealData) => {
-        await updateData('add', 'meals', mealData);
-        addToast(`Logged: ${mealData.name}`, 'success');
-        setShowAddMeal(false);
+        try {
+            await updateData('add', 'meals', mealData);
+            addToast(`Logged: ${mealData.name || mealData.mealName || 'Meal'}`, 'success');
+            setShowAddMeal(false);
+        } catch (e) {
+            console.error('Failed to log meal:', e);
+            addToast('Failed to log meal. Try again.', 'error');
+        }
     };
 
     return (
