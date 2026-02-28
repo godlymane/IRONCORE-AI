@@ -24,6 +24,8 @@ export const useStore = create((set, get) => ({
     inbox: [],
     globalFeed: [],
     battles: [],
+    friendRequests: [],
+    friends: [],
 
     // Selectors / Actions
     setActiveTab: (tab) => set({ activeTab: tab }),
@@ -39,7 +41,8 @@ export const useStore = create((set, get) => ({
         dataLoaded: false,
         meals: [], progress: [], burned: [], workouts: [], photos: [],
         profile: {}, userDoc: {}, leaderboard: [], chat: [], following: [], posts: [],
-        inbox: [], globalFeed: [], battles: []
+        inbox: [], globalFeed: [], battles: [],
+        friendRequests: [], friends: []
     }),
 
     // Deep Merge Update Utility

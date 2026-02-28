@@ -3,6 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
+import { getFunctions } from 'firebase/functions';
 import { Capacitor } from '@capacitor/core';
 
 
@@ -38,6 +39,8 @@ try {
 }
 export const storage = storageInstance;
 export const isStorageConfigured = !!storageInstance;
+
+export const functions = getFunctions(app);
 
 export default app;
 

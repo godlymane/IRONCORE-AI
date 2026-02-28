@@ -137,16 +137,38 @@ service cloud.firestore {
         allow write: if false; // Server-only via Admin SDK (logWeightEntry function)
       }
 
+      // ── Friend Requests — any auth can create (must stamp own fromUid), owner can read/delete ──
+      match /friendRequests/{requestId} {
+        allow read, delete: if isOwner(userId);
+        allow create: if isAuth()
+                      && request.resource.data.fromUid == request.auth.uid
+                      && isValidString(request.resource.data.fromUid, 128)
+                      && isValidString(request.resource.data.fromUsername, 50)
+                      && request.resource.data.status == "pending"
+                      && request.resource.data.keys().size() <= 10;
+        allow update: if false;
+      }
+
+      // ── Friends list — owner read, server-only write ──
+      match /friends/{friendId} {
+        allow read: if isOwner(userId);
+        allow write: if false; // Server-only via respondFriendRequest function
+      }
+
       // ── Following, notifications, photos — owner only ──
       match /{subcollection}/{docId} {
         allow read: if isOwner(userId)
                     && subcollection != "data"
                     && subcollection != "inbox"
-                    && subcollection != "progress";
+                    && subcollection != "progress"
+                    && subcollection != "friendRequests"
+                    && subcollection != "friends";
         allow write: if isOwner(userId)
                      && subcollection != "data"
                      && subcollection != "inbox"
                      && subcollection != "progress"
+                     && subcollection != "friendRequests"
+                     && subcollection != "friends"
                      && hasReasonableFieldCount();
       }
     }

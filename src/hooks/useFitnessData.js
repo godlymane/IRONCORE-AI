@@ -14,8 +14,9 @@ import {
     uploadBytes,
     getDownloadURL
 } from 'firebase/storage';
+import { httpsCallable } from 'firebase/functions';
 import { Capacitor } from '@capacitor/core';
-import { db, auth as firebaseAuth, storage as firebaseStorage, isStorageConfigured } from '../firebase';
+import { db, auth as firebaseAuth, storage as firebaseStorage, isStorageConfigured, functions as firebaseFunctions } from '../firebase';
 import { runMigrations, CURRENT_SCHEMA_VERSION } from '../utils/migrations';
 import imageCompression from 'browser-image-compression';
 import { useStore } from './useStore';
@@ -333,6 +334,8 @@ export function useFitnessData() {
             bindListener(user.uid, 'burned'),
             bindListener(user.uid, 'workouts'),
             bindListener(user.uid, 'profile', true),
+            bindListener(user.uid, 'friendRequests'),
+            bindListener(user.uid, 'friends'),
         ];
         listenersRef.current = unsubs;
         return () => unsubs.forEach(u => u());
@@ -391,6 +394,8 @@ export function useFitnessData() {
             bindListener(user.uid, 'burned'),
             bindListener(user.uid, 'workouts'),
             bindListener(user.uid, 'profile', true),
+            bindListener(user.uid, 'friendRequests'),
+            bindListener(user.uid, 'friends'),
         ];
         if (SOCIAL_TABS.has(activeTab)) {
             socialUnsubs.current.forEach(u => u());
@@ -533,12 +538,28 @@ export function useFitnessData() {
 
     const clearError = useCallback(() => setError(null), []);
 
+    // --- FRIEND SYSTEM CALLABLES ---
+    const sendFriendRequest = async (targetUid) => {
+        if (!user || !firebaseFunctions) return;
+        const fn = httpsCallable(firebaseFunctions, 'sendFriendRequest');
+        const result = await fn({ targetUid });
+        return result.data;
+    };
+
+    const respondFriendRequest = async (requestId, response) => {
+        if (!user || !firebaseFunctions) return;
+        const fn = httpsCallable(firebaseFunctions, 'respondFriendRequest');
+        const result = await fn({ requestId, response });
+        return result.data;
+    };
+
     // Return the stable functions and API so existing components don't break immediately
     // Note: To fully benefit from Zustand, components should import `useStore` directly and stop destructuring from this hook.
     return {
         loginAnonymous, recoverWithToken, logout, uploadProfilePic, uploadProgressPhoto,
         sendMessage, toggleFollow, sendPrivateMessage, createPost,
         buyItem, completeDailyDrop, broadcastEvent, createBattle,
+        sendFriendRequest, respondFriendRequest,
         isStorageReady, updateData, deleteEntry: (col, id) => updateData('delete', col, null, id),
         refreshData, clearError
     };

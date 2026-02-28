@@ -2424,3 +2424,177 @@ exports.useForgeShield = onCall(
     return { success: true, shieldsRemaining: result.shieldsRemaining };
   }
 );
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// FRIEND SYSTEM
+// sendFriendRequest  — write a pending request to the target's subcollection
+// respondFriendRequest — accept (mutual write) or decline (delete request)
+// ════════════════════════════════════════════════════════════════════════════
+
+const FRIEND_REQUEST_DAILY_LIMIT = 20;
+
+exports.sendFriendRequest = onCall(
+  { cors: true },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Must be logged in.");
+    }
+
+    const uid = request.auth.uid;
+    const { targetUid } = request.data;
+
+    if (!targetUid || typeof targetUid !== "string") {
+      throw new HttpsError("invalid-argument", "targetUid is required.");
+    }
+    if (targetUid === uid) {
+      throw new HttpsError("invalid-argument", "Cannot send a friend request to yourself.");
+    }
+
+    const db = admin.firestore();
+
+    // Rate limit: max 20 requests per day per sender
+    const today = new Date().toISOString().split("T")[0];
+    const rlRef = db.doc(`rateLimits/${uid}_friendRequest_${today}`);
+    const rlSnap = await rlRef.get();
+    const rlCount = rlSnap.exists ? (rlSnap.data().count || 0) : 0;
+    if (rlCount >= FRIEND_REQUEST_DAILY_LIMIT) {
+      throw new HttpsError("resource-exhausted", "Daily friend request limit reached (20/day).");
+    }
+
+    // Check not already friends
+    const friendRef = db.doc(`users/${uid}/friends/${targetUid}`);
+    const friendSnap = await friendRef.get();
+    if (friendSnap.exists) {
+      throw new HttpsError("already-exists", "You are already friends with this player.");
+    }
+
+    // Check no duplicate pending request
+    const existingReqs = await db
+      .collection(`users/${targetUid}/friendRequests`)
+      .where("fromUid", "==", uid)
+      .where("status", "==", "pending")
+      .limit(1)
+      .get();
+    if (!existingReqs.empty) {
+      throw new HttpsError("already-exists", "Friend request already sent.");
+    }
+
+    // Get sender profile info
+    const [senderProfileSnap, senderUserSnap] = await Promise.all([
+      db.doc(`users/${uid}/data/profile`).get(),
+      db.doc(`users/${uid}`).get(),
+    ]);
+    const senderProfile = senderProfileSnap.exists ? senderProfileSnap.data() : {};
+    const senderUser = senderUserSnap.exists ? senderUserSnap.data() : {};
+
+    const senderUsername = senderProfile.username || "Unknown";
+    const senderIronScore = senderUser.ironScore || 0;
+
+    const xp = senderProfile.xp || 0;
+    const LEAGUE_MINS = [
+      { name: "Diamond", min: 25000 },
+      { name: "Platinum", min: 10000 },
+      { name: "Gold", min: 5000 },
+      { name: "Silver", min: 2500 },
+      { name: "Bronze", min: 1000 },
+      { name: "Iron", min: 0 },
+    ];
+    const senderLeague = LEAGUE_MINS.find(l => xp >= l.min)?.name || "Iron";
+
+    // Write friend request
+    const requestRef = db.collection(`users/${targetUid}/friendRequests`).doc();
+    await requestRef.set({
+      fromUid: uid,
+      fromUsername: senderUsername,
+      fromIronScore: senderIronScore,
+      fromLeague: senderLeague,
+      sentAt: admin.firestore.FieldValue.serverTimestamp(),
+      status: "pending",
+    });
+
+    // Increment rate limit counter
+    await rlRef.set(
+      { count: admin.firestore.FieldValue.increment(1), date: today },
+      { merge: true }
+    );
+
+    return { success: true, requestId: requestRef.id };
+  }
+);
+
+
+exports.respondFriendRequest = onCall(
+  { cors: true },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Must be logged in.");
+    }
+
+    const uid = request.auth.uid;
+    const { requestId, response } = request.data;
+
+    if (!requestId || typeof requestId !== "string") {
+      throw new HttpsError("invalid-argument", "requestId is required.");
+    }
+    if (response !== "accept" && response !== "decline") {
+      throw new HttpsError("invalid-argument", "response must be 'accept' or 'decline'.");
+    }
+
+    const db = admin.firestore();
+    const reqRef = db.doc(`users/${uid}/friendRequests/${requestId}`);
+    const reqSnap = await reqRef.get();
+
+    if (!reqSnap.exists) {
+      throw new HttpsError("not-found", "Friend request not found.");
+    }
+
+    const reqData = reqSnap.data();
+    if (reqData.status !== "pending") {
+      throw new HttpsError("failed-precondition", "Friend request already handled.");
+    }
+
+    const fromUid = reqData.fromUid;
+
+    if (response === "accept") {
+      const [myProfileSnap, myUserSnap, theirProfileSnap, theirUserSnap] = await Promise.all([
+        db.doc(`users/${uid}/data/profile`).get(),
+        db.doc(`users/${uid}`).get(),
+        db.doc(`users/${fromUid}/data/profile`).get(),
+        db.doc(`users/${fromUid}`).get(),
+      ]);
+
+      const myProfile = myProfileSnap.exists ? myProfileSnap.data() : {};
+      const myUser = myUserSnap.exists ? myUserSnap.data() : {};
+      const theirProfile = theirProfileSnap.exists ? theirProfileSnap.data() : {};
+      const theirUser = theirUserSnap.exists ? theirUserSnap.data() : {};
+
+      const now = admin.firestore.FieldValue.serverTimestamp();
+      const batch = db.batch();
+
+      batch.set(db.doc(`users/${uid}/friends/${fromUid}`), {
+        uid: fromUid,
+        username: theirProfile.username || "Unknown",
+        xp: theirProfile.xp || 0,
+        ironScore: theirUser.ironScore || 0,
+        addedAt: now,
+      });
+
+      batch.set(db.doc(`users/${fromUid}/friends/${uid}`), {
+        uid,
+        username: myProfile.username || "Unknown",
+        xp: myProfile.xp || 0,
+        ironScore: myUser.ironScore || 0,
+        addedAt: now,
+      });
+
+      batch.delete(reqRef);
+      await batch.commit();
+      return { success: true, response: "accepted" };
+    }
+
+    // Decline
+    await reqRef.delete();
+    return { success: true, response: "declined" };
+  }
+);

@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { User, Calendar, Activity, Image as ImageIcon, LogOut, Flame } from 'lucide-react';
+import React, { useState, useMemo, useCallback } from 'react';
+import { User, Users, Calendar, Activity, Image as ImageIcon, LogOut, Flame, UserPlus, Check, X, Swords } from 'lucide-react';
 import { TrackView } from './TrackView';
 import { StatsView } from './StatsView';
 import { ChronicleView } from './ChronicleView';
@@ -9,6 +9,7 @@ import { GlassCard } from '../components/UIComponents';
 import { ProfileSkeleton } from '../components/ViewSkeletons';
 import { TrophyIconShape, ProteinBoltIcon, DumbbellIcon, UtensilsIcon } from '../components/IronCoreIcons';
 import { useStore } from '../hooks/useStore';
+import { PlayerCard, PlayerCardModal } from '../components/Profile/PlayerCard';
 
 // Iron Score color helper
 const getIronScoreColor = (score) => {
@@ -39,11 +40,13 @@ export const ProfileHub = ({
     deleteEntry,
     onLogout
 }) => {
-    // Read state from Zustand store for optimal performance!
     const {
-        user, profile, progress, photos, meals, workouts, burned, leaderboard, userDoc
+        user, profile, progress, photos, meals, workouts, burned, leaderboard, userDoc,
+        friends, friendRequests
     } = useStore();
     const [subTab, setSubTab] = useState('overview');
+    const [selectedPlayer, setSelectedPlayer] = useState(null);
+
     const xp = profile?.xp || 0;
     const level = Math.floor(xp / 500) + 1;
     const xpProgress = (xp % 500) / 500 * 100;
@@ -68,6 +71,33 @@ export const ProfileHub = ({
         return count;
     }, [meals]);
 
+    const pendingRequests = useMemo(
+        () => (friendRequests || []).filter(r => r.status === 'pending'),
+        [friendRequests]
+    );
+
+    const handleRespondFriendRequest = useCallback(async (requestId, response) => {
+        try {
+            const { httpsCallable } = await import('firebase/functions');
+            const { functions } = await import('../firebase');
+            const fn = httpsCallable(functions, 'respondFriendRequest');
+            await fn({ requestId, response });
+        } catch (e) {
+            console.error('respondFriendRequest error:', e);
+        }
+    }, []);
+
+    const handleSendFriendRequest = useCallback(async (targetUid) => {
+        try {
+            const { httpsCallable } = await import('firebase/functions');
+            const { functions } = await import('../firebase');
+            const fn = httpsCallable(functions, 'sendFriendRequest');
+            await fn({ targetUid });
+        } catch (e) {
+            console.error('sendFriendRequest error:', e);
+        }
+    }, []);
+
     // Show skeleton while profile data loads from Firestore
     if (!profile || Object.keys(profile).length === 0) return <ProfileSkeleton />;
 
@@ -91,6 +121,9 @@ export const ProfileHub = ({
                     <LogOut size={14} /> Sign Out
                 </button>
             </div>
+
+            {/* Player Card — identity card at top */}
+            <PlayerCard isOwn={true} />
 
             {/* Level Card */}
             <GlassCard className="!p-6">
@@ -185,11 +218,12 @@ export const ProfileHub = ({
                     { id: 'history', icon: <Calendar size={14} />, label: 'History' },
                     { id: 'stats', icon: <Activity size={14} />, label: 'Stats' },
                     { id: 'gallery', icon: <ImageIcon size={14} />, label: 'Gallery' },
+                    { id: 'friends', icon: <Users size={14} />, label: 'Friends', badge: pendingRequests.length },
                 ].map(tab => (
                     <button
                         key={tab.id}
                         onClick={() => setSubTab(tab.id)}
-                        className={`flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${subTab === tab.id ? 'text-white' : 'text-gray-500 hover:text-gray-300'
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-3 px-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap relative ${subTab === tab.id ? 'text-white' : 'text-gray-500 hover:text-gray-300'
                             }`}
                         style={subTab === tab.id ? {
                             background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.6) 0%, rgba(185, 28, 28, 0.6) 100%)',
@@ -198,6 +232,14 @@ export const ProfileHub = ({
                     >
                         {tab.icon}
                         {tab.label}
+                        {tab.badge > 0 && (
+                            <span
+                                className="absolute -top-0.5 -right-0.5 min-w-[14px] h-3.5 flex items-center justify-center rounded-full text-[9px] font-black text-white px-1"
+                                style={{ background: '#dc2626' }}
+                            >
+                                {tab.badge}
+                            </span>
+                        )}
                     </button>
                 ))}
             </div>
@@ -207,6 +249,135 @@ export const ProfileHub = ({
                 {subTab === 'history' && <ChronicleView deleteEntry={deleteEntry} />}
                 {subTab === 'stats' && <StatsView />}
                 {subTab === 'gallery' && <ProgressPhotos userId={user?.uid} />}
+                {subTab === 'friends' && (
+                    <FriendsSection
+                        friends={friends || []}
+                        pendingRequests={pendingRequests}
+                        onViewPlayer={setSelectedPlayer}
+                        onRespond={handleRespondFriendRequest}
+                    />
+                )}
+            </div>
+
+            {/* PlayerCardModal for viewing a friend's card */}
+            <PlayerCardModal
+                player={selectedPlayer}
+                isOpen={!!selectedPlayer}
+                onClose={() => setSelectedPlayer(null)}
+                onChallenge={selectedPlayer ? () => setSelectedPlayer(null) : undefined}
+            />
+        </div>
+    );
+};
+
+// ─── Friends Section ─────────────────────────────────────────────
+const FriendsSection = ({ friends, pendingRequests, onViewPlayer, onRespond }) => {
+    const [responding, setResponding] = useState({});
+
+    const handleRespond = async (requestId, response) => {
+        setResponding(r => ({ ...r, [requestId]: response }));
+        await onRespond(requestId, response);
+        setResponding(r => { const n = { ...r }; delete n[requestId]; return n; });
+    };
+
+    return (
+        <div className="space-y-4">
+            {/* Pending Requests */}
+            {pendingRequests.length > 0 && (
+                <div>
+                    <p className="text-[11px] font-black uppercase tracking-widest text-gray-500 mb-3">
+                        Pending Requests · {pendingRequests.length}
+                    </p>
+                    <div className="space-y-2">
+                        {pendingRequests.map(req => (
+                            <div
+                                key={req.id}
+                                className="flex items-center gap-3 p-3 rounded-xl"
+                                style={{
+                                    background: 'linear-gradient(145deg, rgba(245,158,11,0.08) 0%, rgba(10,10,10,0) 100%)',
+                                    border: '1px solid rgba(245,158,11,0.2)',
+                                }}
+                            >
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-black text-white truncate">@{req.fromUsername}</p>
+                                    <p className="text-[10px] text-gray-500 font-bold uppercase">
+                                        {req.fromLeague || 'Iron'} · Score {req.fromIronScore || '—'}
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => handleRespond(req.id, 'accept')}
+                                    disabled={!!responding[req.id]}
+                                    className="p-2 rounded-lg transition-all hover:scale-110 active:scale-95 disabled:opacity-50"
+                                    style={{ background: 'rgba(34,197,94,0.2)', border: '1px solid rgba(34,197,94,0.4)' }}
+                                >
+                                    <Check size={14} className="text-green-400" />
+                                </button>
+                                <button
+                                    onClick={() => handleRespond(req.id, 'decline')}
+                                    disabled={!!responding[req.id]}
+                                    className="p-2 rounded-lg transition-all hover:scale-110 active:scale-95 disabled:opacity-50"
+                                    style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}
+                                >
+                                    <X size={14} className="text-red-400" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Friends List */}
+            <div>
+                <p className="text-[11px] font-black uppercase tracking-widest text-gray-500 mb-3">
+                    Friends · {friends.length}
+                </p>
+                {friends.length === 0 ? (
+                    <div
+                        className="text-center py-10 rounded-2xl"
+                        style={{
+                            background: 'linear-gradient(145deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)',
+                            border: '1px solid rgba(255,255,255,0.06)',
+                        }}
+                    >
+                        <Users size={28} className="text-gray-700 mx-auto mb-3" />
+                        <p className="text-sm font-bold text-gray-600">No friends yet</p>
+                        <p className="text-[11px] text-gray-700 mt-1">Challenge others in the Arena to connect</p>
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        {friends.map(friend => (
+                            <button
+                                key={friend.id || friend.uid}
+                                onClick={() => onViewPlayer({
+                                    uid: friend.uid,
+                                    username: friend.username,
+                                    xp: friend.xp || 0,
+                                    ironScore: friend.ironScore || 0,
+                                })}
+                                className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
+                                style={{
+                                    background: 'linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
+                                    border: '1px solid rgba(255,255,255,0.07)',
+                                }}
+                            >
+                                {/* Avatar placeholder */}
+                                <div
+                                    className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 font-black text-sm text-white"
+                                    style={{ background: 'rgba(220,38,38,0.3)', border: '1px solid rgba(239,68,68,0.4)' }}
+                                >
+                                    {(friend.username || 'A')[0].toUpperCase()}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-black text-white truncate">@{friend.username}</p>
+                                    <p className="text-[10px] text-gray-500 font-bold uppercase">
+                                        Score {friend.ironScore || '—'}
+                                    </p>
+                                </div>
+                                <Swords size={14} className="text-gray-600 flex-shrink-0" />
+                            </button>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -229,7 +400,6 @@ const StatMini = ({ icon, label, value }) => (
 
 // Profile Completion Indicator Component
 const ProfileCompletion = ({ profile, workouts, meals, progress }) => {
-    // Calculate completion based on various factors
     const checks = [
         { label: 'Basic Info', complete: !!(profile?.weight && profile?.height && profile?.age) },
         { label: 'Goal Set', complete: !!profile?.goal },
@@ -242,7 +412,7 @@ const ProfileCompletion = ({ profile, workouts, meals, progress }) => {
     const completedCount = checks.filter(c => c.complete).length;
     const completionPercent = Math.round((completedCount / checks.length) * 100);
 
-    if (completionPercent === 100) return null; // Hide when complete
+    if (completionPercent === 100) return null;
 
     return (
         <div
@@ -282,7 +452,3 @@ const ProfileCompletion = ({ profile, workouts, meals, progress }) => {
         </div>
     );
 };
-
-
-
-
