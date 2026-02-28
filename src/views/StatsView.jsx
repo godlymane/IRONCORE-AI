@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import {
     ComposedChart, Line, Bar, CartesianGrid, XAxis, YAxis,
-    Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis
+    Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+    LineChart
 } from 'recharts';
-import { Trophy, Medal, Crown, Star, Lock, Activity, Zap, Grid, Flame, TrendingUp, Shield } from 'lucide-react';
+import { Trophy, Medal, Crown, Star, Lock, Activity, Zap, Grid, Flame, TrendingUp, TrendingDown, Shield } from 'lucide-react';
 import { getLevel } from '../utils/helpers';
 import { LEVELS, EXERCISE_DB } from '../utils/constants';
 import { BodyHeatmap } from '../components/BodyHeatmap';
@@ -20,7 +21,7 @@ const LEAGUES = [
 ];
 
 export const StatsView = () => {
-    const { profile, progress, meals, workouts } = useStore();
+    const { profile, progress, meals, workouts, userDoc } = useStore();
     const { isPremium, requirePremium } = usePremium();
     const currentXP = profile.xp || 0;
     const currentLeague = LEAGUES.slice().reverse().find(l => currentXP >= l.min) || LEAGUES[0];
@@ -189,6 +190,32 @@ export const StatsView = () => {
         ];
     }, [workouts, meals, profile.xp, disciplineGrid]);
 
+    // Weight trend: last 7 weigh-in entries from progress
+    const weightTrendData = useMemo(() => {
+        return [...progress]
+            .filter(p => typeof p.weight === 'number' && p.weight > 0 && p.date)
+            .sort((a, b) => new Date(a.date) - new Date(b.date))
+            .slice(-7)
+            .map(p => ({
+                date: new Date(p.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                weight: p.weight,
+            }));
+    }, [progress]);
+
+    const currentWeight = weightTrendData.length > 0
+        ? weightTrendData[weightTrendData.length - 1].weight
+        : (profile?.weight || null);
+    const targetWeight = profile?.targetWeight || null;
+    const weightStatus = userDoc?.weightStatus || null;
+
+    const weightDirection = weightTrendData.length >= 2
+        ? weightTrendData[weightTrendData.length - 1].weight - weightTrendData[0].weight
+        : 0;
+
+    const weightDomain = weightTrendData.length > 0
+        ? [Math.min(...weightTrendData.map(d => d.weight)) - 2, Math.max(...weightTrendData.map(d => d.weight)) + 2]
+        : ['auto', 'auto'];
+
     return (
         <div className="space-y-6 pb-4 animate-in fade-in">
             <div className="flex items-center justify-between">
@@ -280,6 +307,94 @@ export const StatsView = () => {
                     <div className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-green-500"></div><span className="text-[11px] text-gray-500">Discipline</span></div>
                     <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-yellow-500"></div><span className="text-[11px] text-gray-500">Weight</span></div>
                 </div>
+            </div>
+
+            {/* WEIGHT TREND */}
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-3xl">
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-xs font-black uppercase text-gray-500 flex items-center gap-2">
+                        <TrendingUp size={14} className="text-yellow-500" /> Weight Trend
+                    </h3>
+                    {/* Status badge */}
+                    {weightStatus && (
+                        <span
+                            className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
+                            style={{
+                                background: weightStatus === 'on_track'
+                                    ? 'rgba(34,197,94,0.15)'
+                                    : weightStatus === 'off_track'
+                                    ? 'rgba(239,68,68,0.15)'
+                                    : 'rgba(107,114,128,0.2)',
+                                color: weightStatus === 'on_track'
+                                    ? '#22c55e'
+                                    : weightStatus === 'off_track'
+                                    ? '#ef4444'
+                                    : '#9ca3af',
+                                border: `1px solid ${weightStatus === 'on_track' ? 'rgba(34,197,94,0.3)' : weightStatus === 'off_track' ? 'rgba(239,68,68,0.3)' : 'rgba(107,114,128,0.2)'}`,
+                            }}
+                        >
+                            {weightStatus === 'on_track' ? 'ON TRACK' : weightStatus === 'off_track' ? 'OFF TRACK' : 'BUILDING'}
+                        </span>
+                    )}
+                </div>
+
+                {/* Current vs Target row */}
+                <div className="flex items-center gap-4 mb-4">
+                    <div className="flex-1 text-center p-2 rounded-xl bg-gray-800/50">
+                        <p className="text-[10px] text-gray-500 uppercase font-bold">Current</p>
+                        <div className="flex items-center justify-center gap-1 mt-0.5">
+                            <p className="text-xl font-black text-white">
+                                {currentWeight != null ? `${currentWeight}` : '—'}
+                            </p>
+                            {weightTrendData.length >= 2 && (
+                                weightDirection < 0
+                                    ? <TrendingDown size={16} className="text-red-400" />
+                                    : weightDirection > 0
+                                    ? <TrendingUp size={16} className="text-green-400" />
+                                    : null
+                            )}
+                        </div>
+                        <p className="text-[10px] text-gray-600">kg</p>
+                    </div>
+                    {targetWeight && (
+                        <div className="flex-1 text-center p-2 rounded-xl bg-gray-800/50">
+                            <p className="text-[10px] text-gray-500 uppercase font-bold">Target</p>
+                            <p className="text-xl font-black text-yellow-400 mt-0.5">{targetWeight}</p>
+                            <p className="text-[10px] text-gray-600">kg</p>
+                        </div>
+                    )}
+                </div>
+
+                {weightTrendData.length >= 2 ? (
+                    <div className="h-36">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={weightTrendData}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
+                                <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                                <YAxis domain={weightDomain} hide />
+                                <Tooltip
+                                    contentStyle={{ backgroundColor: '#111827', border: 'none', borderRadius: '8px', fontSize: '12px' }}
+                                    itemStyle={{ color: '#eab308' }}
+                                    formatter={(v) => [`${v} kg`, 'Weight']}
+                                />
+                                <Line
+                                    type="monotone"
+                                    dataKey="weight"
+                                    stroke="#eab308"
+                                    strokeWidth={2.5}
+                                    dot={{ fill: '#eab308', r: 4 }}
+                                    activeDot={{ r: 6, fill: '#eab308' }}
+                                />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                ) : (
+                    <div className="h-20 flex items-center justify-center">
+                        <p className="text-xs text-gray-600 font-bold uppercase tracking-widest">
+                            Log 2+ weigh-ins to see your trend
+                        </p>
+                    </div>
+                )}
             </div>
 
             {/* HALL OF FAME */}

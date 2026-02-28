@@ -16,6 +16,7 @@ export const useStore = create((set, get) => ({
     workouts: [],
     photos: [],
     profile: {},
+    userDoc: {},  // Root user doc (users/{uid}) — has ironScore, weightStatus
     leaderboard: [],
     chat: [],
     following: [],
@@ -37,7 +38,7 @@ export const useStore = create((set, get) => ({
         profileExists: false,
         dataLoaded: false,
         meals: [], progress: [], burned: [], workouts: [], photos: [],
-        profile: {}, leaderboard: [], chat: [], following: [], posts: [],
+        profile: {}, userDoc: {}, leaderboard: [], chat: [], following: [], posts: [],
         inbox: [], globalFeed: [], battles: []
     }),
 

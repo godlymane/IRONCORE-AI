@@ -322,7 +322,12 @@ export function useFitnessData() {
     // CORE listeners
     useEffect(() => {
         if (!user || !db) return;
+        // Root user doc listener — has ironScore, weightStatus (written by Cloud Functions)
+        const unsubUserDoc = onSnapshot(doc(db, 'users', user.uid), (snap) => {
+            useStore.getState().updateState({ userDoc: snap.exists() ? snap.data() : {} });
+        }, onListenerError('userDoc'));
         const unsubs = [
+            unsubUserDoc,
             bindListener(user.uid, 'meals'),
             bindListener(user.uid, 'progress'),
             bindListener(user.uid, 'burned'),
@@ -376,7 +381,11 @@ export function useFitnessData() {
     const refreshData = useCallback(() => {
         if (!user || !db) return;
         listenersRef.current.forEach(u => u());
+        const unsubUserDoc = onSnapshot(doc(db, 'users', user.uid), (snap) => {
+            useStore.getState().updateState({ userDoc: snap.exists() ? snap.data() : {} });
+        }, onListenerError('userDoc'));
         listenersRef.current = [
+            unsubUserDoc,
             bindListener(user.uid, 'meals'),
             bindListener(user.uid, 'progress'),
             bindListener(user.uid, 'burned'),

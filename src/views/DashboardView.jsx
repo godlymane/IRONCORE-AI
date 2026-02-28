@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getApp } from 'firebase/app';
 import {
   Flame, Search, Plus, Droplets, Zap, Settings, Target,
   Check, Camera, ScanLine, ShoppingBag, Snowflake, ArrowUpCircle,
-  ChefHat, Utensils, Trophy, Sparkles, X
+  ChefHat, Utensils, Trophy, Sparkles, X, Scale
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, MacroBadge, Button, useToast, Skeleton, GlassCard, staggerContainer, slideUp } from '../components/UIComponents';
@@ -60,11 +62,19 @@ const ProgressRing = ({ progress, size = 120, strokeWidth = 8, color = "#dc2626"
   );
 };
 
+// Iron Score color scale
+const getIronScoreColor = (score) => {
+  if (score >= 80) return '#eab308'; // gold
+  if (score >= 60) return '#f97316'; // orange
+  if (score >= 30) return '#dc2626'; // red
+  return '#6b7280'; // grey
+};
+
 export const DashboardView = () => {
   // Read state from Zustand store for optimal performance!
   const {
     user, dataLoaded, profileLoaded, profileExists,
-    meals, burned, profile, workouts
+    meals, burned, profile, workouts, progress, userDoc
   } = useStore();
 
   // Read functions from the refactored useFitnessData
@@ -90,6 +100,13 @@ export const DashboardView = () => {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [dropClaiming, setDropClaiming] = useState(false);
   const [quickLogLoading, setQuickLogLoading] = useState(false);
+  const [weighInValue, setWeighInValue] = useState('');
+  const [weighInLoading, setWeighInLoading] = useState(false);
+  const [weighInDismissed, setWeighInDismissed] = useState(() => {
+    const d = new Date().toISOString().split('T')[0];
+    return localStorage.getItem(`ironcore_weigh_dismissed_${d}`) === '1';
+  });
+  const [scoreDelta, setScoreDelta] = useState(null);
 
   const fileInputRef = useRef(null);
   const foodInputRef = useRef(null);
@@ -108,6 +125,13 @@ export const DashboardView = () => {
   // Calculate Data
   const today = new Date().toISOString().split('T')[0];
   const dropCompleted = profile?.dailyDrops?.[today];
+
+  // Iron Score
+  const ironScore = userDoc?.ironScore || 0;
+  const forgeShields = profile?.forgeShields || 0;
+  const ironScoreColor = getIronScoreColor(ironScore);
+  const hasLoggedWeightToday = progress.some(p => p.date === today && typeof p.weight === 'number');
+  const showWeighIn = !hasLoggedWeightToday && !weighInDismissed;
   const challenges = [
     { t: "50 Pushups", xp: 300, emoji: "💪" },
     { t: "30 Min Run", xp: 400, emoji: "🏃" },
@@ -164,6 +188,26 @@ export const DashboardView = () => {
     setForge(currentForge);
   }, [meals, today]);
 
+  // Iron Score delta tracking (compare to last cached score)
+  useEffect(() => {
+    if (!ironScore) return;
+    try {
+      const raw = localStorage.getItem('ironcore_iron_score_snapshot');
+      if (raw) {
+        const { score: prevScore, date: prevDate } = JSON.parse(raw);
+        const daysSince = (Date.now() - new Date(prevDate).getTime()) / 86400000;
+        const delta = ironScore - prevScore;
+        if (delta !== 0) setScoreDelta(delta);
+        // Refresh snapshot weekly
+        if (daysSince >= 7) {
+          localStorage.setItem('ironcore_iron_score_snapshot', JSON.stringify({ score: ironScore, date: new Date().toISOString() }));
+        }
+      } else {
+        localStorage.setItem('ironcore_iron_score_snapshot', JSON.stringify({ score: ironScore, date: new Date().toISOString() }));
+      }
+    } catch (e) { /* ignore */ }
+  }, [ironScore]);
+
   const handleDropComplete = async () => {
     if (!completeDailyDrop || dropClaiming || dropCompleted) return;
     setDropClaiming(true);
@@ -176,6 +220,41 @@ export const DashboardView = () => {
     } finally {
       setDropClaiming(false);
     }
+  };
+
+  const logWeight = async () => {
+    const w = parseFloat(weighInValue);
+    if (!w || w < 20 || w > 500) {
+      addToast('Enter a valid weight between 20–500 kg', 'error');
+      return;
+    }
+    setWeighInLoading(true);
+    try {
+      const fn = getFunctions(getApp());
+      const logWeightEntry = httpsCallable(fn, 'logWeightEntry');
+      const result = await logWeightEntry({ weight: w });
+      const { weightStatus, xpAwarded } = result.data;
+      if (weightStatus === 'on_track') {
+        addToast(`On track 🔥 +${xpAwarded || 50} XP`, 'success');
+      } else if (weightStatus === 'off_track') {
+        addToast('Off track — adjust your nutrition', 'error');
+      } else {
+        addToast('Keep logging — trend building', 'info');
+      }
+      setWeighInValue('');
+    } catch (e) {
+      const msg = (e?.message || '').toLowerCase();
+      if (msg.includes('rate') || msg.includes('already')) addToast('Already logged today', 'error');
+      else if (msg.includes('invalid')) addToast('Invalid weight value', 'error');
+      else addToast('Failed to log weight. Try again.', 'error');
+    } finally {
+      setWeighInLoading(false);
+    }
+  };
+
+  const dismissWeighIn = () => {
+    localStorage.setItem(`ironcore_weigh_dismissed_${today}`, '1');
+    setWeighInDismissed(true);
   };
 
   const [pendingBuy, setPendingBuy] = useState(null);
@@ -338,6 +417,125 @@ export const DashboardView = () => {
           >
             <Flame size={16} className="text-orange-500 fill-orange-500 animate-pulse" />
             <span className="text-xs font-black text-orange-400">{forge}</span>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Daily Weigh-In Card — TOP of dashboard, shown if not logged today */}
+      <AnimatePresence>
+        {showWeighIn && (
+          <motion.div
+            key="weigh-in"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10, height: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <div
+              className="relative rounded-2xl p-5 overflow-hidden"
+              style={{
+                background: 'linear-gradient(145deg, rgba(0,0,0,0.6) 0%, rgba(20,0,0,0.4) 100%)',
+                border: '1px solid rgba(220, 38, 38, 0.5)',
+                boxShadow: '0 0 20px rgba(220, 38, 38, 0.08)',
+              }}
+            >
+              <button
+                onClick={dismissWeighIn}
+                className="absolute top-3 right-3 text-gray-600 hover:text-gray-400 transition-colors"
+              >
+                <X size={16} />
+              </button>
+              <div className="flex items-center gap-2 mb-4">
+                <div
+                  className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'rgba(220,38,38,0.2)' }}
+                >
+                  <Scale size={16} className="text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-white">Log Today's Weight</h3>
+                  <p className="text-[10px] text-gray-500">
+                    {profile?.goal === 'cut' || profile?.goal === 'Cut'
+                      ? "You're on a cut — track your progress"
+                      : profile?.goal === 'bulk' || profile?.goal === 'Bulk'
+                      ? "You're on a bulk — track your gains"
+                      : "Stay accountable — log your weight"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-end gap-3">
+                <div className="flex-1 relative">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.1"
+                    min="20"
+                    max="500"
+                    placeholder="0.0"
+                    value={weighInValue}
+                    onChange={e => setWeighInValue(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && logWeight()}
+                    className="w-full text-center text-4xl font-black bg-transparent text-white outline-none py-2 border-b-2 border-red-500/30 focus:border-red-500 transition-colors placeholder:text-gray-700"
+                  />
+                  <span className="absolute right-0 bottom-3 text-xs text-gray-500 font-bold uppercase">kg</span>
+                </div>
+                <Button
+                  onClick={logWeight}
+                  disabled={weighInLoading || !weighInValue}
+                  loading={weighInLoading}
+                  className="!px-5 whitespace-nowrap"
+                >
+                  {weighInLoading ? 'Logging...' : 'LOG WEIGHT'}
+                </Button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Iron Score Card */}
+      <motion.div variants={slideUp}>
+        <div
+          className="rounded-2xl p-4 flex items-center gap-4"
+          style={{
+            background: 'linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
+            border: `1px solid ${ironScoreColor}33`,
+          }}
+        >
+          {/* Score Ring */}
+          <div className="relative flex-shrink-0">
+            <ProgressRing
+              progress={Math.min(ironScore, 100)}
+              size={76}
+              strokeWidth={7}
+              color={ironScoreColor}
+            />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-xl font-black text-white">{ironScore || '—'}</span>
+            </div>
+          </div>
+          {/* Score Info */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span
+                className="text-[11px] font-black uppercase tracking-widest"
+                style={{ color: ironScoreColor }}
+              >
+                Iron Score
+              </span>
+              {scoreDelta !== null && scoreDelta !== 0 && (
+                <span className={`text-[11px] font-bold ${scoreDelta > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {scoreDelta > 0 ? '+' : ''}{scoreDelta} this week
+                </span>
+              )}
+            </div>
+            <p className="text-[10px] text-gray-600 mt-0.5 leading-tight">
+              League 40% · Consistency 25% · Nutrition 20% · Wins 10% · Body 5%
+            </p>
+            <p className="text-[11px] text-gray-400 mt-1.5 flex items-center gap-1">
+              <Flame size={11} className="text-orange-500 flex-shrink-0" />
+              <span>Forge: {forge} days · {forgeShields} shield{forgeShields !== 1 ? 's' : ''}</span>
+            </p>
           </div>
         </div>
       </motion.div>

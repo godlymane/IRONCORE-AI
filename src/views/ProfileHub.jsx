@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { User, Calendar, Activity, Image as ImageIcon, Camera, Trash2, LogOut } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { User, Calendar, Activity, Image as ImageIcon, LogOut, Flame } from 'lucide-react';
 import { TrackView } from './TrackView';
 import { StatsView } from './StatsView';
 import { ChronicleView } from './ChronicleView';
@@ -10,18 +10,63 @@ import { ProfileSkeleton } from '../components/ViewSkeletons';
 import { TrophyIconShape, ProteinBoltIcon, DumbbellIcon, UtensilsIcon } from '../components/IronCoreIcons';
 import { useStore } from '../hooks/useStore';
 
+// Iron Score color helper
+const getIronScoreColor = (score) => {
+    if (score >= 80) return '#eab308';
+    if (score >= 60) return '#f97316';
+    if (score >= 30) return '#dc2626';
+    return '#6b7280';
+};
+
+// Mini progress ring for profile
+const ProfileProgressRing = ({ progress: pct, size = 72, strokeWidth = 6, color = '#dc2626' }) => {
+    const radius = (size - strokeWidth) / 2;
+    const circumference = radius * 2 * Math.PI;
+    const offset = circumference - (Math.min(pct, 100) / 100) * circumference;
+    return (
+        <svg width={size} height={size} className="transform -rotate-90">
+            <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={strokeWidth} />
+            <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth={strokeWidth}
+                strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"
+                className="transition-all duration-1000 ease-out"
+                style={{ filter: `drop-shadow(0 0 6px ${color})` }}
+            />
+        </svg>
+    );
+};
+
 export const ProfileHub = ({
     deleteEntry,
     onLogout
 }) => {
     // Read state from Zustand store for optimal performance!
     const {
-        user, profile, progress, photos, meals, workouts, burned, leaderboard
+        user, profile, progress, photos, meals, workouts, burned, leaderboard, userDoc
     } = useStore();
     const [subTab, setSubTab] = useState('overview');
     const xp = profile?.xp || 0;
     const level = Math.floor(xp / 500) + 1;
     const xpProgress = (xp % 500) / 500 * 100;
+
+    // Iron Score
+    const ironScore = userDoc?.ironScore || 0;
+    const ironScoreColor = getIronScoreColor(ironScore);
+    const forgeShields = profile?.forgeShields || 0;
+
+    // Forge streak (consecutive days with meals)
+    const forgeCount = useMemo(() => {
+        const today = new Date().toISOString().split('T')[0];
+        const dates = [...new Set(meals.map(m => m.date))].sort().reverse();
+        let count = 0;
+        let checkDate = new Date(today);
+        if (!dates.includes(today)) checkDate.setDate(checkDate.getDate() - 1);
+        for (let i = 0; i < 365; i++) {
+            const dateStr = checkDate.toISOString().split('T')[0];
+            if (dates.includes(dateStr)) { count++; checkDate.setDate(checkDate.getDate() - 1); }
+            else break;
+        }
+        return count;
+    }, [meals]);
 
     // Show skeleton while profile data loads from Firestore
     if (!profile || Object.keys(profile).length === 0) return <ProfileSkeleton />;
@@ -91,6 +136,36 @@ export const ProfileHub = ({
                     <StatMini icon={<PremiumIcon src={ProteinBoltIcon} size="sm" className="!w-6 !h-6" fallback={null} />} label="Total XP" value={xp} />
                     <StatMini icon={<PremiumIcon src={DumbbellIcon} size="sm" className="!w-6 !h-6" fallback={null} />} label="Workouts" value={workouts.length} />
                     <StatMini icon={<PremiumIcon src={UtensilsIcon} size="sm" className="!w-6 !h-6" fallback={null} />} label="Meals Logged" value={meals.length} />
+                </div>
+
+                {/* Iron Score Section */}
+                <div
+                    className="mt-4 pt-4 flex items-center gap-4"
+                    style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
+                >
+                    <div className="relative flex-shrink-0">
+                        <ProfileProgressRing
+                            progress={Math.min(ironScore, 100)}
+                            size={72}
+                            strokeWidth={6}
+                            color={ironScoreColor}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="text-lg font-black text-white">{ironScore || '—'}</span>
+                        </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-black uppercase tracking-widest" style={{ color: ironScoreColor }}>
+                            Iron Score
+                        </p>
+                        <p className="text-[10px] text-gray-600 mt-0.5 leading-tight">
+                            League 40% · Consistency 25% · Nutrition 20% · Wins 10% · Body 5%
+                        </p>
+                        <p className="text-[11px] text-gray-400 mt-1.5 flex items-center gap-1">
+                            <Flame size={11} className="text-orange-500 flex-shrink-0" />
+                            <span>Forge: {forgeCount} days · {forgeShields} shield{forgeShields !== 1 ? 's' : ''}</span>
+                        </p>
+                    </div>
                 </div>
 
                 {/* Profile Completion Indicator */}
