@@ -33,7 +33,9 @@ service cloud.firestore {
     // Server-protected fields that clients MUST NOT write
     function serverOnlyFields() {
       return ['subscription', 'isPremium', 'elo', 'eloRating',
-              'leaguePoints', 'verifiedXp', 'verifiedLevel'].toSet();
+              'leaguePoints', 'verifiedXp', 'verifiedLevel',
+              'ironScore', 'weeklyXpContribution', 'forgeShields',
+              'weightStatus', 'lastDecayApplied', 'lastWeightAssessment'].toSet();
     }
 
     // Check that no server-only fields are being created
@@ -127,14 +129,24 @@ service cloud.firestore {
         allow delete: if isOwner(userId);
       }
 
+      // ── Weight progress entries — server-only writes ──
+      // All weight entries go through the logWeightEntry Cloud Function.
+      // Clients can read their own progress but NEVER write directly.
+      match /progress/{entryId} {
+        allow read: if isOwner(userId);
+        allow write: if false; // Server-only via Admin SDK (logWeightEntry function)
+      }
+
       // ── Following, notifications, photos — owner only ──
       match /{subcollection}/{docId} {
         allow read: if isOwner(userId)
                     && subcollection != "data"
-                    && subcollection != "inbox";
+                    && subcollection != "inbox"
+                    && subcollection != "progress";
         allow write: if isOwner(userId)
                      && subcollection != "data"
                      && subcollection != "inbox"
+                     && subcollection != "progress"
                      && hasReasonableFieldCount();
       }
     }
@@ -272,6 +284,13 @@ service cloud.firestore {
         allow read: if isAuth();
         allow write: if false; // Server-only
       }
+
+      // ── Guild War History — server-only ──
+      // Weekly guild war results written by weeklyGuildWars function
+      match /warHistory/{weekId} {
+        allow read: if isAuth();
+        allow write: if false; // Server-only
+      }
     }
 
 
@@ -317,6 +336,12 @@ service cloud.firestore {
       allow create: if isAuth()
                     && request.resource.data.userId == request.auth.uid;
       allow update, delete: if false;
+    }
+
+    // Guild Leaderboard — server-only writes, any authenticated user can read
+    match /global/data/guildLeaderboard/{guildId} {
+      allow read: if isAuth();
+      allow write: if false; // Server-only via weeklyGuildWars function
     }
 
 

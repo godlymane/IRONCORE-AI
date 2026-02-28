@@ -81,6 +81,14 @@
         { "fieldPath": "league", "order": "ASCENDING" },
         { "fieldPath": "leaguePoints", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "progress",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "loggedAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

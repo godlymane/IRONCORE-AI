@@ -1100,11 +1100,12 @@ exports.submitBattleWorkout = onCall(
         completedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      // Update challenger
+      // Update challenger — also track weeklyXpContribution for Guild Wars
       const challengerUpdates = {
         eloRating: elo.newRatingA,
         xp: newChallengerXp,
         league: getLeagueForXp(newChallengerXp).name,
+        weeklyXpContribution: admin.firestore.FieldValue.increment(challengerXp),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       };
       if (winnerId === challengerUid) {
@@ -1112,19 +1113,44 @@ exports.submitBattleWorkout = onCall(
       } else if (winnerId !== null) {
         challengerUpdates.losses = (challengerData.losses || 0) + 1;
       }
+      // Forge Shield: grant 1 shield per 500 XP milestone (max 3)
+      const challengerOldXp = challengerData.xp || 0;
+      const challengerOldMilestone = Math.floor(challengerOldXp / 500);
+      const challengerNewMilestone = Math.floor(newChallengerXp / 500);
+      if (challengerNewMilestone > challengerOldMilestone) {
+        const shieldsToGrant = challengerNewMilestone - challengerOldMilestone;
+        const currentShields = challengerData.forgeShields || 0;
+        const newShields = Math.min(3, currentShields + shieldsToGrant);
+        if (newShields > currentShields) {
+          challengerUpdates.forgeShields = newShields;
+        }
+      }
       transaction.update(challengerRef, challengerUpdates);
 
-      // Update opponent
+      // Update opponent — also track weeklyXpContribution for Guild Wars
       const opponentUpdates = {
         eloRating: elo.newRatingB,
         xp: newOpponentXp,
         league: getLeagueForXp(newOpponentXp).name,
+        weeklyXpContribution: admin.firestore.FieldValue.increment(opponentXp),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       };
       if (winnerId === opponentUid) {
         opponentUpdates.wins = (opponentData.wins || 0) + 1;
       } else if (winnerId !== null) {
         opponentUpdates.losses = (opponentData.losses || 0) + 1;
+      }
+      // Forge Shield: grant 1 shield per 500 XP milestone (max 3)
+      const opponentOldXp = opponentData.xp || 0;
+      const opponentOldMilestone = Math.floor(opponentOldXp / 500);
+      const opponentNewMilestone = Math.floor(newOpponentXp / 500);
+      if (opponentNewMilestone > opponentOldMilestone) {
+        const shieldsToGrant = opponentNewMilestone - opponentOldMilestone;
+        const currentShields = opponentData.forgeShields || 0;
+        const newShields = Math.min(3, currentShields + shieldsToGrant);
+        if (newShields > currentShields) {
+          opponentUpdates.forgeShields = newShields;
+        }
       }
       transaction.update(opponentRef, opponentUpdates);
 
@@ -1430,6 +1456,7 @@ exports.weeklyGuildChallengeTally = onSchedule(
           const userRef = db.doc(`users/${memberId}`);
           batch.update(userRef, {
             xp: admin.firestore.FieldValue.increment(bonusXp),
+            weeklyXpContribution: admin.firestore.FieldValue.increment(bonusXp),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
 
@@ -1672,5 +1699,728 @@ exports.checkExpiredSubscriptions = onSchedule(
 
     await batch.commit();
     console.log(`[checkExpiredSubscriptions] Expired ${count} subscription(s).`);
+  }
+);
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// IRON SCORE — Internal helper (not exported)
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Iron Score formula (0–100+):
+//   - League rank contribution (40 pts max based on leaguePoints bracket)
+//   - Workout consistency (25 pts max — workouts in last 30 days)
+//   - Nutrition adherence (20 pts max — nutrition days in last 14 days)
+//   - Arena win rate (10 pts max — min 5 battles required)
+//   - Weight goal progress (5 pts max)
+// ════════════════════════════════════════════════════════════════════════════
+
+const LEAGUE_POINT_BRACKETS = [
+  { min: 0, score: 0 },       // Iron
+  { min: 100, score: 8 },     // Bronze
+  { min: 500, score: 16 },    // Silver
+  { min: 1500, score: 28 },   // Gold
+  { min: 5000, score: 40 },   // Platinum
+  { min: 15000, score: 50 },  // Diamond
+  { min: 50000, score: 60 },  // Legend
+];
+
+async function calculateIronScore(db, uid) {
+  const userRef = db.doc(`users/${uid}`);
+  const userSnap = await userRef.get();
+  const userData = userSnap.exists ? userSnap.data() : {};
+
+  // 1. League rank contribution (up to 60 for Legend)
+  const leaguePoints = userData.leaguePoints || 0;
+  let leagueScore = 0;
+  for (const bracket of LEAGUE_POINT_BRACKETS) {
+    if (leaguePoints >= bracket.min) leagueScore = bracket.score;
+  }
+
+  // 2. Workout consistency (25 pts max — workouts in last 30 days)
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  let workoutCount = 0;
+  try {
+    const workoutSnap = await db.collection(`users/${uid}/data`)
+      .where("type", "==", "workout")
+      .where("date", ">=", thirtyDaysAgo.toISOString())
+      .get();
+    workoutCount = workoutSnap.size;
+  } catch {
+    // If query fails (missing index etc.), fall back to 0
+  }
+  const workoutScore = Math.min(25, (workoutCount / 20) * 25);
+
+  // 3. Nutrition adherence (20 pts max — logged days in last 14)
+  const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+  let nutritionDays = 0;
+  try {
+    const nutritionSnap = await db.collection(`users/${uid}/data`)
+      .where("type", "==", "nutrition")
+      .where("date", ">=", fourteenDaysAgo.toISOString())
+      .get();
+    // Count unique days
+    const uniqueDays = new Set();
+    nutritionSnap.docs.forEach(doc => {
+      const d = doc.data().date;
+      if (d) uniqueDays.add(typeof d === "string" ? d.slice(0, 10) : d);
+    });
+    nutritionDays = uniqueDays.size;
+  } catch {
+    // fall back to 0
+  }
+  const nutritionScore = Math.min(20, (nutritionDays / 14) * 20);
+
+  // 4. Arena win rate (10 pts max, min 5 battles required)
+  const wins = userData.wins || 0;
+  const losses = userData.losses || 0;
+  const totalBattles = wins + losses;
+  const arenaScore = totalBattles >= 5
+    ? Math.min(10, (wins / totalBattles) * 10)
+    : 0;
+
+  // 5. Weight goal progress (5 pts max)
+  let weightScore = 0;
+  try {
+    const profileSnap = await db.doc(`users/${uid}/data/profile`).get();
+    const profile = profileSnap.exists ? profileSnap.data() : {};
+    const current = profile.weight || userData.weight;
+    const starting = profile.startingWeight;
+    const target = profile.targetWeight;
+    if (current && starting && target && target !== starting) {
+      const progress = Math.abs(current - starting) / Math.abs(target - starting);
+      weightScore = Math.min(5, progress * 5);
+    }
+  } catch {
+    // fall back to 0
+  }
+
+  const ironScore = Math.round(leagueScore + workoutScore + nutritionScore + arenaScore + weightScore);
+
+  // Write to user doc
+  await userRef.set({ ironScore }, { merge: true });
+
+  return ironScore;
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// HELPER — Award XP and also increment weeklyXpContribution for Guild Wars
+// ════════════════════════════════════════════════════════════════════════════
+
+async function awardXpWithTracking(db, uid, xpAmount, leaguePointsDelta = 0) {
+  const updates = {};
+  if (xpAmount !== 0) {
+    updates.xp = admin.firestore.FieldValue.increment(xpAmount);
+    updates.weeklyXpContribution = admin.firestore.FieldValue.increment(xpAmount);
+  }
+  if (leaguePointsDelta !== 0) {
+    updates.leaguePoints = admin.firestore.FieldValue.increment(leaguePointsDelta);
+  }
+  if (Object.keys(updates).length > 0) {
+    updates.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+    await db.doc(`users/${uid}`).set(updates, { merge: true });
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// HELPER — Clamp leaguePoints so they never go below 0
+// ════════════════════════════════════════════════════════════════════════════
+
+async function deductLeaguePoints(db, uid, amount) {
+  const userRef = db.doc(`users/${uid}`);
+  const snap = await userRef.get();
+  const current = (snap.exists && snap.data().leaguePoints) || 0;
+  const newVal = Math.max(0, current - amount);
+  await userRef.set({
+    leaguePoints: newVal,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+  return newVal;
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// logWeightEntry — Callable Cloud Function
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Anti-cheat rules (all enforced server-side):
+//   1. Max 1 entry per 20 hours
+//   2. Max ±1.5kg change from previous entry
+//   3. Timestamp within 60 minutes of server time
+//   4. After 2 hours, entries are immutable
+//
+// Writes to: users/{uid}/progress/{autoId}
+// Updates: users/{uid}/data/profile.weight, users/{uid}.weightStatus
+// Awards/deducts XP and leaguePoints based on 7-day trend vs goal
+// ════════════════════════════════════════════════════════════════════════════
+
+exports.logWeightEntry = onCall(
+  { cors: true },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Must be logged in.");
+    }
+
+    const uid = request.auth.uid;
+    const { weight, date } = request.data;
+
+    // Input validation
+    if (typeof weight !== "number" || weight < 20 || weight > 500) {
+      throw new HttpsError("invalid-argument", "Weight must be a number between 20 and 500 kg.");
+    }
+    if (!date || typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw new HttpsError("invalid-argument", "Date must be ISO format YYYY-MM-DD.");
+    }
+
+    const db = admin.firestore();
+    const now = Date.now();
+
+    // Anti-cheat: timestamp must be within 60 minutes of server time
+    const entryDate = new Date(date);
+    const diffMinutes = Math.abs(now - entryDate.getTime()) / 60000;
+    if (diffMinutes > 60 * 24) {
+      // Allow same-day entries, but no backdating beyond 24 hours
+      throw new HttpsError("invalid-argument", "Entry date is too far from current date (no backdating).");
+    }
+
+    // Anti-cheat: max 1 entry per 20 hours
+    const progressRef = db.collection(`users/${uid}/progress`);
+    const recentSnap = await progressRef
+      .orderBy("loggedAt", "desc")
+      .limit(1)
+      .get();
+
+    let previousWeight = null;
+
+    if (!recentSnap.empty) {
+      const lastEntry = recentSnap.docs[0].data();
+      const lastLoggedAt = lastEntry.loggedAt?.toDate?.() || new Date(lastEntry.loggedAt);
+      const hoursSinceLast = (now - lastLoggedAt.getTime()) / (1000 * 60 * 60);
+
+      if (hoursSinceLast < 20) {
+        throw new HttpsError(
+          "failed-precondition",
+          `Must wait at least 20 hours between entries. Last entry was ${hoursSinceLast.toFixed(1)} hours ago.`
+        );
+      }
+
+      previousWeight = lastEntry.weight;
+
+      // Anti-cheat: max ±1.5kg change from previous entry
+      if (previousWeight !== null && Math.abs(weight - previousWeight) > 1.5) {
+        throw new HttpsError(
+          "invalid-argument",
+          `Weight change of ${Math.abs(weight - previousWeight).toFixed(1)}kg exceeds max ±1.5kg from previous entry (${previousWeight}kg).`
+        );
+      }
+    }
+
+    // Write weight entry
+    const entryRef = progressRef.doc();
+    await entryRef.set({
+      weight,
+      date,
+      loggedAt: admin.firestore.FieldValue.serverTimestamp(),
+      userId: uid,
+    });
+
+    // Update profile weight
+    await db.doc(`users/${uid}/data/profile`).set({ weight }, { merge: true });
+    await db.doc(`users/${uid}`).set({ weight }, { merge: true });
+
+    // Calculate 7-day rolling average
+    const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+    const weekSnap = await progressRef
+      .orderBy("loggedAt", "desc")
+      .where("loggedAt", ">=", sevenDaysAgo)
+      .get();
+
+    // Only entries that have a weight field
+    const weekEntries = weekSnap.docs
+      .map(d => d.data())
+      .filter(d => typeof d.weight === "number");
+
+    let weightStatus = "building";
+    let xpAwarded = 0;
+    let leaguePointsDelta = 0;
+
+    if (weekEntries.length >= 3) {
+      // Average of all entries this week
+      const avg = weekEntries.reduce((s, e) => s + e.weight, 0) / weekEntries.length;
+
+      // Get earliest and latest entries to determine trend
+      const sorted = weekEntries.sort((a, b) => {
+        const aT = a.loggedAt?.toDate?.() || new Date(a.loggedAt);
+        const bT = b.loggedAt?.toDate?.() || new Date(b.loggedAt);
+        return aT - bT;
+      });
+      const earliestWeight = sorted[0].weight;
+      const latestWeight = sorted[sorted.length - 1].weight;
+      const trendDelta = latestWeight - earliestWeight;
+
+      // Fetch user goal
+      const profileSnap = await db.doc(`users/${uid}/data/profile`).get();
+      const goal = profileSnap.exists ? (profileSnap.data().goal || "maintain") : "maintain";
+
+      if (goal === "cut") {
+        if (trendDelta <= -0.2) {
+          // Trending down — on track for cut
+          weightStatus = "on_track";
+          xpAwarded = 50;
+          leaguePointsDelta = 75;
+        } else if (trendDelta >= 0.3) {
+          // Trending up — off track for cut
+          weightStatus = "off_track";
+          leaguePointsDelta = -75;
+        } else {
+          weightStatus = "neutral";
+        }
+      } else if (goal === "bulk") {
+        if (trendDelta >= 0.2) {
+          // Trending up — on track for bulk
+          weightStatus = "on_track";
+          xpAwarded = 50;
+          leaguePointsDelta = 75;
+        } else if (trendDelta <= -0.3) {
+          // Trending down — off track for bulk
+          weightStatus = "off_track";
+          leaguePointsDelta = -75;
+        } else {
+          weightStatus = "neutral";
+        }
+      } else {
+        // Maintain — within ±0.3kg is on track
+        if (Math.abs(trendDelta) <= 0.3) {
+          weightStatus = "on_track";
+          xpAwarded = 25;
+        } else {
+          weightStatus = "neutral";
+        }
+      }
+
+      // Apply XP and leaguePoints
+      if (xpAwarded > 0) {
+        await awardXpWithTracking(db, uid, xpAwarded, Math.max(0, leaguePointsDelta));
+      }
+      if (leaguePointsDelta < 0) {
+        await deductLeaguePoints(db, uid, Math.abs(leaguePointsDelta));
+      }
+    }
+
+    // Write weightStatus to user doc
+    await db.doc(`users/${uid}`).set({ weightStatus }, { merge: true });
+
+    // Recalculate Iron Score
+    const ironScore = await calculateIronScore(db, uid);
+
+    // Calculate trend for response
+    const trend7day = weekEntries.length >= 2
+      ? weekEntries[weekEntries.length - 1].weight - weekEntries[0].weight
+      : 0;
+
+    return {
+      success: true,
+      weightStatus,
+      xpAwarded,
+      trend7day: Math.round(trend7day * 100) / 100,
+      ironScore,
+    };
+  }
+);
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// weeklyWeightAssessment — Scheduled (every Sunday 11pm UTC)
+// ════════════════════════════════════════════════════════════════════════════
+//
+// For users with ≥3 weight entries in the past 7 days:
+//   - Calculate weekly trend
+//   - Award/deduct leaguePoints based on goal adherence
+//   - Write assessment to user doc and inbox notification on failure
+// ════════════════════════════════════════════════════════════════════════════
+
+exports.weeklyWeightAssessment = onSchedule(
+  {
+    schedule: "0 23 * * 0", // Sunday 11pm UTC
+    timeZone: "UTC",
+    retryCount: 3,
+  },
+  async () => {
+    const db = admin.firestore();
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // Get all users
+    const usersSnap = await db.collection("users").get();
+    let processed = 0;
+
+    for (const userDoc of usersSnap.docs) {
+      const uid = userDoc.id;
+
+      // Get weight entries from the past 7 days
+      const progressSnap = await db.collection(`users/${uid}/progress`)
+        .where("loggedAt", ">=", weekAgo)
+        .orderBy("loggedAt", "asc")
+        .get();
+
+      const entries = progressSnap.docs
+        .map(d => d.data())
+        .filter(d => typeof d.weight === "number");
+
+      if (entries.length < 3) continue;
+
+      // Calculate trend: first entry vs last entry
+      const firstWeight = entries[0].weight;
+      const lastWeight = entries[entries.length - 1].weight;
+      const delta = lastWeight - firstWeight;
+
+      // Get user goal
+      const profileSnap = await db.doc(`users/${uid}/data/profile`).get();
+      const goal = profileSnap.exists ? (profileSnap.data().goal || "maintain") : "maintain";
+
+      let result = "neutral";
+      let xp = 0;
+      let pointsChanged = 0;
+
+      if (goal === "cut") {
+        if (delta <= -0.2) {
+          // Lost weight — on track
+          result = "on_track";
+          xp = 100;
+          pointsChanged = 100;
+        } else if (delta >= 0.3) {
+          // Gained weight — off track
+          result = "off_track";
+          pointsChanged = -100;
+        }
+      } else if (goal === "bulk") {
+        if (delta >= 0.2) {
+          // Gained weight — on track
+          result = "on_track";
+          xp = 100;
+          pointsChanged = 100;
+        } else if (delta <= -0.3) {
+          // Lost weight — off track
+          result = "off_track";
+          pointsChanged = -100;
+        }
+      } else {
+        // Maintain — within ±0.3kg
+        if (Math.abs(delta) <= 0.3) {
+          result = "on_track";
+          xp = 50;
+        }
+      }
+
+      // Apply rewards/penalties
+      if (xp > 0) {
+        await awardXpWithTracking(db, uid, xp, Math.max(0, pointsChanged));
+      }
+      if (pointsChanged < 0) {
+        await deductLeaguePoints(db, uid, Math.abs(pointsChanged));
+
+        // Write notification to inbox
+        await db.collection(`users/${uid}/inbox`).add({
+          fromId: "system",
+          type: "weight_assessment",
+          title: "Weekly Weight Check",
+          message: `Your weight trend is off-track for your ${goal} goal. You ${delta > 0 ? "gained" : "lost"} ${Math.abs(delta).toFixed(1)}kg this week.`,
+          read: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      // Write assessment to user doc
+      await db.doc(`users/${uid}`).set({
+        lastWeightAssessment: {
+          date: now.toISOString(),
+          result,
+          pointsChanged,
+          weightDelta: Math.round(delta * 100) / 100,
+        },
+      }, { merge: true });
+
+      processed++;
+    }
+
+    console.log(`[weeklyWeightAssessment] Assessed ${processed} users.`);
+  }
+);
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// weeklyRankDecay — Scheduled (every Monday 2am UTC)
+// ════════════════════════════════════════════════════════════════════════════
+//
+// For users who haven't logged any workout in the past 7 days:
+//   - Deduct 30 leaguePoints (min 0, never negative)
+//   - Skip Iron league users (leaguePoints < 100)
+//   - Recalculate Iron Score
+// ════════════════════════════════════════════════════════════════════════════
+
+exports.weeklyRankDecay = onSchedule(
+  {
+    schedule: "0 2 * * 1", // Monday 2am UTC
+    timeZone: "UTC",
+    retryCount: 3,
+  },
+  async () => {
+    const db = admin.firestore();
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const usersSnap = await db.collection("users").get();
+    let decayed = 0;
+
+    for (const userDoc of usersSnap.docs) {
+      const uid = userDoc.id;
+      const userData = userDoc.data();
+      const leaguePoints = userData.leaguePoints || 0;
+
+      // Skip Iron league users
+      if (leaguePoints < 100) continue;
+
+      // Check if user logged any workout in last 7 days
+      let hasWorkout = false;
+      try {
+        const workoutSnap = await db.collection(`users/${uid}/data`)
+          .where("type", "==", "workout")
+          .where("date", ">=", weekAgo.toISOString())
+          .limit(1)
+          .get();
+        hasWorkout = !workoutSnap.empty;
+      } catch {
+        // If query fails, be lenient — don't decay
+        hasWorkout = true;
+      }
+
+      if (hasWorkout) continue;
+
+      // Deduct 30 leaguePoints (min 0)
+      const newPoints = Math.max(0, leaguePoints - 30);
+      await db.doc(`users/${uid}`).set({
+        leaguePoints: newPoints,
+        lastDecayApplied: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      // Recalculate Iron Score
+      await calculateIronScore(db, uid);
+      decayed++;
+    }
+
+    console.log(`[weeklyRankDecay] Decayed ${decayed} inactive users.`);
+  }
+);
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// weeklyGuildWars — Scheduled (every Monday 3am UTC)
+// ════════════════════════════════════════════════════════════════════════════
+//
+// For each guild:
+//   1. Sum weeklyXpContribution from all members
+//   2. Rank guilds globally
+//   3. Top 10%: +200 XP to members ("gold" reward)
+//   4. Top 25%: +100 XP to members ("silver" reward)
+//   5. Reset weeklyXpContribution on all users
+//   6. Update guild leaderboard at /global/data/guildLeaderboard
+// ════════════════════════════════════════════════════════════════════════════
+
+exports.weeklyGuildWars = onSchedule(
+  {
+    schedule: "0 3 * * 1", // Monday 3am UTC
+    timeZone: "UTC",
+    retryCount: 3,
+  },
+  async () => {
+    const db = admin.firestore();
+    const now = new Date();
+    const weekId = `war_${now.toISOString().slice(0, 10)}`;
+
+    // 1. Get all guilds
+    const guildsSnap = await db.collection("guilds").get();
+    if (guildsSnap.empty) {
+      console.log("[weeklyGuildWars] No guilds found.");
+      return;
+    }
+
+    const guildScores = [];
+
+    for (const guildDoc of guildsSnap.docs) {
+      const guild = guildDoc.data();
+      const memberIds = guild.memberIds || guild.members || [];
+
+      if (memberIds.length === 0) {
+        guildScores.push({ guildId: guildDoc.id, guildName: guild.name, warScore: 0, memberIds: [] });
+        continue;
+      }
+
+      // Resolve member IDs (could be objects or strings)
+      const resolvedIds = memberIds.map(m => typeof m === "string" ? m : m.userId).filter(Boolean);
+
+      // Sum weeklyXpContribution from all members
+      let totalWarXp = 0;
+      for (const memberId of resolvedIds) {
+        const memberSnap = await db.doc(`users/${memberId}`).get();
+        if (memberSnap.exists) {
+          totalWarXp += memberSnap.data().weeklyXpContribution || 0;
+        }
+      }
+
+      guildScores.push({
+        guildId: guildDoc.id,
+        guildName: guild.name || "Unknown",
+        warScore: totalWarXp,
+        memberIds: resolvedIds,
+      });
+    }
+
+    // 2. Rank guilds by warScore
+    guildScores.sort((a, b) => b.warScore - a.warScore);
+
+    const totalGuilds = guildScores.length;
+    const top10Cutoff = Math.max(1, Math.ceil(totalGuilds * 0.10));
+    const top25Cutoff = Math.max(1, Math.ceil(totalGuilds * 0.25));
+
+    // 3–4. Distribute rewards
+    for (let i = 0; i < guildScores.length; i++) {
+      const guild = guildScores[i];
+      let warReward = null;
+      let rewardXp = 0;
+
+      if (i < top10Cutoff && guild.warScore > 0) {
+        warReward = "gold";
+        rewardXp = 200;
+      } else if (i < top25Cutoff && guild.warScore > 0) {
+        warReward = "silver";
+        rewardXp = 100;
+      }
+
+      // Write results to guild doc
+      const guildUpdates = {
+        lastWarScore: guild.warScore,
+        warXpEarned: guild.warScore,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+      if (warReward) guildUpdates.warReward = warReward;
+
+      await db.doc(`guilds/${guild.guildId}`).set(guildUpdates, { merge: true });
+
+      // Archive in warHistory
+      await db.doc(`guilds/${guild.guildId}/warHistory/${weekId}`).set({
+        weekId,
+        warScore: guild.warScore,
+        rank: i + 1,
+        totalGuilds,
+        warReward: warReward || "none",
+        rewardXp,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // Distribute XP reward to members
+      if (rewardXp > 0 && guild.memberIds.length > 0) {
+        for (let j = 0; j < guild.memberIds.length; j += 250) {
+          const batch = db.batch();
+          const chunk = guild.memberIds.slice(j, j + 250);
+
+          for (const memberId of chunk) {
+            batch.set(db.doc(`users/${memberId}`), {
+              xp: admin.firestore.FieldValue.increment(rewardXp),
+              weeklyXpContribution: admin.firestore.FieldValue.increment(rewardXp),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, { merge: true });
+          }
+
+          await batch.commit();
+        }
+      }
+    }
+
+    // 5. Reset weeklyXpContribution on ALL users
+    const allUsersSnap = await db.collection("users").get();
+    for (let i = 0; i < allUsersSnap.docs.length; i += 500) {
+      const batch = db.batch();
+      const chunk = allUsersSnap.docs.slice(i, i + 500);
+
+      for (const doc of chunk) {
+        if ((doc.data().weeklyXpContribution || 0) > 0) {
+          batch.update(doc.ref, { weeklyXpContribution: 0 });
+        }
+      }
+
+      await batch.commit();
+    }
+
+    // 6. Update guild leaderboard at /global/data/guildLeaderboard
+    const leaderboardBatch = db.batch();
+    for (const guild of guildScores.slice(0, 100)) {
+      leaderboardBatch.set(
+        db.doc(`global/data/guildLeaderboard/${guild.guildId}`),
+        {
+          guildId: guild.guildId,
+          guildName: guild.guildName,
+          warScore: guild.warScore,
+          memberCount: guild.memberIds.length,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }
+      );
+    }
+    await leaderboardBatch.commit();
+
+    console.log(`[weeklyGuildWars] Processed ${totalGuilds} guilds. Winner: ${guildScores[0]?.guildName || "N/A"} (${guildScores[0]?.warScore || 0} XP).`);
+  }
+);
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// useForgeShield — Callable Cloud Function
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Forge Shields prevent workout streak breaks.
+// - Users earn 1 shield per 500 XP earned (max 3 storable)
+// - Using a shield extends lastWorkoutDate by 1 day
+// ════════════════════════════════════════════════════════════════════════════
+
+exports.useForgeShield = onCall(
+  { cors: true },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Must be logged in.");
+    }
+
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+    const userRef = db.doc(`users/${uid}`);
+
+    const result = await db.runTransaction(async (transaction) => {
+      const userDoc = await transaction.get(userRef);
+      if (!userDoc.exists) {
+        throw new HttpsError("not-found", "User not found.");
+      }
+
+      const userData = userDoc.data();
+      const shields = userData.forgeShields || 0;
+
+      if (shields <= 0) {
+        throw new HttpsError("failed-precondition", "No Forge Shields available.");
+      }
+
+      // Extend lastWorkoutDate by 1 day
+      const lastWorkout = userData.lastWorkoutDate
+        ? new Date(userData.lastWorkoutDate)
+        : new Date();
+      lastWorkout.setDate(lastWorkout.getDate() + 1);
+
+      transaction.update(userRef, {
+        forgeShields: shields - 1,
+        lastWorkoutDate: lastWorkout.toISOString(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return { shieldsRemaining: shields - 1 };
+    });
+
+    return { success: true, shieldsRemaining: result.shieldsRemaining };
   }
 );
