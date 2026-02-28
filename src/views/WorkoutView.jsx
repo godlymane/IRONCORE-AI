@@ -6,6 +6,8 @@ import { SFX } from '../utils/audio';
 import { PostWorkoutUpsell } from '../components/PostWorkoutUpsell';
 import { useStore } from '../hooks/useStore';
 import { useFitnessData } from '../hooks/useFitnessData';
+import { db, auth } from '../firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
 export const WorkoutView = () => {
     const { workouts } = useStore();
@@ -17,6 +19,7 @@ export const WorkoutView = () => {
     const [showTools, setShowTools] = useState(false);
     const [showUpsell, setShowUpsell] = useState(false);
     const [lastWorkoutData, setLastWorkoutData] = useState(null);
+    const [prCelebration, setPrCelebration] = useState(null); // { exerciseName, weight }
 
     // REST TIMER STATE
     const [restTimer, setRestTimer] = useState(0);
@@ -120,6 +123,23 @@ export const WorkoutView = () => {
                 SFX.completeSet();
                 setRestTimer(defaultRest);
                 setIsResting(true);
+
+                // PR detection — only fires when marking complete, not uncomplete
+                const weight = parseFloat(newSets[setIdx].w);
+                const currentPR = ex.pr || 0;
+                if (weight > 0 && weight > currentPR) {
+                    setPrCelebration({ exerciseName: ex.name, weight });
+                    setTimeout(() => setPrCelebration(null), 2800);
+                    // Persist to Firestore
+                    const uid = auth.currentUser?.uid;
+                    if (uid) {
+                        setDoc(
+                            doc(db, 'users', uid, 'data', 'prs'),
+                            { [ex.name]: { weight, date: new Date().toISOString() } },
+                            { merge: true }
+                        ).catch(err => console.warn('PR save error:', err));
+                    }
+                }
             }
 
             return { ...ex, sets: newSets };
@@ -179,6 +199,24 @@ export const WorkoutView = () => {
     if (isSessionActive) {
         return (
             <div className="pb-4 animate-in slide-in-from-bottom-5 relative">
+                {/* PR Celebration Overlay */}
+                {prCelebration && (
+                    <div
+                        className="fixed bottom-28 left-1/2 -translate-x-1/2 z-50 px-6 py-4 rounded-2xl text-center animate-in slide-in-from-bottom-4 pointer-events-none"
+                        style={{
+                            background: 'linear-gradient(135deg, rgba(234,179,8,0.25) 0%, rgba(220,38,38,0.2) 100%)',
+                            backdropFilter: 'blur(20px)',
+                            border: '1px solid rgba(234,179,8,0.5)',
+                            boxShadow: '0 0 40px rgba(234,179,8,0.3)',
+                            minWidth: 180,
+                        }}
+                    >
+                        <div className="text-3xl mb-1">🏆</div>
+                        <div className="text-yellow-400 font-black text-[11px] uppercase tracking-widest mb-0.5">NEW PR!</div>
+                        <div className="text-white font-black text-base">{prCelebration.exerciseName}</div>
+                        <div className="text-yellow-300 font-mono font-bold text-lg">{prCelebration.weight}kg</div>
+                    </div>
+                )}
                 {/* Sticky Header */}
                 <div
                     className="sticky top-0 z-20 py-4 mb-4 flex justify-between items-center"

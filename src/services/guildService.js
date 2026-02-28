@@ -20,16 +20,26 @@ import {
 
 /**
  * Create a new guild
- * @param {string} name 
- * @param {string} description 
+ * @param {string} name
+ * @param {string} description
  * @param {Object} owner - { userId, username, avatarUrl }
+ * @param {Object} options - { tag, focusType, membershipType, minJoinLevel }
  */
-export const createGuild = async (name, description, owner) => {
+export const createGuild = async (name, description, owner, options = {}) => {
     try {
-        // Check if name exists (simple check)
+        const { tag = '', focusType = 'Mixed', membershipType = 'Open', minJoinLevel = 5 } = options;
+
+        // Check if name exists
         const q = query(collection(db, 'guilds'), where('name', '==', name));
         const existing = await getDocs(q);
         if (!existing.empty) throw new Error('Guild name already taken');
+
+        // Check if tag exists
+        if (tag) {
+            const tq = query(collection(db, 'guilds'), where('tag', '==', tag));
+            const texisting = await getDocs(tq);
+            if (!texisting.empty) throw new Error('Guild tag already taken');
+        }
 
         const guildRef = doc(collection(db, 'guilds'));
         const guildId = guildRef.id;
@@ -37,28 +47,43 @@ export const createGuild = async (name, description, owner) => {
         const guildData = {
             id: guildId,
             name,
+            tag: tag.toUpperCase(),
             description,
+            focusType,
+            membershipType,
+            minJoinLevel,
             level: 1,
             xp: 0,
+            weeklyXp: 0,
             ownerId: owner.userId,
+            ownerUsername: owner.username,
             memberCount: 1,
-            maxMembers: 30, // Default limit
-            isPublic: true,
+            maxMembers: 30,
+            isPublic: membershipType === 'Open',
+            memberIds: [owner.userId],
             members: [{
                 userId: owner.userId,
                 username: owner.username,
                 avatarUrl: owner.avatarUrl || '',
                 role: 'leader',
-                joinedAt: new Date().toISOString()
+                joinedAt: new Date().toISOString(),
+                weeklyXpContribution: 0,
+                forgeStreak: 0,
             }],
-            createdAt: serverTimestamp()
+            war: {
+                weeklyXp: 0,
+                rank: null,
+                lastResult: null,
+                weekStart: new Date().toISOString(),
+            },
+            createdAt: serverTimestamp(),
         };
 
         await setDoc(guildRef, guildData);
 
-        // Update user profile with guildId
+        // Update user root doc with guildId and guildTag
         const userRef = doc(db, 'users', owner.userId);
-        await updateDoc(userRef, { guildId });
+        await updateDoc(userRef, { guildId, guildTag: tag.toUpperCase() });
 
         return guildId;
     } catch (error) {

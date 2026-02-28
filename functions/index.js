@@ -2598,3 +2598,72 @@ exports.respondFriendRequest = onCall(
     return { success: true, response: "declined" };
   }
 );
+
+// ─── checkAndAwardAchievements ────────────────────────────────────────────────
+// Called client-side after significant events (workout log, guild join, etc.)
+// Checks server-side badge conditions that can't be verified client-only
+// and writes earned badge IDs to users/{uid}.earnedBadges
+exports.checkAndAwardAchievements = onCall(
+  { cors: true },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError("unauthenticated", "Must be signed in");
+
+    const db = admin.firestore();
+    const userRef = db.doc(`users/${uid}`);
+    const profileRef = db.doc(`users/${uid}/data/profile`);
+
+    const [userSnap, profileSnap] = await Promise.all([
+      userRef.get(),
+      profileRef.get(),
+    ]);
+
+    const userData = userSnap.data() || {};
+    const profile = profileSnap.data() || {};
+    const currentEarned = new Set(userData.earnedBadges || []);
+    const newBadges = [];
+
+    // ── Guild Leader badge ─────────────────────────────────────────────────
+    // Award if user owns a guild (ownerId in any guild doc)
+    if (!currentEarned.has("guild_leader")) {
+      const guildSnap = await db
+        .collection("guilds")
+        .where("ownerId", "==", uid)
+        .limit(1)
+        .get();
+      if (!guildSnap.empty) newBadges.push("guild_leader");
+    }
+
+    // ── Undefeated — 5 consecutive wins ────────────────────────────────────
+    if (!currentEarned.has("undefeated")) {
+      const consecutive = profile.consecutiveWins || userData.consecutiveWins || 0;
+      if (consecutive >= 5) newBadges.push("undefeated");
+    }
+
+    // ── Squad Goals — all guild members logged a workout this week ──────────
+    if (!currentEarned.has("squad_goals") && userData.guildId) {
+      const guildRef = db.doc(`guilds/${userData.guildId}`);
+      const guildSnap = await guildRef.get();
+      if (guildSnap.exists) {
+        const guild = guildSnap.data();
+        const memberCount = guild.memberCount || 0;
+        if (memberCount >= 2) {
+          // Check if all members have weeklyXpContribution > 0 this week
+          const allActive = (guild.members || []).every(
+            (m) => (m.weeklyXpContribution || 0) > 0
+          );
+          if (allActive) newBadges.push("squad_goals");
+        }
+      }
+    }
+
+    // ── Write new badges to user doc ────────────────────────────────────────
+    if (newBadges.length > 0) {
+      const allBadges = [...currentEarned, ...newBadges];
+      await userRef.update({ earnedBadges: allBadges });
+      return { success: true, newBadges };
+    }
+
+    return { success: true, newBadges: [] };
+  }
+);

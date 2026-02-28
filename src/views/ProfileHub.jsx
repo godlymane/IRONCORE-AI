@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { User, Users, Calendar, Activity, Image as ImageIcon, LogOut, Flame, UserPlus, Check, X, Swords } from 'lucide-react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { User, Users, Calendar, Activity, Image as ImageIcon, LogOut, Flame, UserPlus, Check, X, Swords, Trophy, Medal } from 'lucide-react';
 import { TrackView } from './TrackView';
 import { StatsView } from './StatsView';
 import { ChronicleView } from './ChronicleView';
@@ -10,6 +10,9 @@ import { ProfileSkeleton } from '../components/ViewSkeletons';
 import { TrophyIconShape, ProteinBoltIcon, DumbbellIcon, UtensilsIcon } from '../components/IronCoreIcons';
 import { useStore } from '../hooks/useStore';
 import { PlayerCard, PlayerCardModal } from '../components/Profile/PlayerCard';
+import { Achievements } from '../components/Gamification/Achievements';
+import { db, auth } from '../firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 // Iron Score color helper
 const getIronScoreColor = (score) => {
@@ -46,6 +49,19 @@ export const ProfileHub = ({
     } = useStore();
     const [subTab, setSubTab] = useState('overview');
     const [selectedPlayer, setSelectedPlayer] = useState(null);
+    const [personalRecords, setPersonalRecords] = useState(null); // { exerciseName: { weight, date } }
+
+    // Subscribe to PRs doc
+    useEffect(() => {
+        const uid = auth.currentUser?.uid || user?.uid;
+        if (!uid) return;
+        const unsub = onSnapshot(
+            doc(db, 'users', uid, 'data', 'prs'),
+            (snap) => setPersonalRecords(snap.exists() ? snap.data() : {}),
+            (err) => console.warn('PRs listener:', err.code)
+        );
+        return unsub;
+    }, [user?.uid]);
 
     const xp = profile?.xp || 0;
     const level = Math.floor(xp / 500) + 1;
@@ -217,6 +233,8 @@ export const ProfileHub = ({
                     { id: 'overview', icon: <User size={14} />, label: 'Profile' },
                     { id: 'history', icon: <Calendar size={14} />, label: 'History' },
                     { id: 'stats', icon: <Activity size={14} />, label: 'Stats' },
+                    { id: 'records', icon: <Trophy size={14} />, label: 'PRs' },
+                    { id: 'achievements', icon: <Medal size={14} />, label: 'Badges' },
                     { id: 'gallery', icon: <ImageIcon size={14} />, label: 'Gallery' },
                     { id: 'friends', icon: <Users size={14} />, label: 'Friends', badge: pendingRequests.length },
                 ].map(tab => (
@@ -248,6 +266,8 @@ export const ProfileHub = ({
                 {subTab === 'overview' && <TrackView />}
                 {subTab === 'history' && <ChronicleView deleteEntry={deleteEntry} />}
                 {subTab === 'stats' && <StatsView />}
+                {subTab === 'records' && <PersonalRecordsSection prs={personalRecords} />}
+                {subTab === 'achievements' && <Achievements />}
                 {subTab === 'gallery' && <ProgressPhotos userId={user?.uid} />}
                 {subTab === 'friends' && (
                     <FriendsSection
@@ -266,6 +286,82 @@ export const ProfileHub = ({
                 onClose={() => setSelectedPlayer(null)}
                 onChallenge={selectedPlayer ? () => setSelectedPlayer(null) : undefined}
             />
+        </div>
+    );
+};
+
+// ─── Personal Records Section ────────────────────────────────────────────────
+const PersonalRecordsSection = ({ prs }) => {
+    if (prs === null) {
+        return (
+            <div className="flex items-center justify-center py-12">
+                <div className="w-6 h-6 rounded-full border-2 border-red-500 border-t-transparent animate-spin" />
+            </div>
+        );
+    }
+
+    const entries = Object.entries(prs || {})
+        .map(([exercise, data]) => ({
+            exercise,
+            weight: data.weight,
+            date: data.date ? new Date(data.date) : null,
+        }))
+        .sort((a, b) => {
+            if (!a.date && !b.date) return 0;
+            if (!a.date) return 1;
+            if (!b.date) return -1;
+            return b.date - a.date; // most recent first
+        });
+
+    if (entries.length === 0) {
+        return (
+            <GlassCard className="!p-6 text-center">
+                <div className="text-4xl mb-3">🏆</div>
+                <p className="text-white font-bold text-sm">No PRs yet</p>
+                <p className="text-gray-500 text-xs mt-1">
+                    Complete sets during a workout to track your personal records
+                </p>
+            </GlassCard>
+        );
+    }
+
+    const formatDate = (d) => {
+        if (!d) return '—';
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    };
+
+    return (
+        <div className="space-y-3">
+            <p className="text-[11px] font-black uppercase tracking-widest text-gray-500">
+                Personal Records · {entries.length}
+            </p>
+            {entries.map(({ exercise, weight, date }) => (
+                <div
+                    key={exercise}
+                    className="flex items-center gap-3 p-3 rounded-xl"
+                    style={{
+                        background: 'linear-gradient(145deg, rgba(234,179,8,0.06) 0%, rgba(10,10,10,0) 100%)',
+                        border: '1px solid rgba(234,179,8,0.15)',
+                    }}
+                >
+                    <div
+                        className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{
+                            background: 'linear-gradient(135deg, rgba(234,179,8,0.2), rgba(220,38,38,0.15))',
+                            border: '1px solid rgba(234,179,8,0.3)',
+                        }}
+                    >
+                        <Trophy size={14} className="text-yellow-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-white truncate">{exercise}</p>
+                        <p className="text-[10px] text-gray-500 font-mono mt-0.5">{formatDate(date)}</p>
+                    </div>
+                    <div className="text-right">
+                        <p className="text-lg font-black text-yellow-400 font-mono">{weight}kg</p>
+                    </div>
+                </div>
+            ))}
         </div>
     );
 };
