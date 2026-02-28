@@ -81,11 +81,11 @@ export const initializeUser = async (userId, username, avatarUrl = null) => {
         workoutsCompleted: 0,
         wins: 0,
         losses: 0,
-        currentStreak: 1,
-        longestStreak: 1,
-        streakFreezeCount: 1, // Start with 1 free freeze
+        currentForge: 1,
+        longestForge: 1,
+        forgeShieldCount: 1, // Start with 1 free shield
         lastLoginAt: serverTimestamp(),
-        lastStreakUpdateAt: serverTimestamp(),
+        lastForgeUpdateAt: serverTimestamp(),
         league: 'Iron Novice',
         avatarUrl: avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
         createdAt: serverTimestamp()
@@ -96,10 +96,10 @@ export const initializeUser = async (userId, username, avatarUrl = null) => {
 };
 
 /**
- * Check and update daily streak
- * @param {string} userId 
+ * Check and update daily Forge
+ * @param {string} userId
  */
-export const checkDailyStreak = async (userId) => {
+export const checkDailyForge = async (userId) => {
     try {
         const userRef = doc(db, 'users', userId);
         const userSnap = await getDoc(userRef);
@@ -121,43 +121,46 @@ export const checkDailyStreak = async (userId) => {
             lastLoginAt: serverTimestamp()
         };
 
+        const currentForge = userData.currentForge ?? userData.currentStreak ?? 0;
+        const longestForge = userData.longestForge ?? userData.longestStreak ?? 0;
+        const forgeShieldCount = userData.forgeShieldCount ?? userData.streakFreezeCount ?? 0;
+
         if (diffDays === 0) {
-            // Already logged in today, do nothing to streak
+            // Already logged in today, do nothing to Forge
         } else if (diffDays === 1) {
-            // Logged in consecutive day, increment streak
-            updates.currentStreak = increment(1);
-            // Check if this beats longest streak (needs to be checked after update or optimistically)
-            // We'll trust Firestore atomic increment for now, but to be precise we might need a transaction
-            // For simplicity:
-            const newStreak = (userData.currentStreak || 0) + 1;
-            if (newStreak > (userData.longestStreak || 0)) {
-                updates.longestStreak = newStreak;
+            // Logged in consecutive day, increment Forge
+            updates.currentForge = increment(1);
+            const newForge = currentForge + 1;
+            if (newForge > longestForge) {
+                updates.longestForge = newForge;
             }
         } else {
             // Missed a day (or more)
-            // Check for streak freeze
-            if (userData.streakFreezeCount > 0) {
-                // Use freeze
-                updates.streakFreezeCount = increment(-1);
-                // Keep streak as is (don't increment, don't reset)
-                // Streak freeze used
+            // Check for Forge Shield
+            if (forgeShieldCount > 0) {
+                // Use shield
+                updates.forgeShieldCount = increment(-1);
+                // Keep Forge as is (don't increment, don't reset)
             } else {
-                // Reset streak
-                updates.currentStreak = 1; // Reset to 1 (today counts)
+                // Reset Forge
+                updates.currentForge = 1; // Reset to 1 (today counts)
             }
         }
 
         await updateDoc(userRef, updates);
         return {
-            streakUpdated: diffDays > 0,
-            frozen: diffDays > 1 && userData.streakFreezeCount > 0
+            forgeUpdated: diffDays > 0,
+            shielded: diffDays > 1 && forgeShieldCount > 0
         };
 
     } catch (error) {
-        console.error('Error checking streak:', error);
+        console.error('Error checking Forge:', error);
         return null;
     }
 };
+
+// Backwards-compat alias
+export const checkDailyStreak = checkDailyForge;
 
 // ============================================
 // LEADERBOARD
@@ -477,14 +480,14 @@ export const completeBattle = async (battleId, winnerId, xpReward = 100) => {
         await updateDoc(winnerRef, {
             wins: increment(1),
             xp: increment(xpReward),
-            currentStreak: increment(1)
+            currentForge: increment(1)
         });
 
         // Update loser stats
         const loserRef = doc(db, 'users', loserId);
         await updateDoc(loserRef, {
             losses: increment(1),
-            currentStreak: 0
+            currentForge: 0
         });
 
         // Battle completed

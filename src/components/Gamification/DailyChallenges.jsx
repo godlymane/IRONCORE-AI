@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from '../../services/firebase';
+import { db } from '../../firebase';
 import { Target, Check, Gift, Clock, Flame } from 'lucide-react';
 
 export const DailyChallenges = ({ onClaim, user, todayWorkouts = [], todayMeals = [], todayBurned = 0 }) => {

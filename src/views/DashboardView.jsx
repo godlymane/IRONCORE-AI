@@ -81,7 +81,7 @@ export const DashboardView = () => {
   const { addToast } = useToast();
   const [mealText, setMealText] = useState("");
   const [aiStatus, setAiStatus] = useState("");
-  const [streak, setStreak] = useState(0);
+  const [forge, setForge] = useState(0);
   const [showManual, setShowManual] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showShop, setShowShop] = useState(false);
@@ -144,24 +144,24 @@ export const DashboardView = () => {
 
   useEffect(() => {
     const dates = [...new Set(meals.map(m => m.date))].sort().reverse();
-    let currentStreak = 0;
+    let currentForge = 0;
     const todayDate = new Date(today);
     // Count consecutive days backwards from today (or yesterday if no meals today yet)
     let checkDate = new Date(todayDate);
     if (!dates.includes(today)) {
-      // If no meals today, check if streak was alive yesterday
+      // If no meals today, check if Forge was alive yesterday
       checkDate.setDate(checkDate.getDate() - 1);
     }
     for (let i = 0; i < 365; i++) {
       const dateStr = checkDate.toISOString().split('T')[0];
       if (dates.includes(dateStr)) {
-        currentStreak++;
+        currentForge++;
         checkDate.setDate(checkDate.getDate() - 1);
       } else {
         break;
       }
     }
-    setStreak(currentStreak);
+    setForge(currentForge);
   }, [meals, today]);
 
   const handleDropComplete = async () => {
@@ -328,7 +328,7 @@ export const DashboardView = () => {
             <span className="text-xs font-black text-yellow-400">{xp}</span>
           </button>
 
-          {/* Streak Badge */}
+          {/* Forge Badge */}
           <div
             className="flex items-center gap-2 px-3 py-2 rounded-xl"
             style={{
@@ -337,7 +337,7 @@ export const DashboardView = () => {
             }}
           >
             <Flame size={16} className="text-orange-500 fill-orange-500 animate-pulse" />
-            <span className="text-xs font-black text-orange-400">{streak}</span>
+            <span className="text-xs font-black text-orange-400">{forge}</span>
           </div>
         </div>
       </motion.div>
@@ -624,11 +624,11 @@ export const DashboardView = () => {
             <div className="space-y-3">
               <ShopItem
                 icon={<Snowflake size={20} className="text-amber-400" />}
-                title="Streak Freeze"
-                desc="Protect streak for 24h"
+                title="Forge Shield"
+                desc="Protect your Forge for 24h"
                 cost={500}
                 color="blue"
-                onBuy={() => handleBuy("Streak Freeze", 500)}
+                onBuy={() => handleBuy("Forge Shield", 500)}
               />
               <ShopItem
                 icon={<ArrowUpCircle size={20} className="text-red-400" />}

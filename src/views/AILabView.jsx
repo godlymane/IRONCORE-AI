@@ -29,7 +29,7 @@ import { SleepRecoveryTracker } from '../components/SleepRecoveryTracker';
 import { PredictiveAnalytics } from '../components/PredictiveAnalytics';
 import { CoachView } from './CoachView';
 import { useVoiceCommands } from '../hooks/useVoiceCommands';
-import { AchievementsGallery, ChallengeCard, StreakFlame, PowerUpCard } from '../components/Gamification';
+import { AchievementsGallery, ChallengeCard, ForgeFlame, PowerUpCard } from '../components/Gamification';
 import { generateDailyChallenge, generateWeeklyChallenge, POWER_UPS } from '../data/achievements';
 import { WaterTracker, FastingTimer, SupplementTracker, MacroPieChart } from '../components/NutritionEnhancements';
 import { PersonalRecordsBoard, WorkoutIntensityScore, MuscleGroupRadar, ExportReportButton } from '../components/AnalyticsDashboard';
@@ -296,7 +296,7 @@ export const AILabView = () => {
             case 'gamify':
                 return (
                     <div className="space-y-4">
-                        <StreakFlame streak={profile.streak || 7} />
+                        <ForgeFlame streak={profile.currentForge ?? profile.forge ?? profile.streak ?? 7} />
                         <ChallengeCard challenge={dailyChallenge} progress={45} variant="daily" />
                         <ChallengeCard challenge={weeklyChallenge} progress={70} variant="weekly" />
                         <AchievementsGallery unlockedIds={profile.achievements || []} />

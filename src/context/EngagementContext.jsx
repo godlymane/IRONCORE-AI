@@ -4,8 +4,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
 import {
-    calculateStreak,
-    activateStreakShield,
+    calculateForge,
+    activateForgeShield,
     hasActiveShield,
     claimDailyReward,
     getDailyRewardsStatus,
@@ -19,8 +19,8 @@ import {
     markNotificationRead,
 } from '../services/engagementService';
 import {
-    getStreakMultiplier,
-    getStreakMilestone,
+    getForgeMultiplier,
+    getForgeMilestone,
     getCurrentTournamentType,
     getTournamentEndTime,
 } from '../data/engagementData';
@@ -28,8 +28,8 @@ import {
 const EngagementContext = createContext(null);
 
 export const EngagementProvider = ({ children, user, db, profile, workouts }) => {
-    // Streak state
-    const [streak, setStreak] = useState({
+    // Forge state
+    const [forge, setForge] = useState({
         current: 0,
         multiplier: 1,
         multiplierLabel: '',
@@ -73,7 +73,7 @@ export const EngagementProvider = ({ children, user, db, profile, workouts }) =>
         notifications: true,
     });
 
-    // Calculate streak when workouts change
+    // Calculate Forge when workouts change
     useEffect(() => {
         if (!db || !user?.uid || !workouts) return;
 
@@ -84,16 +84,16 @@ export const EngagementProvider = ({ children, user, db, profile, workouts }) =>
             return d.toISOString().split('T')[0];
         });
 
-        calculateStreak(db, user.uid, workoutDates).then(result => {
-            const multiplier = getStreakMultiplier(result.streak);
-            const nextMilestoneDay = [7, 14, 30, 60, 100, 365].find(d => d > result.streak);
+        calculateForge(db, user.uid, workoutDates).then(result => {
+            const multiplier = getForgeMultiplier(result.forge ?? result.streak);
+            const nextMilestoneDay = [7, 14, 30, 60, 100, 365].find(d => d > (result.forge ?? result.streak));
 
-            setStreak({
-                current: result.streak,
+            setForge({
+                current: result.forge ?? result.streak,
                 multiplier,
                 multiplierLabel: multiplier > 1 ? `${Math.round((multiplier - 1) * 100)}% Bonus` : '',
                 hasShield: hasActiveShield(profile),
-                shieldsAvailable: profile?.streakShields || 0,
+                shieldsAvailable: profile?.forgeShields ?? profile?.streakShields ?? 0,
                 nextMilestone: nextMilestoneDay,
                 milestone: result.milestone,
             });
@@ -197,7 +197,7 @@ export const EngagementProvider = ({ children, user, db, profile, workouts }) =>
 
     const activateShield = useCallback(async () => {
         if (!db || !user?.uid) return { success: false };
-        return await activateStreakShield(db, user.uid);
+        return await activateForgeShield(db, user.uid);
     }, [db, user?.uid]);
 
     const createGuildAction = useCallback(async (guildData) => {
@@ -222,7 +222,8 @@ export const EngagementProvider = ({ children, user, db, profile, workouts }) =>
 
     const value = {
         // State
-        streak,
+        forge,
+        streak: forge, // backwards-compat alias
         dailyRewards,
         guild,
         guildLeaderboard,

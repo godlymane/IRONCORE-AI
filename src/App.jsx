@@ -39,7 +39,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { PremiumProvider } from './context/PremiumContext';
 import PremiumPaywall from './components/PremiumPaywall';
 import { ExpBar } from './components/Gamification/ExpBar';
-import { StreakHUD } from './components/Gamification/StreakHUD';
+import { ForgeHUD } from './components/Gamification/ForgeHUD';
 import * as Sentry from '@sentry/react';
 
 // Tab order for directional page transitions
@@ -70,6 +70,16 @@ const MainContent = () => {
     updateData, deleteEntry, completeDailyDrop, buyItem, createBattle,
     isStorageReady, refreshData, clearError
   } = useFitnessData();
+
+  // LOGOUT DETECTION — reset auth gate when user signs out while app is active
+  useEffect(() => {
+    if (!loading && !user && authGate === 'passed') {
+      authGateResolved.current = false;
+      const savedUid = localStorage.getItem('ironcore_uid');
+      const savedUser = localStorage.getItem('ironcore_username');
+      setAuthGate(savedUid && savedUser ? 'login' : 'card');
+    }
+  }, [user, loading, authGate]);
 
   // AUTH GATE — decide initial auth screen once Firebase auth resolves
   useEffect(() => {
@@ -354,17 +364,17 @@ const MainContent = () => {
 
         <div className="max-w-md mx-auto min-h-screen relative shadow-2xl overflow-hidden md:border-x md:border-gray-900/50" style={{ backgroundColor: 'var(--color-background)' }}>
 
-          {/* GAMIFICATION HUD — Global EXP Bar + Streak Counter */}
+          {/* GAMIFICATION HUD — Global EXP Bar + Forge Counter */}
           <div className="sticky top-0 z-40 pt-[env(safe-area-inset-top,0px)]" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.8) 70%, transparent 100%)' }}>
             <div className="px-3 pt-1 pb-2">
               <div className="flex items-start gap-2">
                 <div className="flex-1 pt-1">
                   <ExpBar xp={profile?.xp || 0} />
                 </div>
-                <StreakHUD
-                  currentStreak={profile?.currentStreak || 0}
-                  longestStreak={profile?.longestStreak || 0}
-                  streakFreezeCount={profile?.streakFreezeCount || 0}
+                <ForgeHUD
+                  currentForge={profile?.currentForge ?? profile?.currentStreak ?? 0}
+                  longestForge={profile?.longestForge ?? profile?.longestStreak ?? 0}
+                  forgeShieldCount={profile?.forgeShieldCount ?? profile?.streakFreezeCount ?? 0}
                 />
               </div>
             </div>

@@ -5,7 +5,7 @@
  */
 import React, { useState, useEffect, useMemo } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '../../services/firebase';
+import { db } from '../../firebase';
 import { motion } from 'framer-motion';
 import { Users, Target, Trophy, Shield, Flame, TrendingUp } from 'lucide-react';
 import { GlassCard } from '../UIComponents';

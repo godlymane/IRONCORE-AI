@@ -7,16 +7,17 @@ const DEFAULT_POWERUPS = [
     { id: 'fire_mode', name: 'Fire Mode', icon: '🔥', count: 0, effect: '+50% workout power', rarity: 'legendary' },
 ];
 
-export const PowerUpInventory = ({ powerUps = [], streakFreezeCount = 0, onUsePowerUp }) => {
-    // Merge user power-ups with defaults, and add streak freeze
+export const PowerUpInventory = ({ powerUps = [], forgeShieldCount = 0, streakFreezeCount = 0, onUsePowerUp }) => {
+    const shieldCount = forgeShieldCount || streakFreezeCount;
+    // Merge user power-ups with defaults, and add Forge Shield
     const allPowerUps = [
-        // Streak freeze is a special power-up from user stats
+        // Forge Shield is a special power-up from user stats
         {
-            id: 'streak_freeze',
-            name: 'Streak Freeze',
-            icon: '❄️',
-            count: streakFreezeCount,
-            effect: 'Block streak loss',
+            id: 'forge_shield',
+            name: 'Forge Shield',
+            icon: '🛡️',
+            count: shieldCount,
+            effect: 'Protect your Forge',
             rarity: 'epic'
         },
         // User's other power-ups
@@ -25,7 +26,7 @@ export const PowerUpInventory = ({ powerUps = [], streakFreezeCount = 0, onUsePo
             return userPowerUp || def;
         }),
         // Any additional user power-ups not in defaults
-        ...powerUps.filter(p => !DEFAULT_POWERUPS.find(d => d.id === p.id) && p.id !== 'streak_freeze')
+        ...powerUps.filter(p => !DEFAULT_POWERUPS.find(d => d.id === p.id) && p.id !== 'forge_shield' && p.id !== 'streak_freeze')
     ].filter(p => p.count > 0); // Only show power-ups with count > 0
 
     const getRarityColor = (rarity) => {

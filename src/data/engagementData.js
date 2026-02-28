@@ -4,9 +4,9 @@
  */
 
 // ============================================
-// STREAK SYSTEM CONFIGURATION
+// FORGE SYSTEM CONFIGURATION
 // ============================================
-export const STREAK_CONFIG = {
+export const FORGE_CONFIG = {
     // XP Multipliers at streak milestones
     multipliers: [
         { days: 3, multiplier: 1.1, label: '10% Bonus' },
@@ -45,7 +45,7 @@ export const DAILY_REWARDS = [
     { day: 4, type: 'xp', amount: 100, label: '+100 XP', emoji: '✨' },
     { day: 5, type: 'xp', amount: 125, label: '+125 XP', emoji: '💫' },
     { day: 6, type: 'xp', amount: 150, label: '+150 XP', emoji: '💫' },
-    { day: 7, type: 'item', item: 'streak_freeze', label: 'Streak Shield', emoji: '🛡️' },
+    { day: 7, type: 'item', item: 'forge_shield', label: 'Forge Shield', emoji: '🛡️' },
 
     // Week 2
     { day: 8, type: 'xp', amount: 75, label: '+75 XP', emoji: '⭐' },
@@ -84,7 +84,7 @@ export const DAILY_REWARDS = [
 export const MYSTERY_REWARDS = [
     { type: 'xp', amount: 500, label: '+500 XP', emoji: '⭐', weight: 40 },
     { type: 'xp', amount: 1000, label: '+1000 XP', emoji: '✨', weight: 20 },
-    { type: 'item', item: 'streak_freeze', label: 'Streak Shield', emoji: '🛡️', weight: 25 },
+    { type: 'item', item: 'forge_shield', label: 'Forge Shield', emoji: '🛡️', weight: 25 },
     { type: 'item', item: 'double_xp', label: '2X XP Token', emoji: '⚡', weight: 10 },
     { type: 'item', item: 'spotlight', label: 'Spotlight 24h', emoji: '✨', weight: 5 },
 ];
@@ -93,10 +93,10 @@ export const MYSTERY_REWARDS = [
 export const PREMIUM_REWARDS = [
     { type: 'xp', amount: 1500, label: '+1500 XP', emoji: '💎', weight: 30 },
     { type: 'xp', amount: 2500, label: '+2500 XP', emoji: '💎', weight: 15 },
-    { type: 'item', item: 'streak_freeze', label: '3x Streak Shield', quantity: 3, emoji: '🛡️', weight: 20 },
+    { type: 'item', item: 'forge_shield', label: '3x Forge Shield', quantity: 3, emoji: '🛡️', weight: 20 },
     { type: 'item', item: 'double_xp_24h', label: '24h 2X XP', emoji: '⚡', weight: 15 },
     { type: 'badge', badge: 'premium_collector', label: 'Premium Badge', emoji: '👑', weight: 10 },
-    { type: 'item', item: 'streak_restore', label: 'Streak Restore', emoji: '🔄', weight: 10 },
+    { type: 'item', item: 'forge_restore', label: 'Forge Restore', emoji: '🔄', weight: 10 },
 ];
 
 // ============================================
@@ -122,7 +122,7 @@ export const GUILD_CONFIG = {
         { id: 'workouts_50', name: '50 Workouts', description: 'Complete 50 workouts as a guild', target: 50, xpReward: 500 },
         { id: 'workouts_100', name: '100 Workouts', description: 'Complete 100 workouts as a guild', target: 100, xpReward: 1200 },
         { id: 'volume_100k', name: '100K Volume', description: 'Lift 100,000 lbs combined', target: 100000, xpReward: 800 },
-        { id: 'streaks_7', name: 'Streak Squad', description: 'All members maintain 7+ day streaks', target: 100, xpReward: 1500 },
+        { id: 'forge_7', name: 'Forge Squad', description: 'All members maintain 7+ day Forges', target: 100, xpReward: 1500 },
     ],
 
     // Guild emblems (unlocked by level)
@@ -147,7 +147,7 @@ export const TOURNAMENT_CONFIG = {
     types: [
         { id: 'volume', name: 'Volume King', description: 'Most total weight lifted', metric: 'weeklyVolume', icon: '🏋️' },
         { id: 'workouts', name: 'Workout Warrior', description: 'Most workouts completed', metric: 'weeklyWorkouts', icon: '💪' },
-        { id: 'streak', name: 'Streak Master', description: 'Longest active streak', metric: 'currentStreak', icon: '🔥' },
+        { id: 'forge', name: 'Forge Master', description: 'Longest active Forge', metric: 'currentForge', icon: '🔥' },
         { id: 'xp', name: 'XP Champion', description: 'Most XP earned this week', metric: 'weeklyXP', icon: '⚡' },
     ],
 
@@ -170,12 +170,12 @@ export const TOURNAMENT_CONFIG = {
 // ============================================
 export const NOTIFICATION_TYPES = {
     streak_warning: {
-        title: "Don't break your streak! 🔥",
+        title: "Don't break your Forge! 🔥",
         priority: 'high',
         icon: '🔥',
     },
     streak_milestone: {
-        title: 'Streak Milestone!',
+        title: 'Forge Milestone!',
         priority: 'medium',
         icon: '🎉',
     },
@@ -223,24 +223,31 @@ export const MOTIVATIONAL_MESSAGES = [
     "One more workout, one step closer to greatness. ⚡",
     "The only bad workout is the one you didn't do. 🔥",
     "Discipline beats motivation every time. 👑",
-    "Your streak is counting on you. Don't let it down! 🔥",
+    "Your Forge is counting on you. Don't let it break! 🔥",
     "PRs don't happen on the couch. Time to move! 🏋️",
     "Remember why you started. Now finish strong! 💪",
     "Every rep is a vote for who you want to become. ✨",
     "Iron sharpens iron. Time to get sharp! ⚔️",
 ];
 
+// Backwards-compat alias
+export const STREAK_CONFIG = FORGE_CONFIG;
+
 // Helper functions
-export const getStreakMultiplier = (streakDays) => {
-    const applicable = STREAK_CONFIG.multipliers
-        .filter(m => streakDays >= m.days)
+export const getForgeMultiplier = (forgeDays) => {
+    const applicable = FORGE_CONFIG.multipliers
+        .filter(m => forgeDays >= m.days)
         .sort((a, b) => b.days - a.days);
     return applicable[0]?.multiplier || 1.0;
 };
 
-export const getStreakMilestone = (streakDays) => {
-    return STREAK_CONFIG.milestones.find(m => m.days === streakDays);
+export const getForgeMilestone = (forgeDays) => {
+    return FORGE_CONFIG.milestones.find(m => m.days === forgeDays);
 };
+
+// Backwards-compat aliases
+export const getStreakMultiplier = getForgeMultiplier;
+export const getStreakMilestone = getForgeMilestone;
 
 export const getDailyReward = (dayOfMonth) => {
     return DAILY_REWARDS.find(r => r.day === dayOfMonth) || DAILY_REWARDS[DAILY_REWARDS.length - 1];

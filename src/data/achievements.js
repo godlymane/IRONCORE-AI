@@ -6,11 +6,11 @@
 export const ACHIEVEMENTS = [
     // === CONSISTENCY BADGES ===
     { id: 'first_workout', name: 'Iron Initiate', icon: '🏋️', description: 'Complete your first workout', xp: 50, category: 'milestone', rarity: 'common', criteria: { workoutsCompleted: 1 } },
-    { id: 'streak_3', name: 'Momentum Builder', icon: '🔥', description: '3-day workout streak', xp: 75, category: 'consistency', rarity: 'common', criteria: { streakDays: 3 } },
-    { id: 'streak_7', name: 'Week Warrior', icon: '⚡', description: '7-day workout streak', xp: 150, category: 'consistency', rarity: 'uncommon', criteria: { streakDays: 7 } },
-    { id: 'streak_14', name: 'Fortnight Fighter', icon: '💪', description: '14-day workout streak', xp: 300, category: 'consistency', rarity: 'rare', criteria: { streakDays: 14 } },
-    { id: 'streak_30', name: 'Iron Will', icon: '🌟', description: '30-day workout streak', xp: 500, category: 'consistency', rarity: 'epic', criteria: { streakDays: 30 } },
-    { id: 'streak_100', name: 'Century Legend', icon: '👑', description: '100-day workout streak', xp: 2000, category: 'consistency', rarity: 'legendary', criteria: { streakDays: 100 } },
+    { id: 'streak_3', name: 'Momentum Builder', icon: '🔥', description: '3-day Forge', xp: 75, category: 'consistency', rarity: 'common', criteria: { forgeDays: 3 } },
+    { id: 'streak_7', name: 'Week Warrior', icon: '⚡', description: '7-day Forge', xp: 150, category: 'consistency', rarity: 'uncommon', criteria: { forgeDays: 7 } },
+    { id: 'streak_14', name: 'Fortnight Fighter', icon: '💪', description: '14-day Forge', xp: 300, category: 'consistency', rarity: 'rare', criteria: { forgeDays: 14 } },
+    { id: 'streak_30', name: 'Iron Will', icon: '🌟', description: '30-day Forge', xp: 500, category: 'consistency', rarity: 'epic', criteria: { forgeDays: 30 } },
+    { id: 'streak_100', name: 'Century Legend', icon: '👑', description: '100-day Forge', xp: 2000, category: 'consistency', rarity: 'legendary', criteria: { forgeDays: 100 } },
     { id: 'early_bird', name: 'Early Iron', icon: '🌅', description: 'Complete 10 workouts before 7am', xp: 200, category: 'consistency', rarity: 'rare', criteria: { earlyWorkouts: 10 } },
     { id: 'night_owl', name: 'Midnight Grinder', icon: '🦉', description: 'Complete 10 workouts after 9pm', xp: 200, category: 'consistency', rarity: 'rare', criteria: { lateWorkouts: 10 } },
 
@@ -75,8 +75,8 @@ export const RARITY_CONFIG = {
 export const POWER_UPS = [
     { id: 'xp_boost_2x', name: '2X XP Booster', icon: '⚡', description: 'Double XP for next workout', duration: 'single_use', cost: 500, effect: { xpMultiplier: 2 } },
     { id: 'xp_boost_24h', name: '24hr XP Rush', icon: '🚀', description: 'Double XP for 24 hours', duration: 86400, cost: 1500, effect: { xpMultiplier: 2 } },
-    { id: 'streak_freeze', name: 'Streak Freeze', icon: '❄️', description: 'Protect your streak for one day', duration: 86400, cost: 750, effect: { streakProtection: true } },
-    { id: 'streak_restore', name: 'Streak Restore', icon: '🔄', description: 'Restore a broken streak (up to 3 days)', duration: 'single_use', cost: 2000, effect: { streakRestore: 3 } },
+    { id: 'forge_shield', name: 'Forge Shield', icon: '🛡️', description: 'Protect your Forge for one day', duration: 86400, cost: 750, effect: { forgeProtection: true } },
+    { id: 'forge_restore', name: 'Forge Restore', icon: '🔄', description: 'Restore a broken Forge (up to 3 days)', duration: 'single_use', cost: 2000, effect: { forgeRestore: 3 } },
     { id: 'pr_reveal', name: 'PR Predictor', icon: '🔮', description: 'AI predicts your next PR attempt', duration: 'single_use', cost: 300, effect: { prPrediction: true } },
     { id: 'rest_skip', name: 'Skip Rest Day', icon: '⏭️', description: 'No recovery penalty for one day', duration: 86400, cost: 400, effect: { noRecoveryPenalty: true } },
     { id: 'coach_boost', name: 'Coach Insight', icon: '🧠', description: 'Extra detailed AI feedback', duration: 'single_use', cost: 200, effect: { detailedFeedback: true } },
@@ -107,7 +107,7 @@ export const generateWeeklyChallenge = () => {
         { id: 'volume_week', name: 'Volume Week', description: 'Hit 25,000 lbs total volume this week', xp: 500, type: 'weekly' },
         { id: 'meal_prep', name: 'Meal Prep Master', description: 'Log all meals for 7 days', xp: 350, type: 'weekly' },
         { id: 'social_week', name: 'Community Week', description: 'Win 3 arena battles', xp: 450, type: 'weekly' },
-        { id: 'streak_week', name: 'Streak Week', description: 'Maintain a 7-day streak', xp: 500, type: 'weekly' },
+        { id: 'forge_week', name: 'Forge Week', description: 'Maintain a 7-day Forge', xp: 500, type: 'weekly' },
         { id: 'variety_week', name: 'Variety Pack', description: 'Train all major muscle groups', xp: 400, type: 'weekly' },
     ];
 
@@ -129,7 +129,11 @@ export const checkAchievement = (achievement, stats) => {
 
     for (const [key, value] of Object.entries(criteria)) {
         if (key === 'special') continue; // Special achievements checked separately
-        if ((stats[key] || 0) < value) return false;
+        // forgeDays falls back to streakDays for backwards-compat
+        const statValue = key === 'forgeDays'
+            ? (stats.forgeDays ?? stats.streakDays ?? 0)
+            : (stats[key] || 0);
+        if (statValue < value) return false;
     }
 
     return true;

@@ -8,70 +8,73 @@ import {
 } from 'firebase/firestore';
 import { getFirestore } from 'firebase/firestore';
 import {
-    getStreakMultiplier, getStreakMilestone, getDailyReward,
+    getForgeMultiplier, getForgeMilestone, getDailyReward,
     getRandomMysteryReward, getRandomPremiumReward, getGuildLevel
 } from '../data/engagementData';
 
 // ============================================
-// STREAK FUNCTIONS
+// FORGE FUNCTIONS
 // ============================================
 
 /**
- * Calculate and update user's streak based on activity
+ * Calculate and update user's Forge based on activity
  */
-export const calculateStreak = async (db, userId, workoutDates) => {
-    if (!db || !userId) return { streak: 0, multiplier: 1 };
+export const calculateForge = async (db, userId, workoutDates) => {
+    if (!db || !userId) return { forge: 0, multiplier: 1 };
 
     const today = new Date().toISOString().split('T')[0];
     const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
     const sortedDates = [...new Set(workoutDates)].sort().reverse();
 
-    let streak = 0;
+    let forge = 0;
 
     // Check if user worked out today or yesterday
     if (sortedDates.includes(today)) {
-        streak = 1;
+        forge = 1;
         // Count consecutive days backward
         let checkDate = new Date();
         checkDate.setDate(checkDate.getDate() - 1);
 
         while (sortedDates.includes(checkDate.toISOString().split('T')[0])) {
-            streak++;
+            forge++;
             checkDate.setDate(checkDate.getDate() - 1);
         }
     } else if (sortedDates.includes(yesterday)) {
-        // User can still save streak today - grace period
-        streak = 1;
+        // User can still save Forge today - grace period
+        forge = 1;
         let checkDate = new Date();
         checkDate.setDate(checkDate.getDate() - 2);
 
         while (sortedDates.includes(checkDate.toISOString().split('T')[0])) {
-            streak++;
+            forge++;
             checkDate.setDate(checkDate.getDate() - 1);
         }
     }
 
-    const multiplier = getStreakMultiplier(streak);
-    const milestone = getStreakMilestone(streak);
+    const multiplier = getForgeMultiplier(forge);
+    const milestone = getForgeMilestone(forge);
 
-    // Update streak in profile
+    // Update Forge in profile
     try {
         await setDoc(doc(db, 'users', userId, 'data', 'profile'), {
-            currentStreak: streak,
-            streakMultiplier: multiplier,
-            lastStreakUpdate: new Date().toISOString(),
+            currentForge: forge,
+            forgeMultiplier: multiplier,
+            lastForgeUpdate: new Date().toISOString(),
         }, { merge: true });
     } catch (e) {
-        console.error('Error updating streak:', e);
+        console.error('Error updating Forge:', e);
     }
 
-    return { streak, multiplier, milestone };
+    return { forge, multiplier, milestone };
 };
 
+// Backwards-compat alias
+export const calculateStreak = calculateForge;
+
 /**
- * Activate streak shield for user
+ * Activate Forge Shield for user
  */
-export const activateStreakShield = async (db, userId) => {
+export const activateForgeShield = async (db, userId) => {
     if (!db || !userId) return false;
 
     try {
@@ -80,20 +83,23 @@ export const activateStreakShield = async (db, userId) => {
         const data = profile.data() || {};
 
         // Check if user has a shield available
-        const shields = data.streakShields || 0;
+        const shields = data.forgeShields ?? data.streakShields ?? 0;
         if (shields <= 0) return { success: false, message: 'No shields available' };
 
         await updateDoc(profileRef, {
-            streakShields: increment(-1),
+            forgeShields: increment(-1),
             shieldActiveUntil: new Date(Date.now() + 86400000).toISOString(),
         });
 
-        return { success: true, message: 'Shield activated for 24 hours!' };
+        return { success: true, message: 'Forge Shield activated for 24 hours!' };
     } catch (e) {
-        console.error('Error activating shield:', e);
+        console.error('Error activating Forge Shield:', e);
         return { success: false, message: 'Failed to activate shield' };
     }
 };
+
+// Backwards-compat alias
+export const activateStreakShield = activateForgeShield;
 
 /**
  * Check if user has active shield
@@ -152,7 +158,7 @@ export const claimDailyReward = async (db, userId, profile) => {
                 break;
 
             case 'item':
-                const itemKey = reward.item === 'streak_freeze' ? 'streakShields' :
+                const itemKey = (reward.item === 'forge_shield' || reward.item === 'streak_freeze') ? 'forgeShields' :
                     reward.item === 'double_xp' ? 'doubleXPTokens' : 'inventory';
                 await updateDoc(profileRef, {
                     [itemKey]: increment(reward.quantity || 1),
@@ -173,7 +179,7 @@ export const claimDailyReward = async (db, userId, profile) => {
                         lastRewardMonth: currentMonth,
                     });
                 } else {
-                    const itemKey = mysteryReward.item === 'streak_freeze' ? 'streakShields' : 'doubleXPTokens';
+                    const itemKey = (mysteryReward.item === 'forge_shield' || mysteryReward.item === 'streak_freeze') ? 'forgeShields' : 'doubleXPTokens';
                     await updateDoc(profileRef, {
                         [itemKey]: increment(1),
                         [`dailyRewardsClaimed.${today}`]: true,
@@ -517,7 +523,9 @@ export const subscribeToNotifications = (db, userId, callback) => {
 };
 
 export default {
+    calculateForge,
     calculateStreak,
+    activateForgeShield,
     activateStreakShield,
     hasActiveShield,
     claimDailyReward,

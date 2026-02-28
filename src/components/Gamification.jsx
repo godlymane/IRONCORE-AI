@@ -273,9 +273,9 @@ export const AchievementsGallery = ({ unlockedIds = [], stats = {}, category = '
 };
 
 /**
- * Streak Flame Component
+ * Forge Flame Component
  */
-export const StreakFlame = ({ streak = 0, hasFreezeActive = false }) => {
+export const ForgeFlame = ({ streak = 0, hasFreezeActive = false }) => {
     const getFlameSize = () => {
         if (streak >= 30) return 'text-6xl';
         if (streak >= 14) return 'text-5xl';
@@ -315,19 +315,22 @@ export const StreakFlame = ({ streak = 0, hasFreezeActive = false }) => {
             <div className={`text-2xl font-black bg-gradient-to-r ${getFlameColor()} bg-clip-text text-transparent`}>
                 {streak}
             </div>
-            <p className="text-xs text-white/50">day streak</p>
+            <p className="text-xs text-white/50">day Forge</p>
 
             {hasFreezeActive && (
                 <div className="absolute -top-2 -right-2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-500/30">
                     <Shield className="w-3 h-3 text-cyan-400" />
-                    <span className="text-[11px] text-cyan-400 font-bold">FREEZE</span>
+                    <span className="text-[11px] text-cyan-400 font-bold">SHIELD</span>
                 </div>
             )}
         </motion.div>
     );
 };
 
-export default { AchievementBadge, PowerUpCard, ChallengeCard, AchievementsGallery, StreakFlame };
+/** @deprecated Use ForgeFlame instead */
+export const StreakFlame = ForgeFlame;
+
+export default { AchievementBadge, PowerUpCard, ChallengeCard, AchievementsGallery, ForgeFlame, StreakFlame };
 
 
 

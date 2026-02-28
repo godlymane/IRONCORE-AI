@@ -11,7 +11,7 @@ import {
     declineBattle,
     awardXP,
     initializeUser,
-    checkDailyStreak
+    checkDailyForge
 } from '../services/arenaService';
 import { checkAITriggers } from '../services/NotificationService';
 
@@ -54,8 +54,8 @@ export const ArenaProvider = ({ children, user: authUser }) => {
 
         const initUser = async () => {
             try {
-                // Check daily streak first (updates firestore if needed)
-                await checkDailyStreak(userId);
+                // Check daily Forge first (updates firestore if needed)
+                await checkDailyForge(userId);
 
                 let user = await getUserStats(userId);
 
