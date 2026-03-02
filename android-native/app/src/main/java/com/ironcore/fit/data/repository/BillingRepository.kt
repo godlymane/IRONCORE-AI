@@ -220,14 +220,14 @@ class BillingRepository @Inject constructor(
      * 1. Send to Cloud Function for server-side verification
      * 2. Acknowledge the purchase (Google refunds unacknowledged purchases after 3 days)
      */
-    suspend fun verifyAndAcknowledge(purchase: Purchase, planId: String): Boolean {
+    suspend fun verifyAndAcknowledge(purchase: Purchase): Boolean {
         // Server-side verification via Cloud Function
-        val verified = cloudFunctions.verifyGooglePlayPurchase(
+        val result = cloudFunctions.verifyGooglePlayPurchase(
             purchaseToken = purchase.purchaseToken,
-            productId = purchase.products.first(),
-            planId = planId
+            productId = purchase.products.first()
         )
 
+        val verified = result["success"] as? Boolean ?: false
         if (!verified) return false
 
         // Acknowledge the purchase

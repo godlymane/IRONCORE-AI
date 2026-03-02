@@ -32,6 +32,96 @@ class UserRepository @Inject constructor(
         awaitClose { auth.removeAuthStateListener(listener) }
     }
 
+    // ── PIN-based auth (matches React PlayerCardView.jsx) ──────
+
+    /**
+     * Sign in anonymously — used during account creation flow.
+     * The anonymous user is promoted to a full user once they
+     * claim a username and set a PIN.
+     */
+    suspend fun signInAnonymously(): FirebaseUser {
+        val result = auth.signInAnonymously().await()
+        return result.user!!
+    }
+
+    /**
+     * Sign in with a Firebase custom token returned by Cloud Functions
+     * (loginWithPin or recoverAccount). This is the primary auth method.
+     */
+    suspend fun signInWithCustomToken(token: String): FirebaseUser {
+        val result = auth.signInWithCustomToken(token).await()
+        return result.user!!
+    }
+
+    // ── Username operations ────────────────────────────────────
+
+    /**
+     * Check if a username is available in the `usernames` collection.
+     */
+    suspend fun isUsernameAvailable(username: String): Boolean {
+        val doc = db.collection("usernames").document(username).get().await()
+        return !doc.exists()
+    }
+
+    /**
+     * Claim a username — write to the `usernames/{username}` document.
+     * Must be called after signInAnonymously() during account creation.
+     */
+    suspend fun claimUsername(username: String, uid: String) {
+        db.collection("usernames").document(username).set(
+            mapOf(
+                "uid" to uid,
+                "createdAt" to Timestamp.now()
+            )
+        ).await()
+    }
+
+    /**
+     * Initialize a new PIN-based user profile.
+     * Called during account creation after username is claimed.
+     * Matches React: setDoc(doc(db, 'users', uid, 'data', 'profile'), {...}, {merge: true})
+     */
+    suspend fun initializePinUser(
+        uid: String,
+        username: String,
+        pinHash: String,
+        phraseHash: String
+    ) {
+        val profileData = mapOf(
+            "userId" to uid,
+            "username" to username,
+            "pinHash" to pinHash,
+            "phraseHash" to phraseHash,
+            "createdAt" to Timestamp.now(),
+            "xp" to 0L,
+            "level" to 1,
+            "currentStreak" to 0,
+            "longestStreak" to 0,
+            "streakFreezeCount" to 1,
+            "isPremium" to false,
+            "schemaVersion" to 1,
+            "photoURL" to ""
+        )
+
+        db.collection("users").document(uid)
+            .collection("data").document("profile")
+            .set(profileData, SetOptions.merge()).await()
+
+        // Create leaderboard entry
+        val leaderboardEntry = mapOf(
+            "username" to username,
+            "xp" to 0L,
+            "level" to 1,
+            "league" to "Iron Novice",
+            "avatarUrl" to "",
+            "photo" to ""
+        )
+        db.collection("leaderboard").document(uid)
+            .set(leaderboardEntry, SetOptions.merge()).await()
+    }
+
+    // ── Legacy email/password auth (kept for compatibility) ────
+
     suspend fun signUpWithEmail(email: String, password: String, displayName: String): FirebaseUser {
         val result = auth.createUserWithEmailAndPassword(email, password).await()
         val user = result.user!!

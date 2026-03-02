@@ -112,7 +112,46 @@ final class FirestoreService {
                     print("[Firestore] Burned listener error: \(error)")
                     return
                 }
-                let docs = snapshot?.documents.map { $0.data() } ?? []
+                let docs = snapshot?.documents.map { doc -> [String: Any] in
+                    var data = doc.data()
+                    data["id"] = doc.documentID
+                    return data
+                } ?? []
+                completion(docs)
+            }
+    }
+
+    func addBurned(uid: String, data: [String: Any]) async throws {
+        var entry = data
+        entry["date"] = Self.todayString()
+        entry["createdAt"] = FieldValue.serverTimestamp()
+        entry["userId"] = uid
+        try await db.collection("users").document(uid)
+            .collection("burned").addDocument(data: entry)
+    }
+
+    func deleteBurned(uid: String, burnedId: String) async throws {
+        try await db.collection("users").document(uid)
+            .collection("burned").document(burnedId).delete()
+    }
+
+    // MARK: - Progress (users/{uid}/progress) — listener
+
+    func listenToProgress(uid: String, completion: @escaping ([[String: Any]]) -> Void) -> ListenerRegistration {
+        return db.collection("users").document(uid)
+            .collection("progress")
+            .order(by: "createdAt", descending: true)
+            .limit(to: 365)
+            .addSnapshotListener { snapshot, error in
+                if let error = error {
+                    print("[Firestore] Progress listener error: \(error)")
+                    return
+                }
+                let docs = snapshot?.documents.map { doc -> [String: Any] in
+                    var data = doc.data()
+                    data["id"] = doc.documentID
+                    return data
+                } ?? []
                 completion(docs)
             }
     }
@@ -313,5 +352,43 @@ final class FirestoreService {
         if let weight = onboardingData.weight, weight > 0 {
             try await saveProgress(uid: uid, weight: weight)
         }
+    }
+
+    // MARK: - Progress Photos (users/{uid}/photos)
+    // Matches photoService.js from React prototype.
+    // Collection: users/{uid}/photos
+    // Fields: url, storagePath, type (front/side/back), note, date, createdAt
+
+    /// Add a progress photo document to Firestore. Returns the new document ID.
+    func addProgressPhoto(uid: String, data: [String: Any]) async throws -> String {
+        let ref = try await db.collection("users").document(uid)
+            .collection("photos").addDocument(data: data)
+        return ref.documentID
+    }
+
+    /// Delete a progress photo document from Firestore.
+    func deleteProgressPhoto(uid: String, photoId: String) async throws {
+        try await db.collection("users").document(uid)
+            .collection("photos").document(photoId).delete()
+    }
+
+    /// Listen to progress photos in real-time, ordered by date descending.
+    func listenToProgressPhotos(uid: String, completion: @escaping ([[String: Any]]) -> Void) -> ListenerRegistration {
+        return db.collection("users").document(uid)
+            .collection("photos")
+            .order(by: "date", descending: true)
+            .limit(to: 100)
+            .addSnapshotListener { snapshot, error in
+                if let error = error {
+                    print("[Firestore] Progress photos listener error: \(error)")
+                    return
+                }
+                let docs = snapshot?.documents.map { doc -> [String: Any] in
+                    var data = doc.data()
+                    data["id"] = doc.documentID
+                    return data
+                } ?? []
+                completion(docs)
+            }
     }
 }

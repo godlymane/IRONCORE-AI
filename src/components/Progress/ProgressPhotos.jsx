@@ -296,7 +296,7 @@ export const ProgressPhotos = () => {
 
     const handleUploadWrapper = async (file, uid, note, type) => {
         if (!isPremium && photos.length >= FREE_PHOTO_LIMIT) {
-            requirePremium('progressPhotos');
+            requirePremium('pro', 'progressPhotos');
             return;
         }
         await uploadPhoto(file, uid, note, type);
@@ -364,7 +364,7 @@ export const ProgressPhotos = () => {
                                         <p className="text-white font-bold">Photo Limit Reached</p>
                                         <p className="text-sm text-white/50 max-w-xs mx-auto">Free accounts can store up to {FREE_PHOTO_LIMIT} progress photos. Upgrade to Premium for unlimited.</p>
                                         <button
-                                            onClick={() => requirePremium('progressPhotos')}
+                                            onClick={() => requirePremium('pro', 'progressPhotos')}
                                             className="px-6 py-3 rounded-xl font-bold text-white text-sm"
                                             style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)' }}
                                         >

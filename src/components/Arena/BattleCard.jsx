@@ -78,7 +78,7 @@ export const BattleCard = ({ opponent, userStats, onBattle }) => {
 
                         <div className="mt-2 flex items-center justify-center gap-1 text-[11px]">
                             <Trophy size={10} className="text-yellow-400" />
-                            <span className="text-yellow-400">{opp.streak || 0} Streak</span>
+                            <span className="text-yellow-400">{opp.forge ?? opp.streak ?? 0} Forge</span>
                         </div>
 
                         {/* Power Bar */}

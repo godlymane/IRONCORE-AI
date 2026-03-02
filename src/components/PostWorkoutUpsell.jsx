@@ -113,7 +113,7 @@ export const PostWorkoutUpsell = ({ show, onDismiss, workoutData, totalWorkouts,
     const handleCTA = () => {
         saveUpsellState({ ...getUpsellState(), lastShown: Date.now() });
         setVisible(false);
-        requirePremium('unlimitedHistory');
+        requirePremium('pro', 'workoutHistory');
     };
 
     if (!visible) return null;

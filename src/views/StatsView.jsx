@@ -241,7 +241,7 @@ export const StatsView = () => {
             <div className="bg-gray-900 border border-gray-800 p-4 rounded-3xl relative overflow-hidden">
                 <h3 className="text-xs font-black uppercase text-gray-500 flex items-center gap-2 mb-4"><Activity size={14} className="text-cyan-500" /> Lifter Archetype {!isPremium && <Lock size={10} className="text-yellow-400" />}</h3>
                 {!isPremium && (
-                    <div className="absolute inset-0 z-10 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center rounded-3xl cursor-pointer" onClick={() => requirePremium('unlimitedHistory')}>
+                    <div className="absolute inset-0 z-10 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center rounded-3xl cursor-pointer" onClick={() => requirePremium('pro', 'advancedStats')}>
                         <Lock size={24} className="text-yellow-400 mb-2" />
                         <p className="text-xs font-bold text-white">Pro Feature</p>
                         <p className="text-[11px] text-gray-400">Tap to unlock</p>

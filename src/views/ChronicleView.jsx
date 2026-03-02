@@ -121,7 +121,7 @@ export const ChronicleView = ({ deleteEntry }) => {
             <div ref={scrollRef} className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide scroll-smooth">
                 {hasLockedHistory && (
                     <button
-                        onClick={() => requirePremium('unlimitedHistory')}
+                        onClick={() => requirePremium('pro', 'workoutHistory')}
                         className="flex-shrink-0 flex flex-col items-center justify-center w-14 h-20 rounded-2xl transition-all bg-yellow-500/10 border border-yellow-500/30 text-yellow-400"
                     >
                         <Lock size={14} />

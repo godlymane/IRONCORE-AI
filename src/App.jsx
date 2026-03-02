@@ -37,7 +37,7 @@ import { initKeyboardHandling } from './utils/keyboardSetup';
 import { ThemeProvider } from './context/ThemeContext';
 // ArenaProvider removed — Arena now uses useFitnessData leaderboard directly
 import { PremiumProvider } from './context/PremiumContext';
-import PremiumPaywall from './components/PremiumPaywall';
+import PaywallModal from './components/PaywallModal';
 import { ExpBar } from './components/Gamification/ExpBar';
 import { ForgeHUD } from './components/Gamification/ForgeHUD';
 import * as Sentry from '@sentry/react';
@@ -360,7 +360,7 @@ const MainContent = () => {
         <OfflineIndicator />
 
         {/* Premium Paywall Overlay */}
-        <PremiumPaywall />
+        <PaywallModal />
 
         <div className="max-w-md mx-auto min-h-screen relative shadow-2xl overflow-hidden md:border-x md:border-gray-900/50" style={{ backgroundColor: 'var(--color-background)' }}>
 

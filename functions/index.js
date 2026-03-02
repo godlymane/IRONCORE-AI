@@ -1,4 +1,4 @@
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 const crypto = require("crypto");
@@ -315,9 +315,19 @@ exports.analyzeFood = onCall(
  * Returns the order ID for the client to use in checkout.
  */
 const VALID_PLANS = {
-  pro_monthly: { amount: 29900, currency: "INR" }, // ₹299 in paise
-  pro_yearly: { amount: 199900, currency: "INR" }, // ₹1999 in paise
+  pro_monthly:   { amount: 79900,  currency: "INR" }, // ₹799 in paise
+  pro_yearly:    { amount: 499900, currency: "INR" }, // ₹4,999 in paise
+  elite_monthly: { amount: 139900, currency: "INR" }, // ₹1,399 in paise
+  elite_yearly:  { amount: 799900, currency: "INR" }, // ₹7,999 in paise
 };
+
+// Derive tier from planId
+function getTierFromPlan(planId) {
+  if (!planId || planId === "free") return "free";
+  if (planId.startsWith("elite")) return "elite";
+  if (planId.startsWith("pro")) return "pro";
+  return "free";
+}
 
 exports.createRazorpayOrder = onCall(
   { secrets: [razorpayKeyId, razorpayKeySecret], cors: true },
@@ -422,9 +432,10 @@ exports.verifyPayment = onCall(
 
     // 4. Activate subscription — read planId from server-side order doc, not client input
     const serverPlanId = orderDoc.data().planId || "pro_monthly";
+    const tier = getTierFromPlan(serverPlanId);
     const now = new Date();
     const expiryDate = new Date(now);
-    if (serverPlanId === "pro_yearly") {
+    if (serverPlanId.endsWith("_yearly")) {
       expiryDate.setFullYear(expiryDate.getFullYear() + 1);
     } else {
       expiryDate.setMonth(expiryDate.getMonth() + 1);
@@ -432,6 +443,7 @@ exports.verifyPayment = onCall(
 
     const subscriptionData = {
       planId: serverPlanId,
+      tier,
       status: "active",
       startDate: now.toISOString(),
       expiryDate: expiryDate.toISOString(),
@@ -465,6 +477,73 @@ exports.verifyPayment = onCall(
 
     // Analytics record
     batch.set(db.doc(`subscriptions/${uid}_${paymentId}`), {
+      userId: uid,
+      ...subscriptionData,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await batch.commit();
+    return { success: true, subscription: subscriptionData };
+  }
+);
+
+/**
+ * Start a 7-day Elite free trial for first-time subscribers.
+ * Only grants trial if user has never had a subscription before.
+ */
+exports.startFreeTrial = onCall(
+  { cors: true },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Must be logged in.");
+    }
+
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+
+    // Check if user has ever had a subscription (prevent trial abuse)
+    const profileDoc = await db.doc(`users/${uid}/data/profile`).get();
+    const profileData = profileDoc.exists ? profileDoc.data() : {};
+
+    if (profileData.subscription && profileData.subscription.status !== 'expired'
+        && profileData.subscription.status !== undefined) {
+      throw new HttpsError("already-exists", "You already have an active subscription.");
+    }
+
+    // Check if user ever had a trial
+    if (profileData.hadTrial) {
+      throw new HttpsError("already-exists", "Free trial already used.");
+    }
+
+    const now = new Date();
+    const trialEnd = new Date(now);
+    trialEnd.setDate(trialEnd.getDate() + 7);
+
+    const subscriptionData = {
+      planId: "elite_monthly",
+      tier: "elite",
+      status: "trial",
+      startDate: now.toISOString(),
+      trialEnd: trialEnd.toISOString(),
+      expiryDate: trialEnd.toISOString(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    const batch = db.batch();
+
+    batch.set(
+      db.doc(`users/${uid}`),
+      { subscription: subscriptionData, isPremium: true, hadTrial: true },
+      { merge: true }
+    );
+
+    batch.set(
+      db.doc(`users/${uid}/data/profile`),
+      { subscription: subscriptionData, isPremium: true, hadTrial: true },
+      { merge: true }
+    );
+
+    batch.set(db.doc(`subscriptions/${uid}_trial`), {
       userId: uid,
       ...subscriptionData,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -1659,13 +1738,14 @@ exports.checkExpiredSubscriptions = onSchedule(
     const db = admin.firestore();
     const now = new Date().toISOString();
 
-    const expiredSnap = await db
+    // Query both active and trial subscriptions that have expired
+    const activeSnap = await db
       .collection("subscriptions")
-      .where("status", "==", "active")
+      .where("status", "in", ["active", "trial"])
       .where("expiryDate", "<=", now)
       .get();
 
-    if (expiredSnap.empty) {
+    if (activeSnap.empty) {
       console.log("[checkExpiredSubscriptions] No expired subscriptions found.");
       return;
     }
@@ -1673,7 +1753,7 @@ exports.checkExpiredSubscriptions = onSchedule(
     const batch = db.batch();
     let count = 0;
 
-    expiredSnap.forEach((subDoc) => {
+    activeSnap.forEach((subDoc) => {
       const { userId } = subDoc.data();
       if (!userId) return;
 
@@ -1698,10 +1778,130 @@ exports.checkExpiredSubscriptions = onSchedule(
     });
 
     await batch.commit();
-    console.log(`[checkExpiredSubscriptions] Expired ${count} subscription(s).`);
+    console.log(`[checkExpiredSubscriptions] Expired ${count} subscription(s) (incl. trials).`);
   }
 );
 
+
+// ════════════════════════════════════════════════════════════════════════════
+// RAZORPAY WEBHOOK — Server-side auto-renewal / cancellation handler
+// ════════════════════════════════════════════════════════════════════════════
+
+const razorpayWebhookSecret = defineSecret("RAZORPAY_WEBHOOK_SECRET");
+
+exports.razorpayWebhook = onRequest(
+  { secrets: [razorpayWebhookSecret], cors: false },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      res.status(405).send("Method not allowed");
+      return;
+    }
+
+    // 1. Verify webhook signature (HMAC-SHA256)
+    const signature = req.headers["x-razorpay-signature"];
+    if (!signature) {
+      res.status(400).send("Missing signature");
+      return;
+    }
+
+    const rawBody = req.rawBody || Buffer.from(JSON.stringify(req.body));
+    const expectedSig = crypto
+      .createHmac("sha256", razorpayWebhookSecret.value())
+      .update(rawBody)
+      .digest("hex");
+
+    try {
+      if (!crypto.timingSafeEqual(Buffer.from(expectedSig, "hex"), Buffer.from(signature, "hex"))) {
+        res.status(403).send("Invalid signature");
+        return;
+      }
+    } catch {
+      res.status(403).send("Invalid signature format");
+      return;
+    }
+
+    const event = req.body.event;
+    const payload = req.body.payload;
+    const db = admin.firestore();
+
+    try {
+      if (event === "subscription.activated" || event === "subscription.charged") {
+        // A subscription payment was made — extend or activate
+        const paymentEntity = payload.payment?.entity;
+        const subEntity = payload.subscription?.entity;
+        if (!paymentEntity || !subEntity) {
+          res.status(200).send("OK — no entity");
+          return;
+        }
+
+        const notes = subEntity.notes || paymentEntity.notes || {};
+        const userId = notes.userId;
+        const planId = notes.planId;
+        if (!userId || !planId) {
+          console.warn("[razorpayWebhook] Missing userId or planId in notes");
+          res.status(200).send("OK — missing notes");
+          return;
+        }
+
+        const tier = getTierFromPlan(planId);
+        const now = new Date();
+        const expiryDate = new Date(now);
+        if (planId.endsWith("_yearly")) {
+          expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+        } else {
+          expiryDate.setMonth(expiryDate.getMonth() + 1);
+        }
+
+        const subscriptionData = {
+          planId,
+          tier,
+          status: "active",
+          startDate: now.toISOString(),
+          expiryDate: expiryDate.toISOString(),
+          razorpaySubscriptionId: subEntity.id,
+          paymentId: paymentEntity.id,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+
+        const batch = db.batch();
+        batch.set(db.doc(`users/${userId}`),
+          { subscription: subscriptionData, isPremium: true }, { merge: true });
+        batch.set(db.doc(`users/${userId}/data/profile`),
+          { subscription: subscriptionData, isPremium: true }, { merge: true });
+        batch.set(db.doc(`subscriptions/${userId}_${paymentEntity.id}`), {
+          userId, ...subscriptionData,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        await batch.commit();
+
+        console.log(`[razorpayWebhook] ${event}: activated ${planId} for ${userId}`);
+
+      } else if (event === "subscription.cancelled" || event === "subscription.halted") {
+        const subEntity = payload.subscription?.entity;
+        const notes = subEntity?.notes || {};
+        const userId = notes.userId;
+        if (!userId) {
+          res.status(200).send("OK — missing userId");
+          return;
+        }
+
+        const batch = db.batch();
+        batch.set(db.doc(`users/${userId}`),
+          { isPremium: false, subscription: { status: "cancelled" } }, { merge: true });
+        batch.set(db.doc(`users/${userId}/data/profile`),
+          { isPremium: false, subscription: { status: "cancelled" } }, { merge: true });
+        await batch.commit();
+
+        console.log(`[razorpayWebhook] ${event}: cancelled for ${userId}`);
+      }
+
+      res.status(200).send("OK");
+    } catch (error) {
+      console.error("[razorpayWebhook] Error:", error);
+      res.status(500).send("Internal error");
+    }
+  }
+);
 
 // ════════════════════════════════════════════════════════════════════════════
 // IRON SCORE — Internal helper (not exported)

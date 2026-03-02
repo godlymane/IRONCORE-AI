@@ -21,7 +21,7 @@ android {
             abiFilters 'arm64-v8a', 'armeabi-v7a'
         }
         aaptOptions {
-             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~:!*.gz:!*.br'
         }
     }
     signingConfigs {

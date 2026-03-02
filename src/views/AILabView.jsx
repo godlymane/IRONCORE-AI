@@ -196,9 +196,10 @@ export const AILabView = () => {
     // Handle feature selection with premium gating
     const handleFeatureSelect = (feature) => {
         if (feature.premium && !isPremium) {
-            const featureKey = feature.id === 'form' ? 'aiCoachCalls' :
-                feature.id === 'stats' ? 'unlimitedHistory' : 'aiCoachCalls';
-            requirePremium(featureKey);
+            const tierNeeded = feature.id === 'form' ? 'elite' : 'pro';
+            const featureKey = feature.id === 'form' ? 'formCorrection' :
+                feature.id === 'stats' ? 'advancedStats' : 'aiCoachCalls';
+            requirePremium(tierNeeded, featureKey);
             return;
         }
         setActiveFeature(feature.id);

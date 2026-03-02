@@ -30,7 +30,7 @@ export const ArenaView = ({
     const [showBattlePass, setShowBattlePass] = useState(false);
     const [showGhostMatch, setShowGhostMatch] = useState(false);
     const [showAchievements, setShowAchievements] = useState(false);
-    const { isPremium, requirePremium } = usePremium();
+    const { isPremium, tier, requirePremium } = usePremium();
     const [chatText, setChatText] = useState('');
     const chatEndRef = useRef(null);
 
@@ -186,16 +186,21 @@ export const ArenaView = ({
                     transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                 />
                 {[
-                    { id: 'leaderboard', label: 'Ranks', icon: Trophy, premium: false },
-                    { id: 'chat', label: 'Chat', icon: MessageCircle, premium: false },
-                    { id: 'battles', label: 'Battles', icon: Swords, premium: true },
-                    { id: 'guild', label: 'Guild', icon: Users, premium: true },
-                ].map(tab => (
+                    { id: 'leaderboard', label: 'Ranks', icon: Trophy, minTier: null },
+                    { id: 'chat', label: 'Chat', icon: MessageCircle, minTier: null },
+                    { id: 'battles', label: 'Battles', icon: Swords, minTier: 'pro', featureKey: 'arenaBattles' },
+                    { id: 'guild', label: 'Guild', icon: Users, minTier: 'elite', featureKey: 'guilds' },
+                ].map(tab => {
+                    const isLocked = tab.minTier && (
+                        (tab.minTier === 'pro' && tier === 'free') ||
+                        (tab.minTier === 'elite' && tier !== 'elite')
+                    );
+                    return (
                     <button
                         key={tab.id}
                         onClick={() => {
-                            if (tab.premium && !isPremium) {
-                                requirePremium('guilds');
+                            if (isLocked) {
+                                requirePremium(tab.minTier, tab.featureKey);
                                 return;
                             }
                             setArenaTab(tab.id);
@@ -207,9 +212,10 @@ export const ArenaView = ({
                     >
                         <tab.icon size={12} />
                         {tab.label}
-                        {tab.premium && !isPremium && <Lock size={9} className="text-yellow-400" />}
+                        {isLocked && <Lock size={9} className="text-yellow-400" />}
                     </button>
-                ))}
+                    );
+                })}
             </div>
 
             {/* Tab Content */}

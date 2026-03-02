@@ -99,7 +99,7 @@ export const SFX = {
         Haptics.celebration();
     },
 
-    streakMilestone: () => {
+    forgeMilestone: () => {
         playTone(500, 'sine', 0.1, 0.1);
         setTimeout(() => playTone(700, 'sine', 0.1, 0.1), 120);
         setTimeout(() => playTone(900, 'sine', 0.15, 0.12), 240);

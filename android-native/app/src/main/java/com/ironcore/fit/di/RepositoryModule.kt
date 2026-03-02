@@ -3,6 +3,7 @@ package com.ironcore.fit.di
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.storage.FirebaseStorage
 import com.ironcore.fit.data.remote.CloudFunctions
 import com.ironcore.fit.data.repository.*
 import dagger.Module
@@ -57,4 +58,16 @@ object RepositoryModule {
         db: FirebaseFirestore,
         cf: CloudFunctions
     ): GuildRepository = GuildRepository(auth, db, cf)
+
+    @Provides
+    @Singleton
+    fun provideFitnessRepository(
+        db: FirebaseFirestore,
+        storage: FirebaseStorage
+    ): FitnessRepository = FitnessRepository(db, storage)
+
+    @Provides
+    @Singleton
+    fun provideSocialRepository(db: FirebaseFirestore): SocialRepository =
+        SocialRepository(db)
 }

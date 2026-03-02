@@ -58,7 +58,7 @@ const GUILD_PERKS = [
 const Guilds = () => {
     const { currentUser, refreshUser } = useArena();
     const { addToast } = useToast();
-    const { isPremium, requirePremium } = usePremium();
+    const { tier, requirePremium } = usePremium();
     const [guildId, setGuildId] = useState(currentUser?.guildId || null);
     const [currentGuild, setCurrentGuild] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -76,7 +76,7 @@ const Guilds = () => {
         return () => unsubscribe();
     }, [guildId]);
 
-    if (!isPremium) {
+    if (tier !== 'elite') {
         return (
             <div className="min-h-[60vh] flex items-center justify-center">
                 <div className="text-center space-y-4 px-6">
@@ -85,7 +85,7 @@ const Guilds = () => {
                     </div>
                     <h2 className="text-2xl font-black text-white italic uppercase">Iron Guilds</h2>
                     <p className="text-sm text-white/50 max-w-xs mx-auto">Create and join guilds to compete with friends. Available on Premium.</p>
-                    <button onClick={() => requirePremium('guilds')} className="px-6 py-3 rounded-xl font-bold text-white text-sm" style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)' }}>
+                    <button onClick={() => requirePremium('elite', 'guilds')} className="px-6 py-3 rounded-xl font-bold text-white text-sm" style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)' }}>
                         Unlock Guilds
                     </button>
                 </div>

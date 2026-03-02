@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { db } from '../firebase';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Zap, Palette, Frame, Award, Mic, FileText, Sparkles, Star,
@@ -375,7 +375,7 @@ export const BattlePassView = ({ onClose, user }) => {
   const xpPercent = Math.min((currentXP / xpForNextTier) * 100, 100);
 
   const handlePremiumTap = () => {
-    requirePremium('battlePassTrack');
+    requirePremium('elite', 'battlePassPremiumTrack');
   };
 
   return (

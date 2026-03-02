@@ -65,7 +65,7 @@ export const SettingsPanel = ({
 
     const handleExport = async (type) => {
         if (!isPremium) {
-            requirePremium('export');
+            requirePremium('pro', 'advancedStats');
             return;
         }
         setExportLoading(type);

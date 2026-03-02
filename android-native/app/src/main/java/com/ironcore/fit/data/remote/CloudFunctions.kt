@@ -18,7 +18,7 @@ class CloudFunctions @Inject constructor(
     @Suppress("UNCHECKED_CAST")
     private suspend fun <T> call(name: String, data: Map<String, Any?> = emptyMap()): T {
         val result = functions.getHttpsCallable(name).call(data).await()
-        return result.data as T
+        return result.getData() as T
     }
 
     // ── Auth ──────────────────────────────────────────────────────
@@ -52,7 +52,7 @@ class CloudFunctions @Inject constructor(
 
         val result = functions.getHttpsCallable("callGemini").call(data).await()
         @Suppress("UNCHECKED_CAST")
-        val map = result.data as Map<*, *>
+        val map = result.getData() as Map<*, *>
         val rateLimit = map["rateLimit"] as? Map<*, *>
         return GeminiResponse(
             text = map["text"] as? String ?: "",
@@ -71,7 +71,7 @@ class CloudFunctions @Inject constructor(
 
         val result = functions.getHttpsCallable("analyzeFood").call(data).await()
         @Suppress("UNCHECKED_CAST")
-        val map = result.data as Map<*, *>
+        val map = result.getData() as Map<*, *>
         return FoodAnalysis(
             mealName = map["mealName"] as? String ?: (mealText ?: ""),
             calories = (map["calories"] as? Number)?.toInt() ?: 0,

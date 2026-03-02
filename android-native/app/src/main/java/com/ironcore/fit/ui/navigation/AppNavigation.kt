@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -25,10 +26,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.ironcore.fit.ui.auth.AuthViewModel
-import com.ironcore.fit.ui.auth.LoginScreen
-import com.ironcore.fit.ui.auth.PinEntryScreen
-import com.ironcore.fit.ui.auth.PinMode
+import com.ironcore.fit.ui.auth.*
 import com.ironcore.fit.ui.home.HomeScreen
 import com.ironcore.fit.ui.workout.WorkoutScreen
 import com.ironcore.fit.ui.coach.CoachScreen
@@ -108,12 +106,8 @@ private val bottomTabs = listOf(
  * Top-level authentication states.
  *
  * CHECKING      – initial load, determining auth status.
- * LOGGED_OUT    – no Firebase user, show login screen.
+ * LOGGED_OUT    – no Firebase user, show auth flow.
  * AUTHENTICATED – user signed in, show main app shell.
- *
- * NOTE: NeedsOnboarding and NeedsPin are handled as sub-routes
- * inside the authenticated NavHost rather than as top-level states,
- * keeping the navigation stack unified and back-pressable.
  */
 enum class AuthState { CHECKING, LOGGED_OUT, AUTHENTICATED }
 
@@ -125,11 +119,21 @@ enum class AuthState { CHECKING, LOGGED_OUT, AUTHENTICATED }
  * Entry-point composable wired into `MainActivity`.
  *
  * Observes Firebase auth state via [AuthViewModel] and renders
- * either the login flow or the main tabbed application.
+ * either the multi-step auth flow or the main tabbed application.
+ *
+ * Auth flow steps are driven by AuthStep enum in AuthViewModel:
+ *   LANDING   → LandingScreen (Create Account / Log In)
+ *   USERNAME  → UsernameScreen (enter username, check availability)
+ *   PIN_SETUP → PinEntryScreen (create 6-digit PIN)
+ *   CREATING  → Loading spinner (account being created)
+ *   REVEAL    → CardRevealScreen (recovery phrase + QR code)
+ *   LOGIN     → LoginScreen (username + PIN login)
+ *   RECOVERY  → RecoveryScreen (enter 12-word phrase)
  */
 @Composable
 fun AppNavigation(authViewModel: AuthViewModel = hiltViewModel()) {
     val user by authViewModel.currentUser.collectAsState()
+    val uiState by authViewModel.uiState.collectAsState()
 
     val authState = when {
         user == null -> AuthState.LOGGED_OUT
@@ -138,8 +142,224 @@ fun AppNavigation(authViewModel: AuthViewModel = hiltViewModel()) {
 
     when (authState) {
         AuthState.CHECKING -> LoadingScreen()
-        AuthState.LOGGED_OUT -> LoginScreen(authViewModel = authViewModel)
+
+        AuthState.LOGGED_OUT -> {
+            // Multi-step auth flow driven by AuthStep
+            when (uiState.step) {
+                AuthStep.LANDING -> LandingScreen(
+                    onCreateAccount = { authViewModel.goToCreateAccount() },
+                    onLogin = { authViewModel.goToLogin() }
+                )
+
+                AuthStep.USERNAME -> UsernameScreen(
+                    username = uiState.username,
+                    usernameError = uiState.usernameError,
+                    isUsernameAvailable = uiState.isUsernameAvailable,
+                    isCheckingUsername = uiState.isCheckingUsername,
+                    error = uiState.error,
+                    onUsernameChanged = { authViewModel.onUsernameChanged(it) },
+                    onConfirm = { authViewModel.confirmUsername() },
+                    onBack = { authViewModel.goToLanding() }
+                )
+
+                AuthStep.PIN_SETUP -> PinEntryScreen(
+                    mode = PinMode.SETUP,
+                    onComplete = { pinHash -> authViewModel.onPinSetComplete(pinHash) }
+                )
+
+                AuthStep.CREATING -> CreatingAccountScreen()
+
+                AuthStep.REVEAL -> CardRevealScreen(
+                    username = uiState.username,
+                    recoveryPhrase = uiState.recoveryPhrase,
+                    hasSavedPhrase = uiState.hasSavedPhrase,
+                    onSavedPhraseChanged = { authViewModel.setPhraseSaved(it) },
+                    onContinue = { authViewModel.completeOnboarding() }
+                )
+
+                AuthStep.LOGIN -> LoginScreen(
+                    loginUsername = uiState.loginUsername,
+                    loginAttempts = uiState.loginAttempts,
+                    isLoading = uiState.isLoading,
+                    error = uiState.error,
+                    onUsernameChanged = { authViewModel.onLoginUsernameChanged(it) },
+                    onPinComplete = { pinHash -> authViewModel.loginWithPin(pinHash) },
+                    onBack = { authViewModel.goToLanding() },
+                    onRecovery = { authViewModel.goToRecovery() }
+                )
+
+                AuthStep.RECOVERY -> RecoveryScreen(
+                    recoveryInput = uiState.recoveryInput,
+                    isLoading = uiState.isLoading,
+                    error = uiState.error,
+                    onInputChanged = { authViewModel.onRecoveryInputChanged(it) },
+                    onSubmit = { authViewModel.submitRecoveryPhrase() },
+                    onBack = { authViewModel.goToLogin() }
+                )
+            }
+        }
+
         AuthState.AUTHENTICATED -> MainApp()
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Creating account screen — shown during AuthStep.CREATING
+// ══════════════════════════════════════════════════════════════════
+
+@Composable
+private fun CreatingAccountScreen() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(IronBlack),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator(color = IronRed)
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "CREATING YOUR PROFILE",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = IronTextPrimary,
+                letterSpacing = 2.sp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Setting up your IronCore identity...",
+                fontSize = 14.sp,
+                color = IronTextTertiary
+            )
+        }
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Recovery screen — 12-word phrase entry
+// ══════════════════════════════════════════════════════════════════
+
+@Composable
+private fun RecoveryScreen(
+    recoveryInput: String,
+    isLoading: Boolean,
+    error: String?,
+    onInputChanged: (String) -> Unit,
+    onSubmit: () -> Unit,
+    onBack: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(IronBlack)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 32.dp)
+        ) {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Back button
+            IconButton(onClick = onBack) {
+                Icon(
+                    Icons.Default.ArrowBack,
+                    contentDescription = "Back",
+                    tint = IronTextPrimary
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "IRONCORE",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Black,
+                color = IronRed,
+                letterSpacing = 4.sp
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            Text(
+                text = "Account Recovery",
+                fontSize = 22.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = IronTextPrimary
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Enter your 12-word recovery phrase to restore access",
+                fontSize = 14.sp,
+                color = IronTextTertiary
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Recovery phrase input
+            OutlinedTextField(
+                value = recoveryInput,
+                onValueChange = onInputChanged,
+                label = { Text("Recovery phrase") },
+                placeholder = { Text("iron wolf thunder spark ...", color = IronTextTertiary.copy(alpha = 0.5f)) },
+                minLines = 3,
+                maxLines = 4,
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = IronYellow,
+                    unfocusedBorderColor = IronCardBorder,
+                    focusedLabelColor = IronYellow,
+                    unfocusedLabelColor = IronTextTertiary,
+                    cursorColor = IronYellow,
+                    focusedTextColor = IronTextPrimary,
+                    unfocusedTextColor = IronTextPrimary
+                ),
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            // Error message
+            if (error != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = error,
+                    color = IronRed,
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Submit button
+            Button(
+                onClick = onSubmit,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = IronYellow),
+                shape = RoundedCornerShape(14.dp),
+                enabled = !isLoading && recoveryInput.trim().split("\\s+".toRegex()).size >= 12
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = IronBlack,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text(
+                        text = "RECOVER ACCOUNT",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        letterSpacing = 2.sp,
+                        color = IronBlack
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+        }
     }
 }
 
@@ -209,12 +429,11 @@ private fun MainApp() {
                 CoachScreen(navController = navController)
             }
 
-            // PIN screens
+            // PIN screens (in-app PIN verify/change, separate from auth flow)
             composable(SubScreen.PIN_SETUP) {
                 PinEntryScreen(
                     mode = PinMode.SETUP,
-                    onComplete = { pinHash ->
-                        // PIN created — navigate back
+                    onComplete = { _ ->
                         navController.popBackStack()
                     }
                 )
@@ -226,7 +445,6 @@ private fun MainApp() {
                         navController.popBackStack()
                     },
                     onForgot = {
-                        // Navigate to recovery flow
                         navController.popBackStack()
                     }
                 )

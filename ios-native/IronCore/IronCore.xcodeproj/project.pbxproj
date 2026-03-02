@@ -48,10 +48,27 @@
 		A10039 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10039; };
 		A10040 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10040; };
 		A10041 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10041; };
+		A10042 /* CoachViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10042; };
+		A10043 /* BattlePassViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10043; };
+		A10044 /* GhostMatchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10044; };
+		A10045 /* CommunityBossViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10045; };
+		A10046 /* DailyChallengesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10046; };
+		A10047 /* PlayerCardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10047; };
+		A10048 /* CoachChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10048; };
+		A10049 /* DailyChallengesCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10049; };
+		A10050 /* BattlePassView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10050; };
+		A10051 /* GhostMatchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10051; };
+		A10052 /* CommunityBossView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10052; };
+		A10053 /* PinEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10053; };
+		A10054 /* PlayerCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10054; };
+		A10055 /* NotificationCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10055; };
+		A10056 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10056; };
+		A10057 /* PlayerIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10057; };
 		A20001 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = C20001; };
 		A20002 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = C20002; };
 		A20003 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = C20003; };
 		A20004 /* FirebaseFunctions in Frameworks */ = {isa = PBXBuildFile; productRef = C20004; };
+		A20005 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = C20005; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -97,6 +114,22 @@
 		B10039 /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
 		B10040 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		B10041 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
+		B10042 /* CoachViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachViewModel.swift; sourceTree = "<group>"; };
+		B10043 /* BattlePassViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BattlePassViewModel.swift; sourceTree = "<group>"; };
+		B10044 /* GhostMatchViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GhostMatchViewModel.swift; sourceTree = "<group>"; };
+		B10045 /* CommunityBossViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityBossViewModel.swift; sourceTree = "<group>"; };
+		B10046 /* DailyChallengesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChallengesViewModel.swift; sourceTree = "<group>"; };
+		B10047 /* PlayerCardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerCardViewModel.swift; sourceTree = "<group>"; };
+		B10048 /* CoachChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachChatView.swift; sourceTree = "<group>"; };
+		B10049 /* DailyChallengesCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChallengesCard.swift; sourceTree = "<group>"; };
+		B10050 /* BattlePassView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BattlePassView.swift; sourceTree = "<group>"; };
+		B10051 /* GhostMatchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GhostMatchView.swift; sourceTree = "<group>"; };
+		B10052 /* CommunityBossView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityBossView.swift; sourceTree = "<group>"; };
+		B10053 /* PinEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinEntryView.swift; sourceTree = "<group>"; };
+		B10054 /* PlayerCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerCardView.swift; sourceTree = "<group>"; };
+		B10055 /* NotificationCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCenterView.swift; sourceTree = "<group>"; };
+		B10056 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		B10057 /* PlayerIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerIdentity.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -108,6 +141,7 @@
 				A20002 /* FirebaseFirestore in Frameworks */,
 				A20003 /* FirebaseStorage in Frameworks */,
 				A20004 /* FirebaseFunctions in Frameworks */,
+				A20005 /* FirebaseMessaging in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -153,6 +187,7 @@
 				E10022 /* Onboarding */,
 				E10023 /* Main */,
 				E10024 /* Arena */,
+				E10025 /* Notifications */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -163,6 +198,9 @@
 				B10027 /* ArenaView.swift */,
 				B10026 /* LeagueView.swift */,
 				B10037 /* GuildView.swift */,
+				B10050 /* BattlePassView.swift */,
+				B10051 /* GhostMatchView.swift */,
+				B10052 /* CommunityBossView.swift */,
 			);
 			path = Arena;
 			sourceTree = "<group>";
@@ -171,6 +209,8 @@
 			isa = PBXGroup;
 			children = (
 				B10010 /* LoginView.swift */,
+				B10053 /* PinEntryView.swift */,
+				B10054 /* PlayerCardView.swift */,
 			);
 			path = Auth;
 			sourceTree = "<group>";
@@ -196,6 +236,8 @@
 				B10038 /* AILabView.swift */,
 				B10040 /* SettingsView.swift */,
 				B10041 /* PaywallView.swift */,
+				B10048 /* CoachChatView.swift */,
+				B10049 /* DailyChallengesCard.swift */,
 			);
 			path = Main;
 			sourceTree = "<group>";
@@ -216,6 +258,12 @@
 				B10034 /* FormCorrectionViewModel.swift */,
 				B10036 /* GuildViewModel.swift */,
 				B10039 /* SettingsViewModel.swift */,
+				B10042 /* CoachViewModel.swift */,
+				B10043 /* BattlePassViewModel.swift */,
+				B10044 /* GhostMatchViewModel.swift */,
+				B10045 /* CommunityBossViewModel.swift */,
+				B10046 /* DailyChallengesViewModel.swift */,
+				B10047 /* PlayerCardViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -228,6 +276,7 @@
 				B10014 /* StoreKitService.swift */,
 				B10023 /* ReviewManager.swift */,
 				B10033 /* CameraManager.swift */,
+				B10056 /* NotificationService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -246,8 +295,17 @@
 			children = (
 				B10003 /* Colors.swift */,
 				B10004 /* GlassModifiers.swift */,
+				B10057 /* PlayerIdentity.swift */,
 			);
 			path = Utils;
+			sourceTree = "<group>";
+		};
+		E10025 /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				B10055 /* NotificationCenterView.swift */,
+			);
+			path = Notifications;
 			sourceTree = "<group>";
 		};
 		E10070 /* Resources */ = {
@@ -287,6 +345,7 @@
 				C20002 /* FirebaseFirestore */,
 				C20003 /* FirebaseStorage */,
 				C20004 /* FirebaseFunctions */,
+				C20005 /* FirebaseMessaging */,
 			);
 			productName = IronCore;
 			productReference = B10000 /* IronCore.app */;
@@ -384,6 +443,22 @@
 				A10039 /* SettingsViewModel.swift in Sources */,
 				A10040 /* SettingsView.swift in Sources */,
 				A10041 /* PaywallView.swift in Sources */,
+				A10042 /* CoachViewModel.swift in Sources */,
+				A10043 /* BattlePassViewModel.swift in Sources */,
+				A10044 /* GhostMatchViewModel.swift in Sources */,
+				A10045 /* CommunityBossViewModel.swift in Sources */,
+				A10046 /* DailyChallengesViewModel.swift in Sources */,
+				A10047 /* PlayerCardViewModel.swift in Sources */,
+				A10048 /* CoachChatView.swift in Sources */,
+				A10049 /* DailyChallengesCard.swift in Sources */,
+				A10050 /* BattlePassView.swift in Sources */,
+				A10051 /* GhostMatchView.swift in Sources */,
+				A10052 /* CommunityBossView.swift in Sources */,
+				A10053 /* PinEntryView.swift in Sources */,
+				A10054 /* PlayerCardView.swift in Sources */,
+				A10055 /* NotificationCenterView.swift in Sources */,
+				A10056 /* NotificationService.swift in Sources */,
+				A10057 /* PlayerIdentity.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -625,6 +700,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = P10001;
 			productName = FirebaseFunctions;
+		};
+		C20005 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = P10001;
+			productName = FirebaseMessaging;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

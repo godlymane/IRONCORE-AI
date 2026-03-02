@@ -90,7 +90,7 @@ export const subscribeToNotifications = (userId, callback) => {
 export const checkAITriggers = async (user) => {
     if (!user) return;
 
-    // 1. Streak Risk
+    // 1. Forge Risk
     const now = new Date();
     // If it's after 8 PM and no workout logged today
     if (now.getHours() >= 20 && !user.lastWorkoutToday) {

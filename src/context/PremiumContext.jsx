@@ -6,9 +6,12 @@ import {
     checkPremiumStatus,
     openCheckout,
     createPaymentOrder,
+    startFreeTrial,
     PRICING_PLANS,
+    FEATURE_ACCESS,
     canUseFeature,
-    getFeatureLimits
+    getTierFromPlan,
+    meetsMinTier,
 } from '../services/paymentService';
 
 const PremiumContext = createContext(null);
@@ -16,11 +19,13 @@ const PremiumContext = createContext(null);
 export const PremiumProvider = ({ children, user }) => {
     const [isPremium, setIsPremium] = useState(false);
     const [plan, setPlan] = useState('free');
-    const [features, setFeatures] = useState(PRICING_PLANS.free.features);
+    const [tier, setTier] = useState('free'); // 'free' | 'pro' | 'elite'
+    const [isTrial, setIsTrial] = useState(false);
     const [expiryDate, setExpiryDate] = useState(null);
     const [loading, setLoading] = useState(false);
     const [showPaywall, setShowPaywall] = useState(false);
     const [paywallFeature, setPaywallFeature] = useState(null);
+    const [paywallMinTier, setPaywallMinTier] = useState('pro');
 
     // Check premium status on mount and user change
     useEffect(() => {
@@ -28,7 +33,7 @@ export const PremiumProvider = ({ children, user }) => {
             if (!user?.uid) {
                 setIsPremium(false);
                 setPlan('free');
-                setFeatures(PRICING_PLANS.free.features);
+                setTier('free');
                 setLoading(false);
                 return;
             }
@@ -38,7 +43,8 @@ export const PremiumProvider = ({ children, user }) => {
                 const status = await checkPremiumStatus(user.uid);
                 setIsPremium(status.isPremium);
                 setPlan(status.plan);
-                setFeatures(status.features || PRICING_PLANS.free.features);
+                setTier(status.tier || getTierFromPlan(status.plan));
+                setIsTrial(status.isTrial || false);
                 setExpiryDate(status.expiryDate || null);
             } catch (error) {
                 console.error('Error checking premium status:', error);
@@ -49,25 +55,26 @@ export const PremiumProvider = ({ children, user }) => {
         checkStatus();
     }, [user?.uid]);
 
-    // Trigger paywall for a specific feature
-    const requirePremium = useCallback((featureName) => {
-        if (isPremium) return true;
+    // Trigger paywall — accepts minTier: 'pro' or 'elite'
+    const requirePremium = useCallback((minTier = 'pro', featureName) => {
+        if (meetsMinTier(tier, minTier)) return true;
 
-        setPaywallFeature(featureName);
+        setPaywallFeature(featureName || minTier);
+        setPaywallMinTier(minTier);
         setShowPaywall(true);
         return false;
-    }, [isPremium]);
+    }, [tier]);
 
-    // Check if user can use a feature (with optional limit check)
+    // Check if user can use a feature (with optional usage count for numeric limits)
     const checkFeature = useCallback((featureName, currentUsage = 0) => {
-        const limit = canUseFeature(featureName, isPremium, plan);
+        const limit = canUseFeature(featureName, plan);
 
         if (limit === true || limit === Infinity) return true;
         if (limit === false) return false;
 
         // For numeric limits, check current usage
         return currentUsage < limit;
-    }, [isPremium, plan]);
+    }, [plan]);
 
     // Start purchase flow
     const purchasePlan = useCallback(async (planId, onSuccess, onError) => {
@@ -91,7 +98,8 @@ export const PremiumProvider = ({ children, user }) => {
                     const status = await checkPremiumStatus(user.uid);
                     setIsPremium(status.isPremium);
                     setPlan(status.plan);
-                    setFeatures(status.features || PRICING_PLANS.free.features);
+                    setTier(status.tier || getTierFromPlan(status.plan));
+                    setIsTrial(status.isTrial || false);
                     setExpiryDate(status.expiryDate || null);
                     setShowPaywall(false);
                     onSuccess?.(response);
@@ -121,7 +129,8 @@ export const PremiumProvider = ({ children, user }) => {
         if (status.isPremium) {
             setIsPremium(true);
             setPlan(status.plan);
-            setFeatures(status.features || PRICING_PLANS.free.features);
+            setTier(status.tier || getTierFromPlan(status.plan));
+            setIsTrial(status.isTrial || false);
             setExpiryDate(status.expiryDate || null);
             setShowPaywall(false);
             return { restored: true };
@@ -129,27 +138,52 @@ export const PremiumProvider = ({ children, user }) => {
         return { restored: false, message: 'No active subscription found. Contact support if you believe this is wrong.' };
     }, [user]);
 
+    // Start 7-day free trial
+    const beginFreeTrial = useCallback(async (onSuccess, onError) => {
+        if (!user?.uid) {
+            onError?.(new Error('Please sign in'));
+            return;
+        }
+        try {
+            await startFreeTrial(user.uid);
+            const status = await checkPremiumStatus(user.uid);
+            setIsPremium(status.isPremium);
+            setPlan(status.plan);
+            setTier(status.tier || 'elite');
+            setIsTrial(true);
+            setExpiryDate(status.expiryDate || null);
+            setShowPaywall(false);
+            onSuccess?.();
+        } catch (error) {
+            onError?.(error);
+        }
+    }, [user]);
+
     const value = {
         // State
         isPremium,
         plan,
-        features,
+        tier,
+        isTrial,
         expiryDate,
         loading,
 
         // Paywall
         showPaywall,
         paywallFeature,
+        paywallMinTier,
         closePaywall,
 
         // Actions
         requirePremium,
         checkFeature,
         purchasePlan,
+        beginFreeTrial,
         restorePurchase,
 
         // Plans info
-        plans: PRICING_PLANS
+        plans: PRICING_PLANS,
+        featureAccess: FEATURE_ACCESS,
     };
 
     return (

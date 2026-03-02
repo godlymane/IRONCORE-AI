@@ -6,7 +6,7 @@
  */
 export const generateAchievementText = (achievement) => {
     const templates = {
-        streak: (days) => `🔥 ${days}-day streak on IronCore AI! Consistency is the key to success! #FitnessGoals #IronCore`,
+        forge: (days) => `🔥 ${days}-day Forge on IronCore AI! Consistency is the key to success! #FitnessGoals #IronCore`,
         workout: (count) => `💪 Completed ${count} workouts this week on IronCore AI! Who's with me? #WorkoutComplete #IronCore`,
         level: (level) => `⬆️ Just hit Level ${level} on IronCore AI! The grind never stops 💯 #LevelUp #IronCore`,
         calories: (cals) => `🔥 Burned ${cals.toLocaleString()} calories this week with IronCore AI! #CalorieBurn #IronCore`,

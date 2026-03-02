@@ -60,9 +60,9 @@ export const celebrateWorkoutComplete = () => {
 };
 
 /**
- * Streak Milestone — Fire-themed burst (every 7 days)
+ * Forge Milestone — Fire-themed burst (every 7 days)
  */
-export const celebrateStreakMilestone = () => {
+export const celebrateForgeMilestone = () => {
   hapticMedium();
   confetti({
     particleCount: 45,
