@@ -14,8 +14,7 @@ import { OnboardingView } from './views/OnboardingView';
 
 // Lazy-loaded views — only fetched when user navigates to tab
 const DashboardView = React.lazy(() => import('./views/DashboardView').then(m => ({ default: m.DashboardView })));
-const WorkoutView = React.lazy(() => import('./views/WorkoutView').then(m => ({ default: m.WorkoutView })));
-const CardioView = React.lazy(() => import('./views/CardioView').then(m => ({ default: m.CardioView })));
+const TrainView = React.lazy(() => import('./views/TrainView').then(m => ({ default: m.TrainView })));
 const ArenaView = React.lazy(() => import('./views/ArenaView').then(m => ({ default: m.ArenaView })));
 const ProfileHub = React.lazy(() => import('./views/ProfileHub').then(m => ({ default: m.ProfileHub })));
 const AILabView = React.lazy(() => import('./views/AILabView').then(m => ({ default: m.AILabView })));
@@ -27,8 +26,8 @@ import { OfflineIndicator } from './components/StatusComponents';
 import { SplashScreen, PullToRefresh } from './components/PremiumUI';
 import AmbientFX from './components/AmbientFX';
 import VoiceCoach from './components/VoiceCoach';
-import { DashboardSkeleton, WorkoutSkeleton, CardioSkeleton, ArenaSkeleton, ProfileSkeleton, AILabSkeleton } from './components/ViewSkeletons';
-import { EliteFlameIcon, EliteSwordsIcon, EliteDumbbellIcon, EliteBrainIcon, EliteHeartIcon, EliteCrownIcon } from './components/EliteIcons';
+import { DashboardSkeleton, WorkoutSkeleton, ArenaSkeleton, ProfileSkeleton, AILabSkeleton } from './components/ViewSkeletons';
+import { EliteFlameIcon, EliteSwordsIcon, EliteDumbbellIcon, EliteBrainIcon, EliteCrownIcon } from './components/EliteIcons';
 import { useFitnessData } from './hooks/useFitnessData';
 import { useStore } from './hooks/useStore';
 import { useScrollIntoView } from './hooks/useScrollIntoView';
@@ -43,8 +42,8 @@ import { ForgeHUD } from './components/Gamification/ForgeHUD';
 import * as Sentry from '@sentry/react';
 
 // Tab order for directional page transitions
-const TAB_ORDER = { dashboard: 0, arena: 1, workout: 2, ailab: 3, cardio: 4, profile: 5 };
-const TAB_KEYS = ['dashboard', 'arena', 'workout', 'ailab', 'cardio', 'profile'];
+const TAB_ORDER = { dashboard: 0, arena: 1, train: 2, ailab: 3, profile: 4 };
+const TAB_KEYS = ['dashboard', 'arena', 'train', 'ailab', 'profile'];
 
 // --- MAIN CONTENT WRAPPER ---
 const MainContent = () => {
@@ -214,7 +213,7 @@ const MainContent = () => {
   useEffect(() => {
     if (!user || loading) return;
     const timer = setTimeout(() => {
-      import('./views/WorkoutView');
+      import('./views/TrainView');
       import('./views/ArenaView');
     }, 3000);
     return () => clearTimeout(timer);
@@ -403,20 +402,11 @@ const MainContent = () => {
                     </ViewErrorBoundary>
                   </PageTransition>
                 )}
-                {activeTab === 'workout' && (
-                  <PageTransition key="workout" direction={direction}>
-                    <ViewErrorBoundary viewName="Workout">
+                {activeTab === 'train' && (
+                  <PageTransition key="train" direction={direction}>
+                    <ViewErrorBoundary viewName="Train">
                       <React.Suspense fallback={<WorkoutSkeleton />}>
-                        <WorkoutView />
-                      </React.Suspense>
-                    </ViewErrorBoundary>
-                  </PageTransition>
-                )}
-                {activeTab === 'cardio' && (
-                  <PageTransition key="cardio" direction={direction}>
-                    <ViewErrorBoundary viewName="Cardio">
-                      <React.Suspense fallback={<CardioSkeleton />}>
-                        <CardioView />
+                        <TrainView />
                       </React.Suspense>
                     </ViewErrorBoundary>
                   </PageTransition>
@@ -455,13 +445,13 @@ const MainContent = () => {
 
 
           {/* FLOATING ACTION BUTTON */}
-          {['dashboard', 'workout', 'cardio'].includes(activeTab) && (
+          {['dashboard', 'train'].includes(activeTab) && (
             <FloatingActionButton
               mainIcon={<Plus size={24} className="text-white" />}
               actions={[
                 { label: 'Quick Meal', icon: <Utensils size={18} className="text-red-400" />, onClick: () => handleTabChange('dashboard') },
-                { label: 'Quick Workout', icon: <Dumbbell size={18} className="text-red-400" />, onClick: () => handleTabChange('workout') },
-                { label: 'Quick Cardio', icon: <Heart size={18} className="text-red-400" />, onClick: () => handleTabChange('cardio') },
+                { label: 'Quick Workout', icon: <Dumbbell size={18} className="text-red-400" />, onClick: () => { handleTabChange('train'); window.dispatchEvent(new CustomEvent('ironcore:train-subtab', { detail: 'lift' })); } },
+                { label: 'Quick Cardio', icon: <Heart size={18} className="text-red-400" />, onClick: () => { handleTabChange('train'); window.dispatchEvent(new CustomEvent('ironcore:train-subtab', { detail: 'cardio' })); } },
               ]}
             />
           )}
@@ -483,23 +473,22 @@ const MainContent = () => {
                 <motion.div
                   className="absolute z-0 nav-active-indicator rounded-2xl"
                   style={{
-                    width: `calc((100% - 8px) / 6)`,
+                    width: `calc((100% - 8px) / 5)`,
                     height: '80%',
                     top: '10%',
                   }}
                   animate={{
-                    left: `calc(${TAB_ORDER[activeTab]} * (100% - 8px) / 6 + 4px)`,
+                    left: `calc(${TAB_ORDER[activeTab]} * (100% - 8px) / 5 + 4px)`,
                   }}
                   transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                 />
 
                 {/* Nav Items Grid */}
-                <div className="relative z-10 grid grid-cols-6 gap-0">
+                <div className="relative z-10 grid grid-cols-5 gap-0">
                   <NavBtn active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} icon={<EliteFlameIcon active={activeTab === 'dashboard'} size={22} />} label="Home" />
                   <NavBtn active={activeTab === 'arena'} onClick={() => handleTabChange('arena')} icon={<EliteSwordsIcon active={activeTab === 'arena'} size={22} />} label="Arena" />
-                  <NavBtn active={activeTab === 'workout'} onClick={() => handleTabChange('workout')} icon={<EliteDumbbellIcon active={activeTab === 'workout'} size={22} />} label="Lift" />
+                  <NavBtn active={activeTab === 'train'} onClick={() => handleTabChange('train')} icon={<EliteDumbbellIcon active={activeTab === 'train'} size={22} />} label="Train" />
                   <NavBtn active={activeTab === 'ailab'} onClick={() => handleTabChange('ailab')} icon={<EliteBrainIcon active={activeTab === 'ailab'} size={22} />} label="AI" />
-                  <NavBtn active={activeTab === 'cardio'} onClick={() => handleTabChange('cardio')} icon={<EliteHeartIcon active={activeTab === 'cardio'} size={22} />} label="Pulse" />
                   <NavBtn active={activeTab === 'profile'} onClick={() => handleTabChange('profile')} icon={<EliteCrownIcon active={activeTab === 'profile'} size={22} />} label="Me" />
                 </div>
               </div>
@@ -623,5 +612,4 @@ export default function App() {
     </ThemeProvider>
   );
 }
-
 

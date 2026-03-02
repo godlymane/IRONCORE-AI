@@ -181,7 +181,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                                 </div>
 
                                 <button
-                                    onClick={() => setActiveTab('workout')}
+                                    onClick={() => setActiveTab('train')}
                                     className="w-full mt-4 py-4 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
                                     style={{
                                         background: userDamage > 0
@@ -668,6 +668,5 @@ const LeaderboardItem = ({ u, i, user, setSelectedPlayer }) => (
         </div>
     </div>
 );
-
 
 
