@@ -2,6 +2,29 @@ import Foundation
 import FirebaseFirestore
 import FirebaseAuth
 
+// MARK: - Data Models
+
+struct CommunityBoss {
+    let bossId: String
+    let name: String
+    let totalHP: Int
+    let currentHP: Int
+    let contributors: [BossContributor]
+    let status: String
+    let startedAt: Timestamp?
+    let defeatedAt: Timestamp?
+    let lastDamageAt: Timestamp?
+}
+
+struct BossContributor: Identifiable {
+    var id: String { userId }
+    let userId: String
+    let username: String
+    let damageDealt: Int
+    let joinedAt: String
+    let claimedXP: Bool
+}
+
 /// Community Boss Raids — global boss fight where all users deal damage.
 /// Mirrors CommunityBoss.jsx from React prototype.
 /// Firestore path: community_boss/current

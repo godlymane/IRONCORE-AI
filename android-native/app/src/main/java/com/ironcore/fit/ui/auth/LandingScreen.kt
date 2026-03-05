@@ -1,32 +1,45 @@
 package com.ironcore.fit.ui.auth
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.Text
+import com.ironcore.fit.ui.components.ButtonVariant
+import com.ironcore.fit.ui.components.GlassButton
 import com.ironcore.fit.ui.theme.*
 
 /**
  * Landing screen — first thing users see.
  * Two buttons: "Create Account" and "Log In".
- * Matches React PlayerCardView.jsx landing step.
+ * Glass morphism styling matching React Capacitor app exactly.
  */
 @Composable
 fun LandingScreen(
     onCreateAccount: () -> Unit,
     onLogin: () -> Unit
 ) {
+    // Fade-in on mount
+    val fadeIn = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        fadeIn.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(600, easing = FastOutSlowInEasing)
+        )
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(IronBlack),
+            .background(IronBlack)
+            .alpha(fadeIn.value),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -64,46 +77,27 @@ fun LandingScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // ── Create Account button ────────────────────────────
-            Button(
+            // ── Create Account — gradient red button ──────────────
+            GlassButton(
+                text = "CREATE ACCOUNT",
                 onClick = onCreateAccount,
+                variant = ButtonVariant.PRIMARY,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = IronRed),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Text(
-                    text = "CREATE ACCOUNT",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    letterSpacing = 2.sp
-                )
-            }
+                    .height(56.dp)
+            )
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // ── Log In button ────────────────────────────────────
-            OutlinedButton(
+            // ── Log In — glass secondary button ───────────────────
+            GlassButton(
+                text = "LOG IN",
                 onClick = onLogin,
+                variant = ButtonVariant.SECONDARY,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = IronTextPrimary
-                ),
-                border = ButtonDefaults.outlinedButtonBorder(enabled = true).copy(
-                    brush = androidx.compose.ui.graphics.SolidColor(IronCardBorder)
-                ),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Text(
-                    text = "LOG IN",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    letterSpacing = 2.sp
-                )
-            }
+                    .height(56.dp)
+            )
 
             Spacer(modifier = Modifier.height(48.dp))
         }

@@ -1,30 +1,28 @@
 package com.ironcore.fit.ui.auth
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ironcore.fit.ui.components.*
 import com.ironcore.fit.ui.theme.*
 
 /**
  * Username entry screen with real-time availability checking.
- * Shows @ prefix, validates format, debounces Firestore lookups.
- * Matches React PlayerCardView.jsx UsernameScreen.
+ * Glass morphism styling matching React Capacitor app.
  */
 @Composable
 fun UsernameScreen(
@@ -39,10 +37,16 @@ fun UsernameScreen(
 ) {
     var rawInput by remember { mutableStateOf(username) }
 
+    val fadeIn = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        fadeIn.animateTo(1f, animationSpec = tween(500, easing = FastOutSlowInEasing))
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(IronBlack)
+            .alpha(fadeIn.value)
     ) {
         Column(
             modifier = Modifier
@@ -51,7 +55,6 @@ fun UsernameScreen(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ── Back button ──────────────────────────────────────
             IconButton(onClick = onBack) {
                 Icon(
                     Icons.Default.ArrowBack,
@@ -62,7 +65,6 @@ fun UsernameScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // ── Title ────────────────────────────────────────────
             Text(
                 text = "IRONCORE",
                 fontSize = 28.sp,
@@ -87,16 +89,24 @@ fun UsernameScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // ── Username input ───────────────────────────────────
-            OutlinedTextField(
+            // Glass username input with availability indicator
+            GlassInput(
                 value = rawInput,
                 onValueChange = {
                     rawInput = it
                     onUsernameChanged(it)
                 },
-                label = { Text("Username") },
-                prefix = { Text("@", color = IronTextTertiary) },
-                trailingIcon = {
+                placeholder = "Username",
+                modifier = Modifier.fillMaxWidth(),
+                prefix = {
+                    Text(
+                        text = "@",
+                        color = IronTextTertiary,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                },
+                suffix = {
                     when {
                         isCheckingUsername -> CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
@@ -106,44 +116,35 @@ fun UsernameScreen(
                         isUsernameAvailable == true -> Icon(
                             Icons.Default.CheckCircle,
                             contentDescription = "Available",
-                            tint = IronGreen
+                            tint = IronGreen,
+                            modifier = Modifier.size(20.dp)
                         )
                         isUsernameAvailable == false -> Icon(
                             Icons.Default.Close,
                             contentDescription = "Taken",
-                            tint = IronRed
+                            tint = IronRed,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
-                },
-                isError = usernameError != null,
-                supportingText = {
-                    when {
-                        usernameError != null -> Text(usernameError, color = IronRed)
-                        isUsernameAvailable == true -> Text("Available!", color = IronGreen)
-                    }
-                },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = if (isUsernameAvailable == true) IronGreen else IronRed,
-                    unfocusedBorderColor = IronCardBorder,
-                    focusedLabelColor = IronRed,
-                    unfocusedLabelColor = IronTextTertiary,
-                    cursorColor = IronRed,
-                    focusedTextColor = IronTextPrimary,
-                    unfocusedTextColor = IronTextPrimary
-                ),
-                shape = RoundedCornerShape(12.dp),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Ascii,
-                    imeAction = ImeAction.Done
-                ),
-                keyboardActions = KeyboardActions(
-                    onDone = { if (isUsernameAvailable == true) onConfirm() }
-                )
+                }
             )
 
-            // ── Global error ─────────────────────────────────────
+            // Status text
+            Spacer(modifier = Modifier.height(8.dp))
+            when {
+                usernameError != null -> Text(
+                    text = usernameError,
+                    color = IronRed,
+                    fontSize = 12.sp
+                )
+                isUsernameAvailable == true -> Text(
+                    text = "Available!",
+                    color = IronGreen,
+                    fontSize = 12.sp
+                )
+            }
+
+            // Global error
             if (error != null) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
@@ -157,23 +158,15 @@ fun UsernameScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // ── Continue button ──────────────────────────────────
-            Button(
+            GlassButton(
+                text = "CONTINUE",
                 onClick = onConfirm,
+                variant = ButtonVariant.PRIMARY,
+                enabled = isUsernameAvailable == true && usernameError == null,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = IronRed),
-                shape = RoundedCornerShape(14.dp),
-                enabled = isUsernameAvailable == true && usernameError == null
-            ) {
-                Text(
-                    text = "CONTINUE",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    letterSpacing = 2.sp
-                )
-            }
+                    .height(56.dp)
+            )
 
             Spacer(modifier = Modifier.height(32.dp))
         }

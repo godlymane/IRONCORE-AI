@@ -1,7 +1,9 @@
 package com.ironcore.fit.ui.navigation
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -14,6 +16,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -27,6 +32,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.ironcore.fit.ui.auth.*
+import com.ironcore.fit.ui.components.*
 import com.ironcore.fit.ui.home.HomeScreen
 import com.ironcore.fit.ui.workout.WorkoutScreen
 import com.ironcore.fit.ui.coach.CoachScreen
@@ -46,11 +52,6 @@ import com.ironcore.fit.ui.theme.*
 // Bottom tab definitions
 // ══════════════════════════════════════════════════════════════════
 
-/**
- * Sealed class representing the five main bottom-navigation tabs.
- * Each carries a route, display label, and filled / outlined icon pair
- * for the active vs. inactive state.
- */
 sealed class Screen(
     val route: String,
     val label: String,
@@ -64,10 +65,6 @@ sealed class Screen(
     data object Profile : Screen("profile", "Me", Icons.Filled.Person, Icons.Outlined.Person)
 }
 
-/**
- * Sub-screen route constants. These screens are pushed onto the navigation
- * stack from within a tab and do NOT show the bottom bar.
- */
 object SubScreen {
     const val COACH = "coach"
     const val NUTRITION = "nutrition"
@@ -99,37 +96,15 @@ private val bottomTabs = listOf(
 )
 
 // ══════════════════════════════════════════════════════════════════
-// Auth state machine — mirrors the React App.jsx flow
+// Auth state machine
 // ══════════════════════════════════════════════════════════════════
 
-/**
- * Top-level authentication states.
- *
- * CHECKING      – initial load, determining auth status.
- * LOGGED_OUT    – no Firebase user, show auth flow.
- * AUTHENTICATED – user signed in, show main app shell.
- */
 enum class AuthState { CHECKING, LOGGED_OUT, AUTHENTICATED }
 
 // ══════════════════════════════════════════════════════════════════
 // Root composable
 // ══════════════════════════════════════════════════════════════════
 
-/**
- * Entry-point composable wired into `MainActivity`.
- *
- * Observes Firebase auth state via [AuthViewModel] and renders
- * either the multi-step auth flow or the main tabbed application.
- *
- * Auth flow steps are driven by AuthStep enum in AuthViewModel:
- *   LANDING   → LandingScreen (Create Account / Log In)
- *   USERNAME  → UsernameScreen (enter username, check availability)
- *   PIN_SETUP → PinEntryScreen (create 6-digit PIN)
- *   CREATING  → Loading spinner (account being created)
- *   REVEAL    → CardRevealScreen (recovery phrase + QR code)
- *   LOGIN     → LoginScreen (username + PIN login)
- *   RECOVERY  → RecoveryScreen (enter 12-word phrase)
- */
 @Composable
 fun AppNavigation(authViewModel: AuthViewModel = hiltViewModel()) {
     val user by authViewModel.currentUser.collectAsState()
@@ -144,7 +119,6 @@ fun AppNavigation(authViewModel: AuthViewModel = hiltViewModel()) {
         AuthState.CHECKING -> LoadingScreen()
 
         AuthState.LOGGED_OUT -> {
-            // Multi-step auth flow driven by AuthStep
             when (uiState.step) {
                 AuthStep.LANDING -> LandingScreen(
                     onCreateAccount = { authViewModel.goToCreateAccount() },
@@ -204,7 +178,7 @@ fun AppNavigation(authViewModel: AuthViewModel = hiltViewModel()) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// Creating account screen — shown during AuthStep.CREATING
+// Creating account screen
 // ══════════════════════════════════════════════════════════════════
 
 @Composable
@@ -236,7 +210,7 @@ private fun CreatingAccountScreen() {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// Recovery screen — 12-word phrase entry
+// Recovery screen — glass morphism styled
 // ══════════════════════════════════════════════════════════════════
 
 @Composable
@@ -260,7 +234,6 @@ private fun RecoveryScreen(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Back button
             IconButton(onClick = onBack) {
                 Icon(
                     Icons.Default.ArrowBack,
@@ -296,28 +269,17 @@ private fun RecoveryScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Recovery phrase input
-            OutlinedTextField(
+            // Glass recovery input
+            GlassInput(
                 value = recoveryInput,
                 onValueChange = onInputChanged,
-                label = { Text("Recovery phrase") },
-                placeholder = { Text("iron wolf thunder spark ...", color = IronTextTertiary.copy(alpha = 0.5f)) },
-                minLines = 3,
-                maxLines = 4,
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = IronYellow,
-                    unfocusedBorderColor = IronCardBorder,
-                    focusedLabelColor = IronYellow,
-                    unfocusedLabelColor = IronTextTertiary,
-                    cursorColor = IronYellow,
-                    focusedTextColor = IronTextPrimary,
-                    unfocusedTextColor = IronTextPrimary
-                ),
-                shape = RoundedCornerShape(12.dp)
+                placeholder = "iron wolf thunder spark ...",
+                singleLine = false,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 100.dp)
             )
 
-            // Error message
             if (error != null) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
@@ -331,20 +293,20 @@ private fun RecoveryScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Submit button
-            Button(
+            GlassButton(
+                text = if (isLoading) "" else "RECOVER ACCOUNT",
                 onClick = onSubmit,
+                variant = ButtonVariant.PRIMARY,
+                enabled = !isLoading && recoveryInput.trim().split("\\s+".toRegex()).size >= 12,
+                isLoading = isLoading,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = IronYellow),
-                shape = RoundedCornerShape(14.dp),
-                enabled = !isLoading && recoveryInput.trim().split("\\s+".toRegex()).size >= 12
+                    .height(56.dp)
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
-                        color = IronBlack,
+                        color = Color.White,
                         strokeWidth = 2.dp
                     )
                 } else {
@@ -353,7 +315,7 @@ private fun RecoveryScreen(
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,
                         letterSpacing = 2.sp,
-                        color = IronBlack
+                        color = Color.White
                     )
                 }
             }
@@ -373,32 +335,17 @@ private fun MainApp() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    // Hide the bottom bar on sub-screens (anything not in the five tabs).
     val showBottomBar = currentRoute in bottomTabs.map { it.route }
 
-    Scaffold(
-        containerColor = IronBlack,
-        bottomBar = {
-            if (showBottomBar) {
-                IronCoreBottomBar(
-                    currentRoute = currentRoute,
-                    onTabSelected = { screen ->
-                        navController.navigate(screen.route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    }
-                )
-            }
-        }
-    ) { innerPadding ->
+    Box(modifier = Modifier.fillMaxSize().background(IronBlack)) {
         NavHost(
             navController = navController,
             startDestination = Screen.Home.route,
-            modifier = Modifier.padding(innerPadding),
+            modifier = Modifier
+                .fillMaxSize()
+                .then(
+                    if (showBottomBar) Modifier.padding(bottom = 80.dp) else Modifier
+                ),
             enterTransition = { slideInHorizontally(initialOffsetX = { it }) + fadeIn() },
             exitTransition = { slideOutHorizontally(targetOffsetX = { -it }) + fadeOut() },
             popEnterTransition = { slideInHorizontally(initialOffsetX = { -it }) + fadeIn() },
@@ -429,28 +376,20 @@ private fun MainApp() {
                 CoachScreen(navController = navController)
             }
 
-            // PIN screens (in-app PIN verify/change, separate from auth flow)
             composable(SubScreen.PIN_SETUP) {
                 PinEntryScreen(
                     mode = PinMode.SETUP,
-                    onComplete = { _ ->
-                        navController.popBackStack()
-                    }
+                    onComplete = { _ -> navController.popBackStack() }
                 )
             }
             composable(SubScreen.PIN_VERIFY) {
                 PinEntryScreen(
                     mode = PinMode.VERIFY,
-                    onComplete = { _ ->
-                        navController.popBackStack()
-                    },
-                    onForgot = {
-                        navController.popBackStack()
-                    }
+                    onComplete = { _ -> navController.popBackStack() },
+                    onForgot = { navController.popBackStack() }
                 )
             }
 
-            // ── Implemented sub-screens ──────────────────────────────
             composable(SubScreen.NUTRITION) {
                 NutritionScreen(navController = navController)
             }
@@ -483,7 +422,7 @@ private fun MainApp() {
                 )
             }
 
-            // ── Placeholder sub-screens (future phases) ──────────────
+            // ── Placeholder sub-screens ──────────────────────────
             composable(SubScreen.SETTINGS) {
                 PlaceholderScreen(title = "Settings", navController = navController)
             }
@@ -509,77 +448,121 @@ private fun MainApp() {
                 PlaceholderScreen(title = "Form Correction", navController = navController)
             }
         }
+
+        // ── Floating pill bottom bar ─────────────────────────────
+        if (showBottomBar) {
+            IronCoreBottomBar(
+                currentRoute = currentRoute,
+                onTabSelected = { screen ->
+                    navController.navigate(screen.route) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
     }
 }
 
 // ══════════════════════════════════════════════════════════════════
-// Custom bottom navigation bar — IronCore HUD styling
+// Floating Pill Bottom Bar — matches React floating nav exactly
 // ══════════════════════════════════════════════════════════════════
 
-/**
- * Custom bottom bar with glass-morphism surface, filled/outlined icon
- * toggle, red accent indicator line, and compact labels.
- */
 @Composable
 private fun IronCoreBottomBar(
     currentRoute: String?,
-    onTabSelected: (Screen) -> Unit
+    onTabSelected: (Screen) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(IronSurface)
-    ) {
-        // Top separator line
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(0.5.dp)
-                .background(IronCardBorder)
-                .align(Alignment.TopCenter)
-        )
+    val selectedIndex = bottomTabs.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
+    val pillShape = RoundedCornerShape(28.dp)
 
+    Box(
+        modifier = modifier
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .shadow(
+                elevation = 24.dp,
+                shape = pillShape,
+                ambientColor = Color.Black.copy(alpha = 0.6f),
+                spotColor = IronRed.copy(alpha = 0.15f)
+            )
+            .clip(pillShape)
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(
+                        Color(0xF2121212),  // rgba(18,18,18,0.95)
+                        Color(0xF20A0A0A)   // rgba(10,10,10,0.95)
+                    )
+                )
+            )
+            .border(1.dp, IronRed.copy(alpha = 0.1f), pillShape)
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
+            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            bottomTabs.forEach { screen ->
-                val selected = currentRoute == screen.route
+            bottomTabs.forEachIndexed { index, screen ->
+                val selected = index == selectedIndex
+
+                // Animated indicator background
+                val bgAlpha by animateFloatAsState(
+                    targetValue = if (selected) 0.15f else 0f,
+                    animationSpec = tween(200),
+                    label = "tabBg$index"
+                )
+
+                val iconColor by animateColorAsState(
+                    targetValue = if (selected) IronRed else IronTextTertiary,
+                    animationSpec = tween(200),
+                    label = "tabIcon$index"
+                )
+
+                val scale by animateFloatAsState(
+                    targetValue = if (selected) 1.05f else 1f,
+                    animationSpec = spring(stiffness = Spring.StiffnessMedium),
+                    label = "tabScale$index"
+                )
 
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(IronRed.copy(alpha = bgAlpha))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) { onTabSelected(screen) }
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
                 ) {
                     Icon(
                         imageVector = if (selected) screen.icon else screen.iconOutlined,
                         contentDescription = screen.label,
-                        tint = if (selected) IronRed else IronTextTertiary,
-                        modifier = Modifier.size(24.dp)
+                        tint = iconColor,
+                        modifier = Modifier.size(22.dp)
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = screen.label,
-                        fontSize = 10.sp,
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                        color = if (selected) IronRed else IronTextTertiary
+                        text = screen.label.uppercase(),
+                        fontSize = 9.sp,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                        color = iconColor,
+                        letterSpacing = 0.5.sp
                     )
-                    // Active indicator bar
+                    // Red indicator dot
                     if (selected) {
                         Spacer(modifier = Modifier.height(2.dp))
                         Box(
                             modifier = Modifier
-                                .width(16.dp)
-                                .height(2.dp)
-                                .clip(RoundedCornerShape(1.dp))
+                                .width(4.dp)
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp))
                                 .background(IronRed)
                         )
                     }
@@ -593,7 +576,6 @@ private fun IronCoreBottomBar(
 // Utility screens
 // ══════════════════════════════════════════════════════════════════
 
-/** Full-screen loading spinner shown during auth state resolution. */
 @Composable
 private fun LoadingScreen() {
     Box(
@@ -616,10 +598,6 @@ private fun LoadingScreen() {
     }
 }
 
-/**
- * Generic stub screen for sub-routes that are not yet implemented.
- * Shows the screen title and a back button.
- */
 @Composable
 private fun PlaceholderScreen(
     title: String,
