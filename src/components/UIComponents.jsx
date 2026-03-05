@@ -54,9 +54,9 @@ export const ToastProvider = ({ children }) => {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
               transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-              className={`pointer-events-auto max-w-sm mx-auto w-full flex items-center gap-3 p-4 rounded-2xl shadow-2xl backdrop-blur-xl border ${t.type === 'success' ? 'bg-green-500/90 text-white border-green-400/30' :
-                t.type === 'error' ? 'bg-red-600/90 text-white border-red-500/30' :
-                  'bg-black/90 text-gray-200 border-red-500/20'
+              className={`pointer-events-auto max-w-sm mx-auto w-full flex items-center gap-3 p-4 rounded-2xl shadow-2xl border ${t.type === 'success' ? 'bg-green-500/95 text-white border-green-400/30' :
+                t.type === 'error' ? 'bg-red-600/95 text-white border-red-500/30' :
+                  'bg-black/95 text-gray-200 border-red-500/20'
                 }`}
             >
               {t.type === 'success' && <Check size={18} className="text-white" />}
@@ -150,6 +150,7 @@ export const PageTransition = ({ children, className = '', direction = 0 }) => (
 
 // --- EMPTY STATES ---
 export const EmptyState = ({ type = 'default', title, description, action }) => {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
   const configs = {
     gallery: {
       icon: <Image size={48} className="text-red-400/50" />,
@@ -193,8 +194,8 @@ export const EmptyState = ({ type = 'default', title, description, action }) => 
       className={`flex flex-col items-center justify-center p-8 rounded-3xl bg-gradient-to-br ${config.gradient} backdrop-blur-xl border border-white/5`}
     >
       <motion.div
-        animate={{ y: [0, -5, 0] }}
-        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+        animate={isMobile ? {} : { y: [0, -5, 0] }}
+        transition={isMobile ? {} : { duration: 3, repeat: Infinity, ease: 'easeInOut' }}
         className="mb-4 p-4 rounded-2xl bg-white/5"
       >
         {config.icon}
@@ -212,6 +213,7 @@ export const EmptyState = ({ type = 'default', title, description, action }) => 
 
 // --- BUTTON COMPONENT ---
 export const Button = ({ children, onClick, className = "", variant = "primary", disabled = false, loading = false }) => {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
   const handleClick = (e) => {
     if (disabled || loading) return;
     if (navigator.vibrate) navigator.vibrate(10);
@@ -220,7 +222,8 @@ export const Button = ({ children, onClick, className = "", variant = "primary",
   };
 
   const getButtonStyles = () => {
-    const baseStyles = {
+    // Skip backdrop-blur on mobile for performance
+    const baseStyles = isMobile ? {} : {
       backdropFilter: 'blur(10px)',
       WebkitBackdropFilter: 'blur(10px)',
     };
@@ -298,24 +301,31 @@ export const Button = ({ children, onClick, className = "", variant = "primary",
 };
 
 // --- GLASS CARD ---
-export const Card = ({ children, className = "", onClick }) => (
-  <motion.div
-    onClick={onClick}
-    whileHover={{ scale: onClick ? 1.01 : 1, y: onClick ? -2 : 0 }}
-    transition={{ duration: 0.3 }}
-    className={`relative overflow-hidden rounded-3xl p-5 cursor-${onClick ? 'pointer' : 'default'} ${className}`}
-    style={{
-      background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 50%, rgba(255, 255, 255, 0.02) 100%)',
-      backdropFilter: 'blur(20px) saturate(180%)',
-      WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-      border: '1px solid rgba(220, 38, 38, 0.12)',
-      boxShadow: '0 10px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
-    }}
-  >
-    <div className="absolute top-0 left-0 right-0 h-[40%] rounded-t-3xl pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%)' }} />
-    <div className="relative z-10">{children}</div>
-  </motion.div>
-);
+export const Card = ({ children, className = "", onClick }) => {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+  return (
+    <motion.div
+      onClick={onClick}
+      whileHover={{ scale: onClick ? 1.01 : 1, y: onClick ? -2 : 0 }}
+      transition={{ duration: 0.3 }}
+      className={`relative overflow-hidden rounded-3xl p-5 cursor-${onClick ? 'pointer' : 'default'} ${className}`}
+      style={isMobile ? {
+        background: 'rgba(15, 15, 15, 0.92)',
+        border: '1px solid rgba(220, 38, 38, 0.12)',
+        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5)',
+      } : {
+        background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 50%, rgba(255, 255, 255, 0.02) 100%)',
+        backdropFilter: 'blur(20px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+        border: '1px solid rgba(220, 38, 38, 0.12)',
+        boxShadow: '0 10px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
+      }}
+    >
+      {!isMobile && <div className="absolute top-0 left-0 right-0 h-[40%] rounded-t-3xl pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%)' }} />}
+      <div className="relative z-10">{children}</div>
+    </motion.div>
+  );
+};
 
 // --- CONSOLIDATED GLASS CARD ---
 // Single source of truth for all glass card styling across the app

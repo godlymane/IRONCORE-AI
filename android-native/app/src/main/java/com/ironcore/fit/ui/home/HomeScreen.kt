@@ -45,9 +45,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
+import android.content.Intent
+import android.os.Build
 import com.ironcore.fit.data.model.Meal
 import com.ironcore.fit.ui.components.GlassCard
 import com.ironcore.fit.ui.theme.*
+import com.nova.companion.biohack.audio.NeuroAudioService
 
 // ─────────────────────────────────────────────────────────────────────
 // Reusable ProgressRing — Canvas arc with glow
@@ -173,6 +176,9 @@ fun HomeScreen(
                     onLog = { preset -> viewModel.logQuickMeal(preset) }
                 )
             }
+
+            // ── Neuro-Hack ───────────────────────────────────────
+            item { NeuroHackSection() }
 
             // ── Today's Meals ───────────────────────────────────
             item {
@@ -777,6 +783,110 @@ private fun MealRow(meal: Meal) {
             fontWeight = FontWeight.Black,
             color = IronTextSecondary
         )
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Neuro-Hack — Binaural Beat Controls
+// ─────────────────────────────────────────────────────────────────────
+@Composable
+private fun NeuroHackSection() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val neuroPurple = IronPurple
+
+    fun sendNeuroAction(action: String) {
+        val intent = Intent(context, NeuroAudioService::class.java).apply {
+            this.action = action
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.startForegroundService(intent)
+        } else {
+            context.startService(intent)
+        }
+    }
+
+    data class NeuroPreset(
+        val label: String,
+        val action: String,
+        val color: Color,
+        val isStop: Boolean = false
+    )
+
+    val presets = listOf(
+        NeuroPreset("Fearless",   NeuroAudioService.ACTION_START_FEARLESS,    IronRed),
+        NeuroPreset("God Mode",   NeuroAudioService.ACTION_START_GOD_MODE,    IronYellow),
+        NeuroPreset("Flow State", NeuroAudioService.ACTION_START_INTELLIGENT, IronBlue),
+        NeuroPreset("Recovery",   NeuroAudioService.ACTION_START_RECOVERY,    IronGreen),
+        NeuroPreset("Stop",       NeuroAudioService.ACTION_STOP,              IronTextTertiary, isStop = true)
+    )
+
+    Column {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(bottom = 8.dp)
+        ) {
+            Text(
+                text = "NEURO-HACK",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Black,
+                color = neuroPurple,
+                letterSpacing = 2.sp
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "BINAURAL",
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                color = IronTextTertiary,
+                letterSpacing = 1.sp,
+                modifier = Modifier
+                    .background(
+                        neuroPurple.copy(alpha = 0.15f),
+                        RoundedCornerShape(4.dp)
+                    )
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            presets.forEach { preset ->
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            if (preset.isStop)
+                                Color.White.copy(alpha = 0.06f)
+                            else
+                                preset.color.copy(alpha = 0.12f)
+                        )
+                        .border(
+                            1.dp,
+                            if (preset.isStop)
+                                GlassBorder
+                            else
+                                preset.color.copy(alpha = 0.3f),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .clickable { sendNeuroAction(preset.action) }
+                        .padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = preset.label,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Black,
+                        color = if (preset.isStop) IronTextSecondary else preset.color,
+                        letterSpacing = 0.5.sp,
+                        maxLines = 1,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
     }
 }
 

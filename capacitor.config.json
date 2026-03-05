@@ -52,6 +52,8 @@
     "allowMixedContent": false,
     "backgroundColor": "#000000",
     "useLegacyBridge": false,
-    "appendUserAgent": "IronCoreApp"
+    "appendUserAgent": "IronCoreApp",
+    "overScrollMode": "never",
+    "webContentsDebuggingEnabled": false
   }
 }
