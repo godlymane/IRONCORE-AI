@@ -268,6 +268,55 @@ fun BattlePassScreen(navController: NavHostController? = null) {
             }
         }
 
+        // ── Premium Upsell CTA ─────────────────────────────
+        if (!uiState.isPremium) {
+            item {
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            Icons.Default.WorkspacePremium,
+                            contentDescription = null,
+                            tint = IronPurple,
+                            modifier = Modifier.size(40.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "UNLOCK PREMIUM TRACK",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Black,
+                            color = IronPurple,
+                            letterSpacing = 1.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Get exclusive cosmetics, titles, and XP boosts",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = IronTextTertiary,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = { /* TODO: premium purchase flow */ },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = IronPurple
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                "UPGRADE — \$4.99",
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         item { Spacer(modifier = Modifier.height(16.dp)) }
     }
 }

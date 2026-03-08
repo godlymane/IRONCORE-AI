@@ -32,6 +32,10 @@ data class ProfileUiState(
     val dailyFats: Int = 60,
     val goal: String = "",
     val hasPin: Boolean = false,
+    // Settings toggles
+    val notificationsEnabled: Boolean = true,
+    val hapticsEnabled: Boolean = true,
+    val soundEnabled: Boolean = true,
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
     val error: String? = null
@@ -137,6 +141,24 @@ class ProfileViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    fun toggleNotifications() {
+        _uiState.value = _uiState.value.copy(
+            notificationsEnabled = !_uiState.value.notificationsEnabled
+        )
+    }
+
+    fun toggleHaptics() {
+        _uiState.value = _uiState.value.copy(
+            hapticsEnabled = !_uiState.value.hapticsEnabled
+        )
+    }
+
+    fun toggleSound() {
+        _uiState.value = _uiState.value.copy(
+            soundEnabled = !_uiState.value.soundEnabled
+        )
     }
 
     fun clearError() {

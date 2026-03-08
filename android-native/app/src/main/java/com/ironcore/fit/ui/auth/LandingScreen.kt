@@ -53,15 +53,17 @@ fun LandingScreen(
             // ── Branding ─────────────────────────────────────────
             Text(
                 text = "IRONCORE",
+                fontFamily = OswaldFontFamily,
                 fontSize = 42.sp,
-                fontWeight = FontWeight.Black,
+                fontWeight = FontWeight.Bold,
                 color = IronRed,
                 letterSpacing = 6.sp
             )
             Text(
                 text = "FIT",
+                fontFamily = OswaldFontFamily,
                 fontSize = 22.sp,
-                fontWeight = FontWeight.Light,
+                fontWeight = FontWeight.Normal,
                 color = IronTextSecondary,
                 letterSpacing = 10.sp
             )
@@ -70,6 +72,7 @@ fun LandingScreen(
 
             Text(
                 text = "Your Phone. Your Trainer.",
+                fontFamily = InterFontFamily,
                 fontSize = 16.sp,
                 color = IronTextTertiary,
                 textAlign = TextAlign.Center

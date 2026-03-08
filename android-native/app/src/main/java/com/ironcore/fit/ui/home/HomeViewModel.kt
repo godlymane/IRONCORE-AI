@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.ironcore.fit.data.model.Meal
+import com.ironcore.fit.data.remote.CloudFunctions
 import com.ironcore.fit.data.repository.NutritionRepository
 import com.ironcore.fit.data.repository.UserRepository
 import com.ironcore.fit.util.DateFormatters
@@ -66,6 +67,20 @@ data class HomeUiState(
     val isPremium: Boolean = false,
     val goal: String = "",
 
+    // XP Level Progress
+    val xpProgress: Float = 0f,         // 0..1 within current level
+    val xpInLevel: Long = 0,
+    val xpForNextLevel: Long = 100,
+
+    // Iron Score
+    val ironScore: Int = 0,             // 0..100
+    val scoreDelta: Int = 0,            // weekly trend
+
+    // Forge (streak-based)
+    val currentForge: Int = 0,          // consecutive days
+    val longestForge: Int = 0,
+    val forgeShieldCount: Int = 0,
+
     // Nutrition targets
     val dailyTarget: Int = 2000,
     val dailyProteinTarget: Int = 150,
@@ -89,8 +104,25 @@ data class HomeUiState(
     // Quick log
     val quickLogLoading: Boolean = false,
 
+    // Daily Weigh-In (matches React DashboardView.jsx)
+    val weighInValue: String = "",
+    val weighInLoading: Boolean = false,
+    val hasLoggedWeightToday: Boolean = false,
+    val weighInDismissed: Boolean = false,
+
+    // Quick Log with AI Vision (matches React DashboardView.jsx)
+    val mealText: String = "",
+    val aiStatus: String = "",
+    val showManualEntry: Boolean = false,
+    val manualMealName: String = "",
+    val manualCals: String = "",
+    val manualProtein: String = "",
+    val manualCarbs: String = "",
+    val manualFat: String = "",
+
     // Loading
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val isRefreshing: Boolean = false
 )
 
 // ── ViewModel ───────────────────────────────────────────────────────
@@ -98,7 +130,8 @@ data class HomeUiState(
 class HomeViewModel @Inject constructor(
     private val auth: FirebaseAuth,
     private val userRepository: UserRepository,
-    private val nutritionRepository: NutritionRepository
+    private val nutritionRepository: NutritionRepository,
+    private val cloudFunctions: CloudFunctions
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -130,6 +163,7 @@ class HomeViewModel @Inject constructor(
                 .collect { profile ->
                     if (profile != null) {
                         val level = XpCalculator.calculateLevel(profile.xp)
+                        val levelProgress = XpCalculator.getLevelProgress(profile.xp)
                         val dropDone = profile.dailyDrops[today] == true
 
                         _uiState.value = _uiState.value.copy(
@@ -141,8 +175,18 @@ class HomeViewModel @Inject constructor(
                             streak = profile.currentStreak,
                             isPremium = profile.isPremium,
                             dropCompleted = dropDone,
+                            // XP progress
+                            xpProgress = levelProgress.progress,
+                            xpInLevel = levelProgress.currentXpInLevel,
+                            xpForNextLevel = levelProgress.xpNeededForNext,
+                            // Forge
+                            currentForge = profile.currentStreak,
+                            longestForge = profile.longestStreak,
+                            forgeShieldCount = profile.streakShields,
                             isLoading = false
                         )
+                        // Recalculate iron score with new profile data
+                        recalculateIronScore()
                     }
                 }
         }
@@ -183,6 +227,46 @@ class HomeViewModel @Inject constructor(
             caloriesLeft = left,
             isLoading = false
         )
+        recalculateIronScore()
+    }
+
+    // ── Iron Score Computation ─────────────────────────────────────────
+    // Matches DashboardView.jsx: 40% calorie adherence + 30% protein +
+    // 20% streak consistency + 10% activity
+
+    private fun recalculateIronScore() {
+        val s = _uiState.value
+        val calAdherence = if (s.dailyTarget > 0) {
+            val ratio = s.netCalories.toFloat() / s.dailyTarget
+            // 1.0 when exactly on target, drops off above/below
+            (1f - (ratio - 1f).coerceIn(-1f, 1f).let { kotlin.math.abs(it) }).coerceIn(0f, 1f)
+        } else 0f
+
+        val proAdherence = if (s.dailyProteinTarget > 0) {
+            (s.totalProtein.toFloat() / s.dailyProteinTarget).coerceIn(0f, 1f)
+        } else 0f
+
+        val streakFactor = (s.currentForge / 30f).coerceIn(0f, 1f)
+        val activityFactor = (s.todaysBurned / 500f).coerceIn(0f, 1f)
+
+        val raw = (calAdherence * 0.4f + proAdherence * 0.3f +
+                streakFactor * 0.2f + activityFactor * 0.1f) * 100f
+
+        _uiState.value = s.copy(ironScore = raw.toInt().coerceIn(0, 100))
+    }
+
+    // ── Pull-to-Refresh ─────────────────────────────────────────────
+
+    fun refresh() {
+        _uiState.value = _uiState.value.copy(isRefreshing = true)
+        viewModelScope.launch {
+            try {
+                loadData()
+            } finally {
+                kotlinx.coroutines.delay(600) // Brief delay for visual feedback
+                _uiState.value = _uiState.value.copy(isRefreshing = false)
+            }
+        }
     }
 
     // ── Quick Meal Logging ──────────────────────────────────────────
@@ -240,6 +324,146 @@ class HomeViewModel @Inject constructor(
                 )
             } catch (_: Exception) {
                 _uiState.value = _uiState.value.copy(dropClaiming = false)
+            }
+        }
+    }
+
+    // ── Daily Weigh-In (matches React DashboardView.jsx) ──────────────
+
+    fun onWeighInValueChanged(value: String) {
+        _uiState.value = _uiState.value.copy(weighInValue = value)
+    }
+
+    fun dismissWeighIn() {
+        _uiState.value = _uiState.value.copy(weighInDismissed = true)
+    }
+
+    fun logWeight() {
+        val w = _uiState.value.weighInValue.toFloatOrNull() ?: return
+        if (w < 20f || w > 500f) return
+        val userId = auth.currentUser?.uid ?: return
+
+        _uiState.value = _uiState.value.copy(weighInLoading = true)
+        viewModelScope.launch {
+            try {
+                // Log weight entry to Firestore
+                userRepository.updateProfile(userId, mapOf(
+                    "lastWeight" to w,
+                    "weightLog.$today" to w,
+                    "lastWeightDate" to today
+                ))
+                // Award XP
+                userRepository.awardXP(userId, 50, "weight_log")
+
+                _uiState.value = _uiState.value.copy(
+                    weighInValue = "",
+                    weighInLoading = false,
+                    hasLoggedWeightToday = true
+                )
+            } catch (_: Exception) {
+                _uiState.value = _uiState.value.copy(weighInLoading = false)
+            }
+        }
+    }
+
+    // ── Quick Log with AI Vision ──────────────────────────────────────
+
+    fun onMealTextChanged(value: String) {
+        _uiState.value = _uiState.value.copy(mealText = value)
+    }
+
+    fun toggleManualEntry() {
+        _uiState.value = _uiState.value.copy(
+            showManualEntry = !_uiState.value.showManualEntry
+        )
+    }
+
+    fun onManualFieldChanged(
+        name: String? = null, cals: String? = null,
+        protein: String? = null, carbs: String? = null, fat: String? = null
+    ) {
+        val s = _uiState.value
+        _uiState.value = s.copy(
+            manualMealName = name ?: s.manualMealName,
+            manualCals = cals ?: s.manualCals,
+            manualProtein = protein ?: s.manualProtein,
+            manualCarbs = carbs ?: s.manualCarbs,
+            manualFat = fat ?: s.manualFat
+        )
+    }
+
+    fun submitManualMeal() {
+        val s = _uiState.value
+        if (s.manualMealName.isBlank()) return
+
+        viewModelScope.launch {
+            try {
+                val meal = Meal(
+                    name = s.manualMealName,
+                    calories = s.manualCals.toIntOrNull() ?: 0,
+                    protein = s.manualProtein.toDoubleOrNull() ?: 0.0,
+                    carbs = s.manualCarbs.toDoubleOrNull() ?: 0.0,
+                    fat = s.manualFat.toDoubleOrNull() ?: 0.0,
+                    date = today,
+                    time = Timestamp.now(),
+                    aiAnalyzed = false
+                )
+                nutritionRepository.addMeal(meal)
+                val userId = auth.currentUser?.uid
+                if (userId != null) userRepository.awardXP(userId, XpCalculator.XP_MEAL, "meal_log")
+
+                _uiState.value = _uiState.value.copy(
+                    showManualEntry = false,
+                    manualMealName = "", manualCals = "",
+                    manualProtein = "", manualCarbs = "", manualFat = ""
+                )
+            } catch (_: Exception) { }
+        }
+    }
+
+    /** AI-analyze text or image → log meal. Matches React spotMacros(). */
+    fun spotMacros(imageBase64: String? = null) {
+        val text = _uiState.value.mealText
+        if (text.isBlank() && imageBase64 == null) return
+
+        _uiState.value = _uiState.value.copy(
+            quickLogLoading = true,
+            aiStatus = if (imageBase64 != null) "Scanning..." else "Analyzing..."
+        )
+
+        viewModelScope.launch {
+            try {
+                val result = cloudFunctions.analyzeFood(
+                    mealText = text.ifBlank { null },
+                    imageBase64 = imageBase64
+                )
+                if (result.mealName.isNotBlank()) {
+                    val meal = Meal(
+                        name = result.mealName,
+                        calories = result.calories,
+                        protein = result.protein,
+                        carbs = result.carbs,
+                        fat = result.fat,
+                        date = today,
+                        time = Timestamp.now(),
+                        aiAnalyzed = true
+                    )
+                    nutritionRepository.addMeal(meal)
+                    val userId = auth.currentUser?.uid
+                    if (userId != null) userRepository.awardXP(userId, XpCalculator.XP_MEAL, "ai_meal_log")
+
+                    _uiState.value = _uiState.value.copy(
+                        mealText = "", aiStatus = "", quickLogLoading = false
+                    )
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        aiStatus = "", quickLogLoading = false, showManualEntry = true
+                    )
+                }
+            } catch (_: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    aiStatus = "", quickLogLoading = false, showManualEntry = true
+                )
             }
         }
     }

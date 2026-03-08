@@ -23,7 +23,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -35,6 +34,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.ironcore.fit.data.model.Workout
 import com.ironcore.fit.ui.components.GlassCard
+import com.ironcore.fit.ui.components.GlassTier
 import com.ironcore.fit.ui.theme.*
 import com.ironcore.fit.util.DateFormatters
 
@@ -317,7 +317,7 @@ private fun WorkoutHistoryCard(
                             Text(
                                 text = "${maxWeight.toInt()}kg max",
                                 fontSize = 12.sp,
-                                fontFamily = FontFamily.Monospace,
+                                fontFamily = JetBrainsMonoFontFamily,
                                 color = IronTextTertiary
                             )
                         }
@@ -361,16 +361,32 @@ private fun ActiveSessionView(
                 )
             }
 
-            // Exercise cards
+            // Exercise cards — stagger animation on entry
             itemsIndexed(
                 items = uiState.exercises,
                 key = { _, ex -> ex.id }
-            ) { _, exercise ->
-                ExerciseCard(
-                    exercise = exercise,
-                    viewModel = viewModel,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-                )
+            ) { index, exercise ->
+                val visible = remember { mutableStateOf(false) }
+                LaunchedEffect(exercise.id) {
+                    kotlinx.coroutines.delay(index * 80L)
+                    visible.value = true
+                }
+                AnimatedVisibility(
+                    visible = visible.value,
+                    enter = slideInVertically(
+                        initialOffsetY = { it / 2 },
+                        animationSpec = spring(
+                            stiffness = 400f,
+                            dampingRatio = 0.7f
+                        )
+                    ) + fadeIn(animationSpec = tween(250, delayMillis = index * 80))
+                ) {
+                    ExerciseCard(
+                        exercise = exercise,
+                        viewModel = viewModel,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    )
+                }
             }
 
             // Add Exercise button
@@ -495,7 +511,7 @@ private fun SessionHeader(
                     text = formatElapsed(elapsed),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = JetBrainsMonoFontFamily,
                     color = IronTextPrimary
                 )
             }
@@ -604,7 +620,7 @@ private fun ExerciseCard(
                         Text(
                             text = "PR: ${if (exercise.pr > 0) "${exercise.pr.toInt()}kg" else "None"}",
                             fontSize = 11.sp,
-                            fontFamily = FontFamily.Monospace,
+                            fontFamily = JetBrainsMonoFontFamily,
                             fontWeight = FontWeight.Bold,
                             color = IronTextTertiary,
                             letterSpacing = 1.sp
@@ -745,7 +761,7 @@ private fun SetRow(
         Text(
             text = "$setNumber",
             fontSize = 12.sp,
-            fontFamily = FontFamily.Monospace,
+            fontFamily = JetBrainsMonoFontFamily,
             color = IronTextTertiary,
             textAlign = TextAlign.Center,
             modifier = Modifier.width(32.dp)
@@ -975,7 +991,8 @@ private fun AddExerciseButton(
     }
 }
 
-// ── Rest timer overlay ────────────────────────────────────────
+// ── Smart Rest Timer Overlay ─────────────────────────────────
+// Matches React SmartRestTimer.jsx: progress ring, +30s, skip
 
 @Composable
 private fun RestTimerOverlay(
@@ -983,99 +1000,139 @@ private fun RestTimerOverlay(
     onAddTime: () -> Unit,
     onCancel: () -> Unit
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "timer_pulse")
-    val timerPulse by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 0.6f,
+    // Track total rest for progress ring
+    val totalRest = remember { mutableIntStateOf(90) }
+    LaunchedEffect(restTimer) {
+        if (restTimer > totalRest.intValue) totalRest.intValue = restTimer
+    }
+
+    val progress = if (totalRest.intValue > 0) restTimer.toFloat() / totalRest.intValue else 0f
+
+    val infiniteTransition = rememberInfiniteTransition(label = "rest_pulse")
+    val glowAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.7f,
         animationSpec = infiniteRepeatable(
-            animation = tween(600, easing = EaseInOut),
+            animation = tween(1200, easing = EaseInOut),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "timer_pulse_alpha"
+        label = "glow"
     )
 
-    Row(
+    GlassCard(
+        tier = GlassTier.LIQUID,
+        cornerRadius = 24.dp,
+        padding = 0.dp,
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(
-                Brush.horizontalGradient(
-                    colors = listOf(
-                        IronRed.copy(alpha = 0.2f),
-                        IronRed.copy(alpha = 0.1f)
-                    )
-                )
-            )
-            .border(1.dp, IronRedExtraLight.copy(alpha = 0.3f), RoundedCornerShape(50))
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .width(280.dp)
     ) {
-        // Timer icon + time
-        Icon(
-            Icons.Filled.Timer,
-            contentDescription = null,
-            tint = IronRedLight,
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
-                .size(16.dp)
-                .alpha(timerPulse)
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = formatElapsed(restTimer),
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Black,
-            fontFamily = FontFamily.Monospace,
-            color = IronTextPrimary
-        )
-        Spacer(modifier = Modifier.width(6.dp))
-        Text(
-            text = "REST",
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            color = IronTextTertiary,
-            letterSpacing = 1.sp
-        )
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        // Divider
-        Box(
-            modifier = Modifier
-                .width(1.dp)
-                .height(16.dp)
-                .background(IronTextTertiary.copy(alpha = 0.3f))
-        )
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        // +30s button
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color.White.copy(alpha = 0.08f))
-                .clickable { onAddTime() }
-                .padding(horizontal = 12.dp, vertical = 6.dp)
+                .fillMaxWidth()
+                .padding(24.dp)
         ) {
+            // REST label
             Text(
-                "+30s",
-                fontSize = 11.sp,
+                text = "REST",
+                fontFamily = OswaldFontFamily,
                 fontWeight = FontWeight.Bold,
-                color = IronTextPrimary
+                fontSize = 12.sp,
+                letterSpacing = 3.sp,
+                color = IronTextTertiary
             )
-        }
 
-        Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        // Stop button
-        IconButton(
-            onClick = onCancel,
-            modifier = Modifier.size(28.dp)
-        ) {
-            Icon(
-                Icons.Filled.StopCircle,
-                contentDescription = "Stop rest",
-                tint = IronRedLight,
-                modifier = Modifier.size(20.dp)
-            )
+            // Progress ring + timer
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(120.dp)
+            ) {
+                // Background ring
+                CircularProgressIndicator(
+                    progress = { 1f },
+                    modifier = Modifier.fillMaxSize(),
+                    strokeWidth = 4.dp,
+                    color = Color.White.copy(alpha = 0.06f),
+                    trackColor = Color.Transparent
+                )
+                // Progress ring
+                CircularProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.fillMaxSize(),
+                    strokeWidth = 4.dp,
+                    color = IronRed.copy(alpha = glowAlpha + 0.3f),
+                    trackColor = Color.Transparent
+                )
+                // Time display
+                Text(
+                    text = formatElapsed(restTimer),
+                    fontFamily = JetBrainsMonoFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 32.sp,
+                    color = IronTextPrimary
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Action buttons row
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                // +30s button
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White.copy(alpha = 0.06f))
+                        .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                        .clickable { onAddTime() }
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "+30s",
+                        fontFamily = JetBrainsMonoFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = IronTextPrimary
+                    )
+                }
+
+                // Skip button
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(IronRed.copy(alpha = 0.15f))
+                        .border(1.dp, IronRed.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                        .clickable { onCancel() }
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Filled.SkipNext,
+                            contentDescription = null,
+                            tint = IronRedLight,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "SKIP",
+                            fontFamily = OswaldFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            letterSpacing = 1.sp,
+                            color = IronRedLight
+                        )
+                    }
+                }
+            }
         }
     }
 }

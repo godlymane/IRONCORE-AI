@@ -21,7 +21,7 @@ let selectedBackend = null;
  * Device capability detection
  * Returns 'flagship', 'midrange', or 'budget' based on hardware
  */
-function detectDeviceCapability() {
+export function detectDeviceCapability() {
   const platform = Capacitor.getPlatform();
   
   // iOS device detection
@@ -180,33 +180,41 @@ export function cleanupTensorFlow() {
 /**
  * Helper: Lazy load TensorFlow models
  * Use this in FormCoach.jsx or any component that needs pose detection
- * 
+ *
+ * @param {string} [modelOverride] - 'lightning' or 'thunder'. Default: auto-select based on device.
+ *
  * Usage:
- * const detector = await lazyLoadPoseDetector();
+ * const detector = await lazyLoadPoseDetector(); // Auto-select
+ * const detector = await lazyLoadPoseDetector('thunder'); // Force Thunder
  */
-export async function lazyLoadPoseDetector() {
+export async function lazyLoadPoseDetector(modelOverride) {
   // Ensure backend is initialized first
   if (!backendInitialized) {
     await initializeTensorFlowBackend();
   }
 
-  console.log('[TensorFlow] Lazy loading pose detection model...');
-  
+  // Auto-select model based on device capability
+  const capability = detectDeviceCapability();
+  const useThunder = modelOverride === 'thunder' || (!modelOverride && capability === 'flagship');
+  const modelLabel = useThunder ? 'Thunder' : 'Lightning';
+
+  console.log(`[TensorFlow] Lazy loading MoveNet ${modelLabel} (device: ${capability})...`);
+
   // Dynamic import to code-split TensorFlow models
   const poseDetection = await import('@tensorflow-models/pose-detection');
-  
-  // Use MoveNet Lightning for speed (can switch to Thunder for accuracy)
+
   const detectorConfig = {
-    modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
-    // Enable smart cropping for better performance
+    modelType: useThunder
+      ? poseDetection.movenet.modelType.SINGLEPOSE_THUNDER
+      : poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
     enableSmoothing: true,
   };
-  
+
   const detector = await poseDetection.createDetector(
     poseDetection.SupportedModels.MoveNet,
     detectorConfig
   );
-  
-  console.log('[TensorFlow] Pose detector loaded successfully');
+
+  console.log(`[TensorFlow] Pose detector loaded (${modelLabel})`);
   return detector;
 }

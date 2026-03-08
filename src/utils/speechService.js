@@ -67,4 +67,11 @@ export const FORM_CUES = {
     LOCKOUT_MISSING: 'Lock out at the top',
     LEAN_FORWARD: 'Stay upright, chest up',
     NECK_STRAIN: 'Keep your neck neutral',
+    HIP_SHIFT: 'Level your hips',
+    BAR_PATH_DRIFT: 'Keep the bar closer',
+    TEMPO_FAST: 'Slow down the movement',
+    ASYMMETRY: 'Even out both sides',
+    FATIGUE_WARNING: 'Form is dropping, stay tight',
+    GREAT_REP: 'Great form, keep it up',
+    WRIST_HYPEREXT: 'Straighten your wrists',
 };

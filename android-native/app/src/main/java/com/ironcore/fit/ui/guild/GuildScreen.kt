@@ -5,7 +5,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,48 +21,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.ironcore.fit.ui.components.GlassCard
 import com.ironcore.fit.ui.theme.*
 
-// ── Local state models (wired to Firestore later) ───────────────
-
-private data class GuildUiState(
-    val hasGuild: Boolean = false,
-    val guildName: String = "",
-    val memberCount: Int = 0,
-    val guildXP: Long = 0,
-    val members: List<GuildMember> = emptyList(),
-    val bossName: String = "Iron Titan",
-    val bossCurrentHP: Long = 45_000,
-    val bossTotalHP: Long = 100_000,
-    val bossStatus: String = "active"
-)
-
-private data class GuildMember(
-    val name: String,
-    val xp: Long,
-    val role: String // "owner" | "member"
-)
-
 @Composable
-fun GuildScreen(navController: NavHostController? = null) {
-    // Sample state -- will be replaced by ViewModel + Firestore
-    val uiState = remember {
-        GuildUiState(
-            hasGuild = true,
-            guildName = "Iron Legion",
-            memberCount = 12,
-            guildXP = 28_500,
-            members = listOf(
-                GuildMember("Commander Rex", 8200, "owner"),
-                GuildMember("SpartanFit", 5100, "member"),
-                GuildMember("IronWolf", 4800, "member"),
-                GuildMember("BlazeRunner", 3900, "member"),
-                GuildMember("NovaPush", 3400, "member"),
-                GuildMember("TitanGrip", 3100, "member")
-            )
-        )
+fun GuildScreen(
+    navController: NavHostController? = null,
+    viewModel: GuildViewModel = hiltViewModel()
+) {
+    val uiState by viewModel.uiState.collectAsState()
+
+    if (uiState.isLoading) {
+        Box(modifier = Modifier.fillMaxSize().background(IronBlack), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = IronRed)
+        }
+        return
     }
 
     LazyColumn(
@@ -71,16 +50,23 @@ fun GuildScreen(navController: NavHostController? = null) {
         // ── Header ──────────────────────────────────────────
         item {
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "GUILD",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = IronTextPrimary,
-                letterSpacing = 2.sp
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { navController?.popBackStack() }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = IronTextPrimary)
+                }
+                Text(
+                    text = "GUILD",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = IronTextPrimary,
+                    letterSpacing = 2.sp
+                )
+            }
         }
 
-        if (uiState.hasGuild) {
+        if (uiState.hasGuild && uiState.guild != null) {
+            val guild = uiState.guild!!
+
             // ── Guild Info Card ──────────────────────────────
             item {
                 GlassCard(modifier = Modifier.fillMaxWidth()) {
@@ -95,13 +81,13 @@ fun GuildScreen(navController: NavHostController? = null) {
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = uiState.guildName,
+                                    text = guild.name,
                                     style = MaterialTheme.typography.headlineSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = IronTextPrimary
                                 )
                                 Text(
-                                    text = "${uiState.memberCount} members",
+                                    text = "${guild.memberCount} members",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = IronTextTertiary
                                 )
@@ -114,9 +100,18 @@ fun GuildScreen(navController: NavHostController? = null) {
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
-                            GuildStatItem("Guild XP", "${uiState.guildXP}", IronPurple)
-                            GuildStatItem("Members", "${uiState.memberCount}", IronBlue)
-                            GuildStatItem("Rank", "#3", IronYellow)
+                            GuildStatItem("Guild XP", formatNumber(guild.totalXP), IronPurple)
+                            GuildStatItem("Members", "${guild.memberCount}", IronBlue)
+                            GuildStatItem("League", guild.league, IronYellow)
+                        }
+
+                        if (guild.description.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = guild.description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = IronTextSecondary
+                            )
                         }
                     }
                 }
@@ -135,18 +130,45 @@ fun GuildScreen(navController: NavHostController? = null) {
                         )
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        uiState.members.forEachIndexed { index, member ->
-                            MemberRow(rank = index + 1, member = member)
-                            if (index < uiState.members.lastIndex) {
-                                HorizontalDivider(
-                                    color = GlassWhite,
-                                    modifier = Modifier.padding(vertical = 8.dp)
-                                )
+                        if (uiState.memberProfiles.isEmpty()) {
+                            Text("Loading members...", color = IronTextTertiary)
+                        } else {
+                            uiState.memberProfiles.forEachIndexed { index, member ->
+                                MemberRow(rank = index + 1, member = member)
+                                if (index < uiState.memberProfiles.lastIndex) {
+                                    HorizontalDivider(
+                                        color = GlassWhite,
+                                        modifier = Modifier.padding(vertical = 8.dp)
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
+
+            // ── Guild Chat ──────────────────────────────────
+            item {
+                GuildChatSection(
+                    messages = uiState.guildChat,
+                    currentUserId = uiState.currentUserId,
+                    onSend = { viewModel.sendGuildChatMessage(it) }
+                )
+            }
+
+            // ── Leave Guild ─────────────────────────────────
+            item {
+                OutlinedButton(
+                    onClick = { viewModel.leaveGuild() },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = IronTextTertiary)
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("LEAVE GUILD", fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                }
+            }
+
         } else {
             // ── No Guild State ──────────────────────────────
             item {
@@ -178,7 +200,7 @@ fun GuildScreen(navController: NavHostController? = null) {
 
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             Button(
-                                onClick = { /* TODO: create guild flow */ },
+                                onClick = { /* TODO: create guild dialog */ },
                                 colors = ButtonDefaults.buttonColors(containerColor = IronRed)
                             ) {
                                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -186,7 +208,7 @@ fun GuildScreen(navController: NavHostController? = null) {
                                 Text("CREATE GUILD", fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                             }
                             OutlinedButton(
-                                onClick = { /* TODO: join guild flow */ },
+                                onClick = { /* TODO: browse guilds */ },
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = IronTextPrimary)
                             ) {
                                 Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -213,7 +235,6 @@ fun GuildScreen(navController: NavHostController? = null) {
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Boss icon
                         Box(
                             modifier = Modifier
                                 .size(48.dp)
@@ -221,7 +242,7 @@ fun GuildScreen(navController: NavHostController? = null) {
                                 .background(IronRedDark),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("\uD83D\uDC79", fontSize = 24.sp) // ogre
+                            Text("\uD83D\uDC79", fontSize = 24.sp)
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
@@ -232,16 +253,15 @@ fun GuildScreen(navController: NavHostController? = null) {
                                 color = IronTextPrimary
                             )
                             Text(
-                                text = uiState.bossStatus.uppercase(),
+                                text = if (uiState.bossActive) "ACTIVE" else "DEFEATED",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = if (uiState.bossStatus == "active") IronGreen else IronTextTertiary
+                                color = if (uiState.bossActive) IronGreen else IronTextTertiary
                             )
                         }
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // HP Bar
                     val hpProgress = (uiState.bossCurrentHP.toFloat() / uiState.bossTotalHP.toFloat())
                         .coerceIn(0f, 1f)
                     Column {
@@ -249,11 +269,7 @@ fun GuildScreen(navController: NavHostController? = null) {
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(
-                                text = "HP",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = IronTextTertiary
-                            )
+                            Text("HP", style = MaterialTheme.typography.labelSmall, color = IronTextTertiary)
                             Text(
                                 text = "${formatNumber(uiState.bossCurrentHP)} / ${formatNumber(uiState.bossTotalHP)}",
                                 style = MaterialTheme.typography.labelSmall,
@@ -263,9 +279,7 @@ fun GuildScreen(navController: NavHostController? = null) {
                         Spacer(modifier = Modifier.height(4.dp))
                         LinearProgressIndicator(
                             progress = { hpProgress },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(10.dp),
+                            modifier = Modifier.fillMaxWidth().height(10.dp),
                             color = when {
                                 hpProgress > 0.5f -> IronRed
                                 hpProgress > 0.2f -> IronOrange
@@ -284,11 +298,7 @@ fun GuildScreen(navController: NavHostController? = null) {
                     ) {
                         Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            "DEAL DAMAGE",
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp
-                        )
+                        Text("DEAL DAMAGE", fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     }
                 }
             }
@@ -296,7 +306,130 @@ fun GuildScreen(navController: NavHostController? = null) {
 
         item { Spacer(modifier = Modifier.height(16.dp)) }
     }
+
+    // Error snackbar
+    uiState.error?.let { error ->
+        LaunchedEffect(error) {
+            // Show briefly then clear
+            kotlinx.coroutines.delay(3000)
+            viewModel.clearError()
+        }
+    }
 }
+
+// ── Guild Chat Section ──────────────────────────────────────────────
+
+@Composable
+private fun GuildChatSection(
+    messages: List<com.ironcore.fit.data.model.ChatMessage>,
+    currentUserId: String,
+    onSend: (String) -> Unit
+) {
+    var chatText by remember { mutableStateOf("") }
+
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column {
+            Text(
+                text = "GUILD CHAT",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = IronPurple,
+                letterSpacing = 1.sp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (messages.isEmpty()) {
+                Text(
+                    text = "No guild messages yet",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IronTextTertiary,
+                    modifier = Modifier.padding(vertical = 16.dp)
+                )
+            } else {
+                // Show last 5 messages
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    messages.takeLast(5).forEach { msg ->
+                        val isMe = msg.userId == currentUserId
+                        Row {
+                            if (!isMe) {
+                                Text(
+                                    text = msg.username,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = IronPurple,
+                                    fontSize = 11.sp
+                                )
+                                Text(": ", color = IronTextTertiary, fontSize = 11.sp)
+                            } else {
+                                Text(
+                                    text = "You: ",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = IronRed,
+                                    fontSize = 11.sp
+                                )
+                            }
+                            Text(
+                                text = msg.text,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = IronTextPrimary,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Input
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = chatText,
+                    onValueChange = { chatText = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = {
+                        Text("Message guild...", color = IronTextTertiary, style = MaterialTheme.typography.bodySmall)
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = IronTextPrimary,
+                        unfocusedTextColor = IronTextPrimary,
+                        focusedBorderColor = IronPurple,
+                        unfocusedBorderColor = GlassBorderSubtle,
+                        cursorColor = IronPurple,
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodySmall
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                IconButton(
+                    onClick = {
+                        if (chatText.isNotBlank()) {
+                            onSend(chatText)
+                            chatText = ""
+                        }
+                    },
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = if (chatText.isNotBlank()) IronPurple else GlassWhite08,
+                        contentColor = Color.White
+                    ),
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Send,
+                        contentDescription = "Send",
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ── Supporting Composables ──────────────────────────────────────────
 
 @Composable
 private fun GuildStatItem(label: String, value: String, color: Color) {
@@ -316,7 +449,7 @@ private fun GuildStatItem(label: String, value: String, color: Color) {
 }
 
 @Composable
-private fun MemberRow(rank: Int, member: GuildMember) {
+private fun MemberRow(rank: Int, member: GuildMemberInfo) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
@@ -329,7 +462,6 @@ private fun MemberRow(rank: Int, member: GuildMember) {
             modifier = Modifier.width(32.dp)
         )
 
-        // Avatar placeholder
         Box(
             modifier = Modifier
                 .size(32.dp)
@@ -338,7 +470,7 @@ private fun MemberRow(rank: Int, member: GuildMember) {
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = member.name.first().toString(),
+                text = member.username.firstOrNull()?.toString()?.uppercase() ?: "?",
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
                 color = IronTextPrimary
@@ -350,7 +482,7 @@ private fun MemberRow(rank: Int, member: GuildMember) {
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = member.name,
+                    text = member.username.ifEmpty { member.userId.take(8) },
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = IronTextPrimary

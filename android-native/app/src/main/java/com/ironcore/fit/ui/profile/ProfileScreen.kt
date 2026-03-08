@@ -1,14 +1,19 @@
 package com.ironcore.fit.ui.profile
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -27,9 +32,12 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.ironcore.fit.ui.components.GlassCard
+import com.ironcore.fit.ui.components.GlassTier
+import com.ironcore.fit.ui.components.ProfileSkeleton
 import com.ironcore.fit.ui.navigation.SubScreen
 import com.ironcore.fit.ui.theme.*
 import com.ironcore.fit.util.XpCalculator
+import kotlinx.coroutines.delay
 
 @Composable
 fun ProfileScreen(
@@ -40,13 +48,21 @@ fun ProfileScreen(
     var showTargetsDialog by remember { mutableStateOf(false) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
 
-    if (state.isLoading) {
-        Box(
-            modifier = Modifier.fillMaxSize().background(IronBlack),
-            contentAlignment = Alignment.Center
-        ) {
-            CircularProgressIndicator(color = IronRed)
+    // Stagger entrance
+    var sectionsVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(state.isLoading) {
+        if (!state.isLoading) {
+            delay(100)
+            sectionsVisible = true
         }
+    }
+
+    if (state.isLoading) {
+        ProfileSkeleton(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(IronBlack)
+        )
         return
     }
 
@@ -58,140 +74,211 @@ fun ProfileScreen(
         contentPadding = PaddingValues(vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // ── Profile Header ─────────────────────────────────────────
+        // ── 1. Profile Header ────────────────────────────────────────
         item {
-            ProfileHeader(
-                displayName = state.displayName,
-                email = state.email,
-                level = state.level,
-                league = state.league,
-                xp = state.xp,
-                photoUrl = state.photoUrl
-            )
+            StaggerItem(visible = sectionsVisible, index = 0) {
+                ProfileHeader(
+                    displayName = state.displayName,
+                    email = state.email,
+                    level = state.level,
+                    league = state.league,
+                    xp = state.xp,
+                    photoUrl = state.photoUrl
+                )
+            }
         }
 
-        // ── Stats Row ──────────────────────────────────────────────
+        // ── 2. Stats Grid ────────────────────────────────────────────
         item {
-            StatsRow(
-                level = state.level,
-                xp = state.xp,
-                streak = state.currentStreak,
-                longestStreak = state.longestStreak
-            )
+            StaggerItem(visible = sectionsVisible, index = 1) {
+                StatsGrid(
+                    level = state.level,
+                    xp = state.xp,
+                    streak = state.currentStreak,
+                    longestStreak = state.longestStreak
+                )
+            }
         }
 
-        // ── Subscription ───────────────────────────────────────────
+        // ── 3. Subscription Card ─────────────────────────────────────
         item {
-            SubscriptionCard(
-                isPremium = state.isPremium,
-                planName = state.subscriptionPlan,
-                expiryDate = state.subscriptionExpiry
-            )
+            StaggerItem(visible = sectionsVisible, index = 2) {
+                SubscriptionCard(
+                    isPremium = state.isPremium,
+                    planName = state.subscriptionPlan,
+                    expiryDate = state.subscriptionExpiry
+                )
+            }
         }
 
-        // ── Daily Targets ──────────────────────────────────────────
+        // ── 4. Daily Targets ─────────────────────────────────────────
         item {
-            DailyTargetsCard(
-                calories = state.dailyCalories,
-                protein = state.dailyProtein,
-                carbs = state.dailyCarbs,
-                fats = state.dailyFats,
-                onEdit = { showTargetsDialog = true }
-            )
+            StaggerItem(visible = sectionsVisible, index = 3) {
+                DailyTargetsCard(
+                    calories = state.dailyCalories,
+                    protein = state.dailyProtein,
+                    carbs = state.dailyCarbs,
+                    fats = state.dailyFats,
+                    onEdit = { showTargetsDialog = true }
+                )
+            }
         }
 
-        // ── Quick Actions ──────────────────────────────────────────
+        // ── 5. Quick Actions ─────────────────────────────────────────
         item {
-            SectionHeader("Quick Actions")
+            StaggerItem(visible = sectionsVisible, index = 4) {
+                Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                    SectionHeader("Quick Actions")
+                    Spacer(modifier = Modifier.height(10.dp))
+                    GlassCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        padding = 0.dp,
+                        cornerRadius = 20.dp
+                    ) {
+                        Column {
+                            ActionRow(
+                                icon = Icons.Outlined.Shield,
+                                label = if (state.hasPin) "Change PIN" else "Set Up PIN",
+                                sublabel = if (state.hasPin) "PIN is active" else "Secure your profile",
+                                iconTint = IronGreen,
+                                showDivider = true,
+                                onClick = {
+                                    navController?.navigate(
+                                        if (state.hasPin) SubScreen.PIN_VERIFY else SubScreen.PIN_SETUP
+                                    )
+                                }
+                            )
+                            ActionRow(
+                                icon = Icons.Outlined.EmojiEvents,
+                                label = "Achievements",
+                                sublabel = "View your trophies",
+                                iconTint = IronYellow,
+                                showDivider = true,
+                                onClick = { navController?.navigate(SubScreen.ACHIEVEMENTS) }
+                            )
+                            ActionRow(
+                                icon = Icons.Outlined.Leaderboard,
+                                label = "League",
+                                sublabel = state.league,
+                                iconTint = IronOrange,
+                                showDivider = true,
+                                onClick = { navController?.navigate(SubScreen.LEAGUE) }
+                            )
+                            ActionRow(
+                                icon = Icons.Outlined.CardMembership,
+                                label = "Player Card",
+                                sublabel = "Your identity",
+                                iconTint = IronPurple,
+                                showDivider = true,
+                                onClick = { navController?.navigate(SubScreen.PLAYER_CARD) }
+                            )
+                            ActionRow(
+                                icon = Icons.Outlined.BarChart,
+                                label = "Statistics",
+                                sublabel = "Detailed analytics",
+                                iconTint = IronBlue,
+                                showDivider = false,
+                                onClick = { navController?.navigate(SubScreen.STATS) }
+                            )
+                        }
+                    }
+                }
+            }
         }
 
+        // ── 6. Settings ──────────────────────────────────────────────
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                SettingsRow(
-                    icon = Icons.Outlined.Shield,
-                    label = if (state.hasPin) "Change PIN" else "Set Up PIN",
-                    sublabel = if (state.hasPin) "PIN is active" else "Secure your profile",
-                    iconTint = IronGreen,
-                    onClick = {
-                        navController?.navigate(
-                            if (state.hasPin) SubScreen.PIN_VERIFY else SubScreen.PIN_SETUP
+            StaggerItem(visible = sectionsVisible, index = 5) {
+                Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                    SectionHeader("Settings")
+                    Spacer(modifier = Modifier.height(10.dp))
+                    GlassCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        padding = 0.dp,
+                        cornerRadius = 20.dp
+                    ) {
+                        Column {
+                            ToggleRow(
+                                icon = Icons.Outlined.Notifications,
+                                label = "Notifications",
+                                sublabel = "Push alerts & reminders",
+                                iconTint = IronBlue,
+                                isChecked = state.notificationsEnabled,
+                                onToggle = { viewModel.toggleNotifications() },
+                                showDivider = true
+                            )
+                            ToggleRow(
+                                icon = Icons.Outlined.Vibration,
+                                label = "Haptics",
+                                sublabel = "Vibration feedback",
+                                iconTint = IronPurple,
+                                isChecked = state.hapticsEnabled,
+                                onToggle = { viewModel.toggleHaptics() },
+                                showDivider = true
+                            )
+                            ToggleRow(
+                                icon = Icons.AutoMirrored.Outlined.VolumeUp,
+                                label = "Sound",
+                                sublabel = "Audio effects",
+                                iconTint = IronGreen,
+                                isChecked = state.soundEnabled,
+                                onToggle = { viewModel.toggleSound() },
+                                showDivider = true
+                            )
+                            ActionRow(
+                                icon = Icons.Outlined.Settings,
+                                label = "App Settings",
+                                sublabel = "Preferences & more",
+                                iconTint = IronTextSecondary,
+                                showDivider = true,
+                                onClick = { navController?.navigate(SubScreen.SETTINGS) }
+                            )
+                            ActionRow(
+                                icon = Icons.Outlined.Info,
+                                label = "About IronCore",
+                                sublabel = "Version 1.0.0",
+                                iconTint = IronTextTertiary,
+                                showDivider = false,
+                                onClick = { }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── 7. Sign Out ──────────────────────────────────────────────
+        item {
+            StaggerItem(visible = sectionsVisible, index = 6) {
+                Column {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedButton(
+                        onClick = { showLogoutConfirm = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = IronRed),
+                        border = ButtonDefaults.outlinedButtonBorder(enabled = true).copy(
+                            brush = Brush.linearGradient(
+                                listOf(IronRed.copy(alpha = 0.3f), IronRed.copy(alpha = 0.1f))
+                            )
+                        )
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.Logout, null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "Sign Out",
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = OswaldFontFamily,
+                            letterSpacing = 1.sp
                         )
                     }
-                )
-                SettingsRow(
-                    icon = Icons.Outlined.EmojiEvents,
-                    label = "Achievements",
-                    sublabel = "View your trophies",
-                    iconTint = IronYellow,
-                    onClick = { navController?.navigate(SubScreen.ACHIEVEMENTS) }
-                )
-                SettingsRow(
-                    icon = Icons.Outlined.Leaderboard,
-                    label = "League",
-                    sublabel = state.league,
-                    iconTint = IronOrange,
-                    onClick = { navController?.navigate(SubScreen.LEAGUE) }
-                )
-                SettingsRow(
-                    icon = Icons.Outlined.CardMembership,
-                    label = "Player Card",
-                    sublabel = "Your identity",
-                    iconTint = IronPurple,
-                    onClick = { navController?.navigate(SubScreen.PLAYER_CARD) }
-                )
-                SettingsRow(
-                    icon = Icons.Outlined.BarChart,
-                    label = "Statistics",
-                    sublabel = "Detailed analytics",
-                    iconTint = IronBlue,
-                    onClick = { navController?.navigate(SubScreen.STATS) }
-                )
+                    Spacer(modifier = Modifier.height(40.dp))
+                }
             }
-        }
-
-        // ── Account ────────────────────────────────────────────────
-        item {
-            SectionHeader("Account")
-        }
-
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                SettingsRow(
-                    icon = Icons.Outlined.Settings,
-                    label = "Settings",
-                    sublabel = "App preferences",
-                    onClick = { navController?.navigate(SubScreen.SETTINGS) }
-                )
-                SettingsRow(
-                    icon = Icons.Outlined.Info,
-                    label = "About IronCore",
-                    sublabel = "Version 1.0.0",
-                    onClick = { }
-                )
-            }
-        }
-
-        // ── Sign Out ───────────────────────────────────────────────
-        item {
-            Spacer(modifier = Modifier.height(8.dp))
-            OutlinedButton(
-                onClick = { showLogoutConfirm = true },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = IronRed),
-                border = ButtonDefaults.outlinedButtonBorder(enabled = true).copy(
-                    brush = Brush.linearGradient(listOf(IronRed.copy(alpha = 0.3f), IronRed.copy(alpha = 0.1f)))
-                )
-            ) {
-                Icon(Icons.Default.Logout, null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Sign Out", fontWeight = FontWeight.Bold)
-            }
-            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 
-    // ── Dialogs ────────────────────────────────────────────────────
+    // ── Dialogs ──────────────────────────────────────────────────────
 
     if (showTargetsDialog) {
         EditTargetsDialog(
@@ -208,48 +295,97 @@ fun ProfileScreen(
         )
     }
 
+    // ── 7. Logout Confirmation (glass styled) ────────────────────────
     if (showLogoutConfirm) {
         AlertDialog(
             onDismissRequest = { showLogoutConfirm = false },
-            containerColor = IronSurfaceElevated,
+            containerColor = Color(0xF2121212),
+            shape = RoundedCornerShape(24.dp),
             title = {
-                Text("Sign Out", color = IronTextPrimary, fontWeight = FontWeight.Bold)
+                Text(
+                    "SIGN OUT",
+                    color = IronTextPrimary,
+                    fontFamily = OswaldFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    letterSpacing = 2.sp
+                )
             },
             text = {
                 Text(
-                    "Are you sure you want to sign out?",
-                    color = IronTextSecondary
+                    "Are you sure you want to sign out? You'll need to log in again to access your data.",
+                    color = IronTextSecondary,
+                    fontFamily = InterFontFamily,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    showLogoutConfirm = false
-                    viewModel.logout()
-                }) {
-                    Text("Sign Out", color = IronRed, fontWeight = FontWeight.Bold)
+                TextButton(
+                    onClick = {
+                        showLogoutConfirm = false
+                        viewModel.logout()
+                    }
+                ) {
+                    Text(
+                        "SIGN OUT",
+                        color = IronRed,
+                        fontFamily = OswaldFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showLogoutConfirm = false }) {
-                    Text("Cancel", color = IronTextTertiary)
+                    Text("Cancel", color = IronTextTertiary, fontFamily = InterFontFamily)
                 }
             }
         )
     }
 
-    // Error snackbar
+    // Error handling
     state.error?.let { error ->
         LaunchedEffect(error) {
-            // Auto-clear after showing
-            kotlinx.coroutines.delay(3000)
+            delay(3000)
             viewModel.clearError()
         }
     }
 }
 
-// ══════════════════════════════════════════════════════════════════
-// Profile Header
-// ══════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════
+// Stagger Animation Wrapper
+// ══════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun StaggerItem(
+    visible: Boolean,
+    index: Int,
+    content: @Composable () -> Unit
+) {
+    var itemVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(visible) {
+        if (visible) {
+            delay(index * 60L)
+            itemVisible = true
+        }
+    }
+
+    AnimatedVisibility(
+        visible = itemVisible,
+        enter = fadeIn(tween(300, easing = FastOutSlowInEasing)) +
+                slideInVertically(
+                    initialOffsetY = { 30 },
+                    animationSpec = tween(350, easing = FastOutSlowInEasing)
+                )
+    ) {
+        content()
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// 1. Profile Header — Avatar + Name + Level + League + XP Bar
+// ══════════════════════════════════════════════════════════════════════
 
 @Composable
 private fun ProfileHeader(
@@ -262,82 +398,102 @@ private fun ProfileHeader(
 ) {
     val levelProgress = XpCalculator.getLevelProgress(xp)
 
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
+    GlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        tier = GlassTier.LIQUID
+    ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxWidth()
         ) {
-            // Avatar
+            // Avatar with level badge
             Box(contentAlignment = Alignment.BottomEnd) {
                 Box(
                     modifier = Modifier
-                        .size(80.dp)
+                        .size(88.dp)
                         .clip(CircleShape)
                         .background(
-                            Brush.linearGradient(listOf(IronRed, IronRedDark))
+                            Brush.linearGradient(
+                                listOf(IronRed, IronRedDark, IronRedDeep)
+                            )
                         )
-                        .border(2.dp, IronRed.copy(alpha = 0.5f), CircleShape),
+                        .border(3.dp, IronRed.copy(alpha = 0.5f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = displayName.firstOrNull()?.uppercase() ?: "?",
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.Black,
+                        fontSize = 36.sp,
+                        fontFamily = OswaldFontFamily,
+                        fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
                 }
-                // Level badge
+                // Level badge overlay
                 Box(
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(30.dp)
                         .clip(CircleShape)
-                        .background(IronSurfaceElevated)
-                        .border(2.dp, IronRed, CircleShape),
+                        .background(
+                            Brush.linearGradient(listOf(IronRed, IronRedDark))
+                        )
+                        .border(2.dp, IronBlack, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "$level",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Black,
-                        color = IronRed
+                        fontSize = 12.sp,
+                        fontFamily = JetBrainsMonoFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
+            // Display name — Oswald heading
             Text(
-                text = displayName,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Black,
-                color = IronTextPrimary
+                text = displayName.uppercase(),
+                fontSize = 24.sp,
+                fontFamily = OswaldFontFamily,
+                fontWeight = FontWeight.Bold,
+                color = IronTextPrimary,
+                letterSpacing = 1.sp
             )
+
+            // Email
             Text(
                 text = email,
                 fontSize = 12.sp,
+                fontFamily = InterFontFamily,
                 color = IronTextTertiary
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // League badge
+            // League badge pill
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
-                    .background(IronRed.copy(alpha = 0.1f))
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(IronRed.copy(alpha = 0.15f), IronRed.copy(alpha = 0.05f))
+                        )
+                    )
                     .border(1.dp, IronRed.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
-                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                    .padding(horizontal = 18.dp, vertical = 6.dp)
             ) {
                 Text(
                     text = league.uppercase(),
                     fontSize = 11.sp,
-                    fontWeight = FontWeight.Black,
+                    fontFamily = OswaldFontFamily,
+                    fontWeight = FontWeight.Bold,
                     color = IronRed,
                     letterSpacing = 2.sp
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // XP progress bar
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -346,18 +502,22 @@ private fun ProfileHeader(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "Level $level",
-                        fontSize = 11.sp,
+                        text = "LEVEL $level",
+                        fontSize = 10.sp,
+                        fontFamily = OswaldFontFamily,
                         fontWeight = FontWeight.Bold,
-                        color = IronTextSecondary
+                        color = IronTextSecondary,
+                        letterSpacing = 1.sp
                     )
                     Text(
                         text = "${levelProgress.currentXpInLevel}/${levelProgress.xpNeededForNext} XP",
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
+                        fontFamily = JetBrainsMonoFontFamily,
+                        fontWeight = FontWeight.Medium,
                         color = IronTextTertiary
                     )
                 }
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -371,7 +531,9 @@ private fun ProfileHeader(
                             .fillMaxWidth(levelProgress.progress)
                             .clip(RoundedCornerShape(3.dp))
                             .background(
-                                Brush.horizontalGradient(listOf(IronRed, IronRedLight))
+                                Brush.horizontalGradient(
+                                    listOf(IronRedDark, IronRed, IronRedLight)
+                                )
                             )
                     )
                 }
@@ -380,38 +542,38 @@ private fun ProfileHeader(
     }
 }
 
-// ══════════════════════════════════════════════════════════════════
-// Stats Row
-// ══════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════
+// 2. Stats Grid — 4 mini glass cards with JetBrains Mono numbers
+// ══════════════════════════════════════════════════════════════════════
 
 @Composable
-private fun StatsRow(level: Int, xp: Long, streak: Int, longestStreak: Int) {
+private fun StatsGrid(level: Int, xp: Long, streak: Int, longestStreak: Int) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        StatPill(
+        StatCard(
             icon = Icons.Filled.Star,
             value = "$level",
             label = "Level",
             color = IronYellow,
             modifier = Modifier.weight(1f)
         )
-        StatPill(
+        StatCard(
             icon = Icons.Filled.Bolt,
-            value = "${xp}",
+            value = formatXp(xp),
             label = "Total XP",
             color = IronRed,
             modifier = Modifier.weight(1f)
         )
-        StatPill(
+        StatCard(
             icon = Icons.Filled.LocalFireDepartment,
             value = "$streak",
             label = "Streak",
             color = IronOrange,
             modifier = Modifier.weight(1f)
         )
-        StatPill(
+        StatCard(
             icon = Icons.Filled.MilitaryTech,
             value = "$longestStreak",
             label = "Best",
@@ -422,52 +584,75 @@ private fun StatsRow(level: Int, xp: Long, streak: Int, longestStreak: Int) {
 }
 
 @Composable
-private fun StatPill(
+private fun StatCard(
     icon: ImageVector,
     value: String,
     label: String,
     color: Color,
     modifier: Modifier = Modifier
 ) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(color.copy(alpha = 0.08f))
-            .border(1.dp, color.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
-            .padding(vertical = 10.dp),
-        contentAlignment = Alignment.Center
+    GlassCard(
+        modifier = modifier,
+        cornerRadius = 16.dp,
+        padding = 10.dp
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = color,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.height(2.dp))
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            // JetBrains Mono number
             Text(
                 text = value,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Black,
+                fontSize = 18.sp,
+                fontFamily = JetBrainsMonoFontFamily,
+                fontWeight = FontWeight.Bold,
                 color = IronTextPrimary
             )
             Text(
-                text = label,
-                fontSize = 9.sp,
+                text = label.uppercase(),
+                fontSize = 8.sp,
+                fontFamily = OswaldFontFamily,
+                fontWeight = FontWeight.Medium,
                 color = IronTextTertiary,
-                fontWeight = FontWeight.Medium
+                letterSpacing = 1.sp
             )
         }
     }
 }
 
-// ══════════════════════════════════════════════════════════════════
-// Subscription Card
-// ══════════════════════════════════════════════════════════════════
+private fun formatXp(xp: Long): String {
+    return when {
+        xp >= 10_000 -> "${xp / 1000}K"
+        xp >= 1_000 -> String.format("%.1fK", xp / 1000.0)
+        else -> "$xp"
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// 3. Subscription Card — Premium status, plan, expiry, manage
+// ══════════════════════════════════════════════════════════════════════
 
 @Composable
 private fun SubscriptionCard(isPremium: Boolean, planName: String, expiryDate: String) {
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
+    GlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        highlight = isPremium
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -476,8 +661,8 @@ private fun SubscriptionCard(isPremium: Boolean, planName: String, expiryDate: S
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(12.dp))
                         .background(
                             if (isPremium) Brush.linearGradient(listOf(IronRed, IronRedDark))
                             else Brush.linearGradient(listOf(IronCardBorder, IronCard))
@@ -485,25 +670,29 @@ private fun SubscriptionCard(isPremium: Boolean, planName: String, expiryDate: S
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (isPremium) Icons.Filled.WorkspacePremium else Icons.Outlined.Lock,
+                        imageVector = if (isPremium) Icons.Filled.WorkspacePremium
+                        else Icons.Outlined.Lock,
                         contentDescription = null,
                         tint = Color.White,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(14.dp))
                 Column {
                     Text(
-                        text = planName,
+                        text = planName.uppercase(),
                         fontSize = 14.sp,
+                        fontFamily = OswaldFontFamily,
                         fontWeight = FontWeight.Bold,
-                        color = IronTextPrimary
+                        color = IronTextPrimary,
+                        letterSpacing = 0.5.sp
                     )
                     Text(
                         text = if (isPremium && expiryDate.isNotBlank()) "Expires $expiryDate"
                         else if (isPremium) "Active"
                         else "Upgrade for full access",
                         fontSize = 11.sp,
+                        fontFamily = InterFontFamily,
                         color = IronTextTertiary
                     )
                 }
@@ -512,15 +701,34 @@ private fun SubscriptionCard(isPremium: Boolean, planName: String, expiryDate: S
             if (!isPremium) {
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Brush.linearGradient(listOf(IronRed, IronRedDark)))
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(
+                            Brush.linearGradient(listOf(IronRed, IronRedDark))
+                        )
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
                 ) {
                     Text(
                         text = "UPGRADE",
                         fontSize = 10.sp,
-                        fontWeight = FontWeight.Black,
+                        fontFamily = OswaldFontFamily,
+                        fontWeight = FontWeight.Bold,
                         color = Color.White,
+                        letterSpacing = 1.sp
+                    )
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(GlassWhite08)
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "MANAGE",
+                        fontSize = 10.sp,
+                        fontFamily = OswaldFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        color = IronTextSecondary,
                         letterSpacing = 1.sp
                     )
                 }
@@ -529,9 +737,9 @@ private fun SubscriptionCard(isPremium: Boolean, planName: String, expiryDate: S
     }
 }
 
-// ══════════════════════════════════════════════════════════════════
-// Daily Targets Card
-// ══════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════
+// 4. Daily Targets Card — Editable macros with glass input fields
+// ══════════════════════════════════════════════════════════════════════
 
 @Composable
 private fun DailyTargetsCard(
@@ -549,129 +757,239 @@ private fun DailyTargetsCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Daily Targets",
-                    fontSize = 14.sp,
+                    text = "DAILY TARGETS",
+                    fontSize = 13.sp,
+                    fontFamily = OswaldFontFamily,
                     fontWeight = FontWeight.Bold,
-                    color = IronTextPrimary
+                    color = IronTextPrimary,
+                    letterSpacing = 2.sp
                 )
                 TextButton(onClick = onEdit) {
-                    Text("Edit", color = IronRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Icon(
+                        Icons.Outlined.Edit,
+                        null,
+                        modifier = Modifier.size(14.dp),
+                        tint = IronRed
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        "Edit",
+                        color = IronRed,
+                        fontSize = 12.sp,
+                        fontFamily = InterFontFamily,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                TargetItem("Calories", "$calories", "kcal", IronRed)
-                TargetItem("Protein", "${protein}g", "", IronBlue)
-                TargetItem("Carbs", "${carbs}g", "", IronYellow)
-                TargetItem("Fats", "${fats}g", "", IronOrange)
+                MacroItem("Calories", "$calories", "kcal", IronRed)
+                MacroItem("Protein", "${protein}g", "", IronBlue)
+                MacroItem("Carbs", "${carbs}g", "", IronYellow)
+                MacroItem("Fats", "${fats}g", "", IronOrange)
             }
         }
     }
 }
 
 @Composable
-private fun TargetItem(label: String, value: String, unit: String, color: Color) {
+private fun MacroItem(label: String, value: String, unit: String, color: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        // JetBrains Mono for the number
         Text(
             text = value,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Black,
+            fontSize = 20.sp,
+            fontFamily = JetBrainsMonoFontFamily,
+            fontWeight = FontWeight.Bold,
             color = color
         )
         if (unit.isNotBlank()) {
-            Text(text = unit, fontSize = 9.sp, color = IronTextTertiary)
+            Text(
+                text = unit,
+                fontSize = 9.sp,
+                fontFamily = InterFontFamily,
+                color = IronTextTertiary
+            )
         }
         Text(
-            text = label,
-            fontSize = 10.sp,
+            text = label.uppercase(),
+            fontSize = 9.sp,
+            fontFamily = OswaldFontFamily,
+            fontWeight = FontWeight.Medium,
             color = IronTextSecondary,
-            fontWeight = FontWeight.Medium
+            letterSpacing = 1.sp
         )
     }
 }
 
-// ══════════════════════════════════════════════════════════════════
-// Settings Row
-// ══════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════
+// 5. Action Row — Glass row with icon, label, chevron
+// ══════════════════════════════════════════════════════════════════════
 
 @Composable
-private fun SettingsRow(
+private fun ActionRow(
     icon: ImageVector,
     label: String,
     sublabel: String,
     iconTint: Color = IronTextSecondary,
+    showDivider: Boolean = false,
     onClick: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .background(GlassWhite)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
+    Column {
+        Row(
             modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(iconTint.copy(alpha = 0.1f)),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(iconTint.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = label,
+                    fontSize = 14.sp,
+                    fontFamily = InterFontFamily,
+                    fontWeight = FontWeight.SemiBold,
+                    color = IronTextPrimary
+                )
+                Text(
+                    text = sublabel,
+                    fontSize = 11.sp,
+                    fontFamily = InterFontFamily,
+                    color = IronTextTertiary
+                )
+            }
             Icon(
-                imageVector = icon,
+                imageVector = Icons.Default.ChevronRight,
                 contentDescription = null,
-                tint = iconTint,
-                modifier = Modifier.size(18.dp)
+                tint = IronTextTertiary,
+                modifier = Modifier.size(20.dp)
             )
         }
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = label,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = IronTextPrimary
-            )
-            Text(
-                text = sublabel,
-                fontSize = 11.sp,
-                color = IronTextTertiary
+        if (showDivider) {
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 18.dp),
+                thickness = 0.5.dp,
+                color = GlassWhite05
             )
         }
-        Icon(
-            imageVector = Icons.Default.ChevronRight,
-            contentDescription = null,
-            tint = IronTextTertiary,
-            modifier = Modifier.size(20.dp)
-        )
     }
 }
 
-// ══════════════════════════════════════════════════════════════════
-// Section Header
-// ══════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════
+// 6. Toggle Row — Settings with switch
+// ══════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun ToggleRow(
+    icon: ImageVector,
+    label: String,
+    sublabel: String,
+    iconTint: Color,
+    isChecked: Boolean,
+    onToggle: () -> Unit,
+    showDivider: Boolean = false
+) {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggle)
+                .padding(horizontal = 18.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(iconTint.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = label,
+                    fontSize = 14.sp,
+                    fontFamily = InterFontFamily,
+                    fontWeight = FontWeight.SemiBold,
+                    color = IronTextPrimary
+                )
+                Text(
+                    text = sublabel,
+                    fontSize = 11.sp,
+                    fontFamily = InterFontFamily,
+                    color = IronTextTertiary
+                )
+            }
+            Switch(
+                checked = isChecked,
+                onCheckedChange = { onToggle() },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = IronRed,
+                    checkedBorderColor = IronRed,
+                    uncheckedThumbColor = IronTextTertiary,
+                    uncheckedTrackColor = IronCardBorder,
+                    uncheckedBorderColor = IronCardBorder
+                )
+            )
+        }
+        if (showDivider) {
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 18.dp),
+                thickness = 0.5.dp,
+                color = GlassWhite05
+            )
+        }
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Section Header — Oswald uppercase
+// ══════════════════════════════════════════════════════════════════════
 
 @Composable
 private fun SectionHeader(title: String) {
     Text(
         text = title.uppercase(),
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Black,
+        fontSize = 12.sp,
+        fontFamily = OswaldFontFamily,
+        fontWeight = FontWeight.Bold,
         color = IronTextTertiary,
         letterSpacing = 2.sp,
-        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+        modifier = Modifier.padding(start = 4.dp)
     )
 }
 
-// ══════════════════════════════════════════════════════════════════
-// Edit Targets Dialog
-// ══════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════
+// Edit Targets Dialog — Glass styled
+// ══════════════════════════════════════════════════════════════════════
 
 @Composable
 private fun EditTargetsDialog(
@@ -690,20 +1008,24 @@ private fun EditTargetsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = IronSurfaceElevated,
+        containerColor = Color(0xF2121212),
+        shape = RoundedCornerShape(24.dp),
         title = {
             Text(
-                "Edit Daily Targets",
+                "EDIT TARGETS",
                 color = IronTextPrimary,
-                fontWeight = FontWeight.Bold
+                fontFamily = OswaldFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                letterSpacing = 2.sp
             )
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                TargetTextField("Calories (kcal)", calories) { calories = it }
-                TargetTextField("Protein (g)", protein) { protein = it }
-                TargetTextField("Carbs (g)", carbs) { carbs = it }
-                TargetTextField("Fats (g)", fats) { fats = it }
+                TargetTextField("Calories (kcal)", calories, IronRed) { calories = it }
+                TargetTextField("Protein (g)", protein, IronBlue) { protein = it }
+                TargetTextField("Carbs (g)", carbs, IronYellow) { carbs = it }
+                TargetTextField("Fats (g)", fats, IronOrange) { fats = it }
             }
         },
         confirmButton = {
@@ -725,13 +1047,19 @@ private fun EditTargetsDialog(
                         strokeWidth = 2.dp
                     )
                 } else {
-                    Text("Save", color = IronRed, fontWeight = FontWeight.Bold)
+                    Text(
+                        "SAVE",
+                        color = IronRed,
+                        fontFamily = OswaldFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
                 }
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = IronTextTertiary)
+                Text("Cancel", color = IronTextTertiary, fontFamily = InterFontFamily)
             }
         }
     )
@@ -741,6 +1069,7 @@ private fun EditTargetsDialog(
 private fun TargetTextField(
     label: String,
     value: String,
+    accentColor: Color = IronRed,
     onValueChange: (String) -> Unit
 ) {
     OutlinedTextField(
@@ -750,16 +1079,32 @@ private fun TargetTextField(
                 onValueChange(newValue)
             }
         },
-        label = { Text(label, color = IronTextTertiary) },
+        label = {
+            Text(
+                label,
+                color = IronTextTertiary,
+                fontFamily = InterFontFamily,
+                fontSize = 12.sp
+            )
+        },
         modifier = Modifier.fillMaxWidth(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         singleLine = true,
+        textStyle = androidx.compose.ui.text.TextStyle(
+            fontFamily = JetBrainsMonoFontFamily,
+            fontWeight = FontWeight.Medium,
+            fontSize = 16.sp,
+            color = IronTextPrimary
+        ),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = IronRed,
+            focusedBorderColor = accentColor,
             unfocusedBorderColor = IronCardBorder,
             focusedTextColor = IronTextPrimary,
             unfocusedTextColor = IronTextPrimary,
-            cursorColor = IronRed
-        )
+            cursorColor = accentColor,
+            focusedContainerColor = GlassWhite03,
+            unfocusedContainerColor = Color.Transparent
+        ),
+        shape = RoundedCornerShape(14.dp)
     )
 }

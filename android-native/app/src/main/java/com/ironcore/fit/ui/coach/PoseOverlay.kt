@@ -9,14 +9,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import com.google.mlkit.vision.pose.Pose
 import com.google.mlkit.vision.pose.PoseLandmark
+import com.ironcore.fit.ui.theme.IronGreen
 import com.ironcore.fit.ui.theme.IronRed
 import com.ironcore.fit.ui.theme.IronRedLight
-import com.ironcore.fit.ui.theme.IronGreen
+import com.ironcore.fit.ui.theme.IronYellow
 
 /**
- * Compose Canvas overlay that draws ML Kit skeletal landmarks and connections
- * on top of the camera preview. Scales landmark coordinates from image space
- * to the Canvas viewport size.
+ * Enhanced Compose Canvas overlay with form-quality-based joint coloring.
+ *
+ * Joint colors:
+ * - Green = GOOD form on that joint's checkpoint
+ * - Yellow = WARNING / neutral
+ * - Red = BAD form — needs correction
+ *
+ * Limb connections inherit color from their endpoint joints.
  */
 @Composable
 fun PoseOverlay(
@@ -24,6 +30,7 @@ fun PoseOverlay(
     imageWidth: Int,
     imageHeight: Int,
     isFrontCamera: Boolean = true,
+    jointQualities: Map<Int, JointQuality> = emptyMap(),
     modifier: Modifier = Modifier
 ) {
     if (pose == null) return
@@ -42,15 +49,36 @@ fun PoseOverlay(
             return Offset(x, y)
         }
 
+        fun qualityColor(jointType: Int): Color {
+            return when (jointQualities[jointType]) {
+                JointQuality.GOOD -> IronGreen
+                JointQuality.WARNING -> IronYellow
+                JointQuality.BAD -> IronRed
+                JointQuality.NEUTRAL, null -> IronRedLight
+            }
+        }
+
         fun drawLimb(
             startType: Int,
             endType: Int,
-            color: Color = IronRedLight,
+            defaultColor: Color = IronRedLight,
             strokeWidth: Float = 6f
         ) {
             val start = pose.getPoseLandmark(startType) ?: return
             val end = pose.getPoseLandmark(endType) ?: return
             if (start.inFrameLikelihood < 0.5f || end.inFrameLikelihood < 0.5f) return
+
+            // Use joint quality color if available, else default
+            val color = if (jointQualities.isNotEmpty()) {
+                val startQual = jointQualities[startType]
+                val endQual = jointQualities[endType]
+                when {
+                    startQual == JointQuality.BAD || endQual == JointQuality.BAD -> IronRed
+                    startQual == JointQuality.WARNING || endQual == JointQuality.WARNING -> IronYellow
+                    startQual == JointQuality.GOOD || endQual == JointQuality.GOOD -> IronGreen
+                    else -> defaultColor
+                }
+            } else defaultColor
 
             drawLine(
                 color = color,
@@ -85,15 +113,17 @@ fun PoseOverlay(
         drawLimb(PoseLandmark.RIGHT_HIP, PoseLandmark.RIGHT_KNEE, IronRed)
         drawLimb(PoseLandmark.RIGHT_KNEE, PoseLandmark.RIGHT_ANKLE, IronRed)
 
-        // ── Landmark dots ────────────────────────────────────
+        // ── Landmark dots with quality coloring ─────────────
 
         val allLandmarks = pose.allPoseLandmarks
         for (landmark in allLandmarks) {
             if (landmark.inFrameLikelihood < 0.5f) continue
             val offset = landmarkToOffset(landmark)
-            // Outer ring
+            val color = qualityColor(landmark.landmarkType)
+
+            // Outer ring — quality-colored
             drawCircle(
-                color = IronRed,
+                color = color,
                 radius = 10f,
                 center = offset
             )

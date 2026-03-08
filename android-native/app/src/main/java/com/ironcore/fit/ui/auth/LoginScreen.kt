@@ -1,10 +1,9 @@
 package com.ironcore.fit.ui.auth
 
+import android.content.Context
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -14,6 +13,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -25,8 +26,8 @@ import com.ironcore.fit.ui.theme.*
  * Login screen — username entry → PIN pad.
  *
  * Two-phase flow matching React LoginScreen.jsx:
- *   Phase 1: Enter username (@ prefix)
- *   Phase 2: Enter 6-digit PIN (via embedded PinEntryScreen)
+ *   Phase 1: Enter username (@ prefix, saved from last login)
+ *   Phase 2: Enter 6-digit PIN (VERIFY mode, server-side check)
  *
  * Glass morphism styling matching Capacitor app exactly.
  */
@@ -41,13 +42,41 @@ fun LoginScreen(
     onBack: () -> Unit,
     onRecovery: () -> Unit
 ) {
+    val context = LocalContext.current
+    val prefs = remember {
+        context.getSharedPreferences("ironcore_auth", Context.MODE_PRIVATE)
+    }
+
     var showPinPad by remember { mutableStateOf(false) }
-    var localUsername by remember { mutableStateOf(loginUsername) }
+    // Load saved username from SharedPreferences
+    var localUsername by remember {
+        val saved = prefs.getString("saved_username", null)
+        mutableStateOf(saved ?: loginUsername)
+    }
+
+    // Sync saved username to ViewModel
+    LaunchedEffect(localUsername) {
+        if (localUsername.isNotBlank() && localUsername != loginUsername) {
+            onUsernameChanged(localUsername)
+        }
+    }
 
     // Fade in animation
     val fadeIn = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         fadeIn.animateTo(1f, animationSpec = tween(500, easing = FastOutSlowInEasing))
+    }
+
+    // Shake animation for errors
+    val shakeOffset = remember { Animatable(0f) }
+    LaunchedEffect(error) {
+        if (error != null) {
+            shakeOffset.animateTo(10f, tween(50))
+            shakeOffset.animateTo(-10f, tween(50))
+            shakeOffset.animateTo(5f, tween(50))
+            shakeOffset.animateTo(-5f, tween(50))
+            shakeOffset.animateTo(0f, tween(50))
+        }
     }
 
     Box(
@@ -89,8 +118,9 @@ fun LoginScreen(
                     // Branding
                     Text(
                         text = "IRONCORE",
+                        fontFamily = OswaldFontFamily,
                         fontSize = 28.sp,
-                        fontWeight = FontWeight.Black,
+                        fontWeight = FontWeight.Bold,
                         color = IronRed,
                         letterSpacing = 4.sp
                     )
@@ -99,6 +129,7 @@ fun LoginScreen(
 
                     Text(
                         text = "Welcome back",
+                        fontFamily = OswaldFontFamily,
                         fontSize = 22.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = IronTextPrimary
@@ -106,6 +137,7 @@ fun LoginScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "Enter your username to continue",
+                        fontFamily = InterFontFamily,
                         fontSize = 14.sp,
                         color = IronTextTertiary
                     )
@@ -122,11 +154,12 @@ fun LoginScreen(
                         placeholder = "Username",
                         modifier = Modifier.fillMaxWidth(),
                         prefix = {
-                            Icon(
-                                Icons.Default.Person,
-                                contentDescription = null,
-                                tint = IronTextTertiary,
-                                modifier = Modifier.size(20.dp)
+                            Text(
+                                text = "@",
+                                fontFamily = InterFontFamily,
+                                color = IronTextTertiary,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium
                             )
                         }
                     )
@@ -136,10 +169,13 @@ fun LoginScreen(
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
                             text = error,
+                            fontFamily = InterFontFamily,
                             color = IronRed,
                             fontSize = 14.sp,
                             textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .graphicsLayer { translationX = shakeOffset.value }
                         )
                     }
 
@@ -148,7 +184,13 @@ fun LoginScreen(
                     // Continue → show PIN pad
                     GlassButton(
                         text = "CONTINUE",
-                        onClick = { showPinPad = true },
+                        onClick = {
+                            // Save username for next login
+                            prefs.edit()
+                                .putString("saved_username", localUsername.trim())
+                                .apply()
+                            showPinPad = true
+                        },
                         variant = ButtonVariant.PRIMARY,
                         enabled = localUsername.isNotBlank(),
                         modifier = Modifier
@@ -170,7 +212,7 @@ fun LoginScreen(
                 }
             } else {
                 // ────────────────────────────────────────────────
-                // Phase 2: PIN entry
+                // Phase 2: PIN entry (VERIFY mode, server-side)
                 // ────────────────────────────────────────────────
                 Column(
                     modifier = Modifier.fillMaxSize()
@@ -190,7 +232,9 @@ fun LoginScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "@${localUsername.removePrefix("@").lowercase().trim()}",
+                            fontFamily = InterFontFamily,
                             fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
                             color = IronTextSecondary
                         )
                     }
@@ -206,14 +250,16 @@ fun LoginScreen(
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
                                     text = "Signing in...",
+                                    fontFamily = InterFontFamily,
                                     color = IronTextTertiary,
                                     fontSize = 14.sp
                                 )
                             }
                         }
                     } else {
+                        // VERIFY mode with null storedPinHash = server-side check
                         PinEntryScreen(
-                            mode = PinMode.SETUP,
+                            mode = PinMode.VERIFY,
                             onComplete = { pinHash -> onPinComplete(pinHash) },
                             onForgot = onRecovery
                         )
@@ -223,12 +269,14 @@ fun LoginScreen(
                     if (error != null && !isLoading) {
                         Text(
                             text = error,
+                            fontFamily = InterFontFamily,
                             color = IronRed,
                             fontSize = 14.sp,
                             textAlign = TextAlign.Center,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 32.dp)
+                                .graphicsLayer { translationX = shakeOffset.value }
                         )
                     }
                 }

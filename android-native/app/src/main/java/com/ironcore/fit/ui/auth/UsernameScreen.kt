@@ -67,8 +67,9 @@ fun UsernameScreen(
 
             Text(
                 text = "IRONCORE",
+                fontFamily = OswaldFontFamily,
                 fontSize = 28.sp,
-                fontWeight = FontWeight.Black,
+                fontWeight = FontWeight.Bold,
                 color = IronRed,
                 letterSpacing = 4.sp
             )
@@ -76,6 +77,7 @@ fun UsernameScreen(
 
             Text(
                 text = "Choose your username",
+                fontFamily = OswaldFontFamily,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = IronTextPrimary
@@ -83,6 +85,7 @@ fun UsernameScreen(
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "This is how other players will know you",
+                fontFamily = InterFontFamily,
                 fontSize = 14.sp,
                 color = IronTextTertiary
             )

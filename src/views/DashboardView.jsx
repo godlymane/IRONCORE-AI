@@ -16,6 +16,7 @@ import { WaterDropIcon, ProteinBoltIcon, EggIcon, ChickenIcon } from '../compone
 
 import { analyzeFood, cleanAIResponse } from '../utils/helpers';
 import { SFX } from '../utils/audio';
+import { NeuroHackSection } from '../components/NeuroHackSection';
 import { NutritionView } from './NutritionView';
 
 // Imported Extracted Components
@@ -419,6 +420,11 @@ export const DashboardView = () => {
             <span className="text-xs font-black text-orange-400">{forge}</span>
           </div>
         </div>
+      </motion.div>
+
+      {/* Neuro-Hack Binaural Frequencies */}
+      <motion.div variants={slideUp}>
+        <NeuroHackSection />
       </motion.div>
 
       {/* Daily Weigh-In Card — TOP of dashboard, shown if not logged today */}

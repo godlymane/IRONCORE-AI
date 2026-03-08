@@ -24,6 +24,7 @@ import {
 
 // FormCoach lazy-loaded — TensorFlow.js (~1.5MB) only fetches when user taps Form Coach
 const FormCoach = React.lazy(() => import('../components/FormCoach').then(m => ({ default: m.FormCoach })));
+const FormSessionSummary = React.lazy(() => import('../components/FormSessionSummary').then(m => ({ default: m.FormSessionSummary })));
 import { SmartRestTimer } from '../components/SmartRestTimer';
 import { SleepRecoveryTracker } from '../components/SleepRecoveryTracker';
 import { PredictiveAnalytics } from '../components/PredictiveAnalytics';
@@ -123,7 +124,9 @@ export const AILabView = () => {
     const [labTab, setLabTab] = useState('coach'); // 'coach' or 'vision'
     const [activeFeature, setActiveFeature] = useState(null);
     const [cameraPermGranted, setCameraPermGranted] = useState(false);
-    const { isPremium, requirePremium } = usePremium();
+    const [showSummary, setShowSummary] = useState(false);
+    const [sessionSummary, setSessionSummary] = useState(null);
+    const { isPremium, tier, requirePremium } = usePremium();
 
     // Check if camera permission was already granted (skip priming for returning users)
     React.useEffect(() => {
@@ -183,7 +186,7 @@ export const AILabView = () => {
     );
 
     const features = [
-        { id: 'form', name: 'Form Coach', icon: IconWrapper(FormCoachIconShape, '#ef4444'), fallback: Camera, color: 'red', desc: 'AI pose detection', premium: true },
+        { id: 'form', name: 'Form Coach', icon: IconWrapper(FormCoachIconShape, '#ef4444'), fallback: Camera, color: 'red', desc: 'AI pose detection', premium: false },
         { id: 'voice', name: 'Voice', icon: Mic, fallback: Mic, color: 'green', desc: 'Hands-free logging', premium: false },
         { id: 'analytics', name: 'Predictions', icon: IconWrapper(BrainIconShape, '#a855f7'), fallback: Brain, color: 'purple', desc: 'Predictive analytics', premium: true },
         { id: 'timer', name: 'Smart Rest', icon: IconWrapper(SmartTimerIconShape, '#f59e0b'), fallback: Timer, color: 'orange', desc: 'Adaptive timing', premium: false },
@@ -234,7 +237,12 @@ export const AILabView = () => {
                             <p className="text-xs text-gray-500 font-black uppercase tracking-widest">Loading AI Vision...</p>
                         </div>
                     }>
-                        <FormCoach exercise="squat" onComplete={() => setActiveFeature(null)} />
+                        <FormCoach
+                            exercise="squat"
+                            isEliteTier={tier === 'elite'}
+                            onComplete={() => setActiveFeature(null)}
+                            onShowSummary={(summary) => { setSessionSummary(summary); setShowSummary(true); }}
+                        />
                     </React.Suspense>
                 );
 
@@ -500,6 +508,19 @@ export const AILabView = () => {
                             </div>
                         )}
                     </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Post-set session summary modal */}
+            <AnimatePresence>
+                {showSummary && (
+                    <React.Suspense fallback={null}>
+                        <FormSessionSummary
+                            summary={sessionSummary}
+                            isElite={tier === 'elite'}
+                            onClose={() => { setShowSummary(false); setSessionSummary(null); }}
+                        />
+                    </React.Suspense>
                 )}
             </AnimatePresence>
         </div>

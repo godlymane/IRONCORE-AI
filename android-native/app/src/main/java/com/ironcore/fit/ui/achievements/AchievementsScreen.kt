@@ -29,12 +29,21 @@ import com.ironcore.fit.ui.theme.*
 
 // ── Local state models ──────────────────────────────────────────
 
+private enum class Rarity(val label: String, val color: Color) {
+    COMMON("Common", Color(0xFF9CA3AF)),        // gray-400
+    UNCOMMON("Uncommon", Color(0xFF22C55E)),     // green
+    RARE("Rare", Color(0xFF3B82F6)),             // blue
+    EPIC("Epic", Color(0xFFA855F7)),             // purple
+    LEGENDARY("Legendary", Color(0xFFF59E0B))    // amber/gold
+}
+
 private data class AchievementUiItem(
     val id: String,
     val title: String,
     val description: String,
     val emoji: String,
     val category: String,     // "strength"|"consistency"|"social"|"nutrition"
+    val rarity: Rarity = Rarity.COMMON,
     val xpReward: Int,
     val progress: Float,      // 0.0 to 1.0
     val unlocked: Boolean
@@ -55,25 +64,25 @@ fun AchievementsScreen(navController: NavHostController? = null) {
     val achievements = remember {
         listOf(
             // Strength
-            AchievementUiItem("s1", "First Rep", "Complete your first workout", "\uD83D\uDCAA", "strength", 50, 1f, true),
-            AchievementUiItem("s2", "Iron Foundation", "Log 10 workouts", "\uD83C\uDFCB\uFE0F", "strength", 100, 0.7f, false),
-            AchievementUiItem("s3", "Century Club", "Complete 100 workouts", "\uD83D\uDD25", "strength", 500, 0.23f, false),
-            AchievementUiItem("s4", "1RM Breaker", "Set a new personal record", "\uD83C\uDFC6", "strength", 150, 1f, true),
-            AchievementUiItem("s5", "Volume King", "Log 100,000 lbs total volume", "\uD83D\uDC51", "strength", 300, 0.45f, false),
+            AchievementUiItem("s1", "First Rep", "Complete your first workout", "\uD83D\uDCAA", "strength", Rarity.COMMON, 50, 1f, true),
+            AchievementUiItem("s2", "Iron Foundation", "Log 10 workouts", "\uD83C\uDFCB\uFE0F", "strength", Rarity.UNCOMMON, 100, 0.7f, false),
+            AchievementUiItem("s3", "Century Club", "Complete 100 workouts", "\uD83D\uDD25", "strength", Rarity.EPIC, 500, 0.23f, false),
+            AchievementUiItem("s4", "1RM Breaker", "Set a new personal record", "\uD83C\uDFC6", "strength", Rarity.RARE, 150, 1f, true),
+            AchievementUiItem("s5", "Volume King", "Log 100,000 lbs total volume", "\uD83D\uDC51", "strength", Rarity.LEGENDARY, 300, 0.45f, false),
             // Consistency
-            AchievementUiItem("c1", "Spark", "3-day streak", "\u26A1", "consistency", 50, 1f, true),
-            AchievementUiItem("c2", "On Fire", "7-day streak", "\uD83D\uDD25", "consistency", 100, 0.57f, false),
-            AchievementUiItem("c3", "Unstoppable", "30-day streak", "\uD83C\uDF1F", "consistency", 300, 0.13f, false),
-            AchievementUiItem("c4", "Early Bird", "Log a workout before 7 AM", "\uD83C\uDF05", "consistency", 75, 0f, false),
+            AchievementUiItem("c1", "Spark", "3-day streak", "\u26A1", "consistency", Rarity.COMMON, 50, 1f, true),
+            AchievementUiItem("c2", "On Fire", "7-day streak", "\uD83D\uDD25", "consistency", Rarity.UNCOMMON, 100, 0.57f, false),
+            AchievementUiItem("c3", "Unstoppable", "30-day streak", "\uD83C\uDF1F", "consistency", Rarity.LEGENDARY, 300, 0.13f, false),
+            AchievementUiItem("c4", "Early Bird", "Log a workout before 7 AM", "\uD83C\uDF05", "consistency", Rarity.RARE, 75, 0f, false),
             // Social
-            AchievementUiItem("o1", "Team Player", "Join a guild", "\uD83D\uDEE1\uFE0F", "social", 50, 1f, true),
-            AchievementUiItem("o2", "Arena Warrior", "Win 5 arena battles", "\u2694\uFE0F", "social", 150, 0.4f, false),
-            AchievementUiItem("o3", "Boss Slayer", "Deal 10K damage to community boss", "\uD83D\uDC79", "social", 200, 0.65f, false),
+            AchievementUiItem("o1", "Team Player", "Join a guild", "\uD83D\uDEE1\uFE0F", "social", Rarity.COMMON, 50, 1f, true),
+            AchievementUiItem("o2", "Arena Warrior", "Win 5 arena battles", "\u2694\uFE0F", "social", Rarity.RARE, 150, 0.4f, false),
+            AchievementUiItem("o3", "Boss Slayer", "Deal 10K damage to community boss", "\uD83D\uDC79", "social", Rarity.EPIC, 200, 0.65f, false),
             // Nutrition
-            AchievementUiItem("n1", "Fuel Up", "Log your first meal", "\uD83C\uDF7D\uFE0F", "nutrition", 50, 1f, true),
-            AchievementUiItem("n2", "Macro Master", "Hit your macro targets 7 days in a row", "\uD83C\uDFAF", "nutrition", 200, 0.28f, false),
-            AchievementUiItem("n3", "Hydrated", "Log 8 glasses of water 5 days in a row", "\uD83D\uDCA7", "nutrition", 100, 0.6f, false),
-            AchievementUiItem("n4", "Clean Eater", "Log 30 meals with all macros tracked", "\uD83E\uDD57", "nutrition", 150, 0.33f, false)
+            AchievementUiItem("n1", "Fuel Up", "Log your first meal", "\uD83C\uDF7D\uFE0F", "nutrition", Rarity.COMMON, 50, 1f, true),
+            AchievementUiItem("n2", "Macro Master", "Hit your macro targets 7 days in a row", "\uD83C\uDFAF", "nutrition", Rarity.EPIC, 200, 0.28f, false),
+            AchievementUiItem("n3", "Hydrated", "Log 8 glasses of water 5 days in a row", "\uD83D\uDCA7", "nutrition", Rarity.UNCOMMON, 100, 0.6f, false),
+            AchievementUiItem("n4", "Clean Eater", "Log 30 meals with all macros tracked", "\uD83E\uDD57", "nutrition", Rarity.RARE, 150, 0.33f, false)
         )
     }
 
@@ -85,6 +94,9 @@ fun AchievementsScreen(navController: NavHostController? = null) {
     // Summary stats
     val totalUnlocked = achievements.count { it.unlocked }
     val totalXPEarned = achievements.filter { it.unlocked }.sumOf { it.xpReward }
+    val rarityBreakdown = Rarity.entries.associateWith { r ->
+        achievements.count { it.rarity == r && it.unlocked } to achievements.count { it.rarity == r }
+    }
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
@@ -141,6 +153,56 @@ fun AchievementsScreen(navController: NavHostController? = null) {
                             style = MaterialTheme.typography.bodySmall,
                             color = IronTextTertiary
                         )
+                    }
+                }
+            }
+        }
+
+        // ── Rarity Collection Progress ──────────────────────
+        item(span = { GridItemSpan(2) }) {
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    Text(
+                        text = "COLLECTION",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = IronTextSecondary,
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Rarity.entries.forEach { rarity ->
+                        val (collected, total) = rarityBreakdown[rarity] ?: (0 to 0)
+                        if (total > 0) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = rarity.label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = rarity.color,
+                                    modifier = Modifier.width(80.dp)
+                                )
+                                LinearProgressIndicator(
+                                    progress = { collected.toFloat() / total.toFloat() },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(4.dp),
+                                    color = rarity.color,
+                                    trackColor = GlassWhite
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "$collected/$total",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = IronTextTertiary,
+                                    modifier = Modifier.width(28.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -212,17 +274,18 @@ private fun AchievementCard(achievement: AchievementUiItem) {
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Emoji icon
+            // Emoji icon — border uses rarity color when unlocked
+            val borderColor = if (achievement.unlocked) achievement.rarity.color else Color.Transparent
             Box(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(CircleShape)
                     .background(
-                        if (achievement.unlocked) catColor.copy(alpha = 0.2f)
+                        if (achievement.unlocked) borderColor.copy(alpha = 0.15f)
                         else GlassWhite
                     )
                     .then(
-                        if (achievement.unlocked) Modifier.border(1.dp, catColor, CircleShape)
+                        if (achievement.unlocked) Modifier.border(1.5.dp, borderColor, CircleShape)
                         else Modifier
                     ),
                 contentAlignment = Alignment.Center
@@ -257,7 +320,17 @@ private fun AchievementCard(achievement: AchievementUiItem) {
                 lineHeight = 14.sp
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            // Rarity label
+            Text(
+                text = achievement.rarity.label.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = if (achievement.unlocked) achievement.rarity.color else IronTextTertiary,
+                fontSize = 9.sp,
+                letterSpacing = 1.sp
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
 
             // Progress bar
             LinearProgressIndicator(

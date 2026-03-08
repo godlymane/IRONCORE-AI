@@ -87,6 +87,10 @@ class NutritionViewModel @Inject constructor(
         _uiState.update { it.copy(waterGlasses = it.waterGlasses + 1) }
     }
 
+    fun removeWater() {
+        _uiState.update { it.copy(waterGlasses = (it.waterGlasses - 1).coerceAtLeast(0)) }
+    }
+
     fun deleteMeal(mealId: String) {
         viewModelScope.launch {
             nutritionRepository.deleteMeal(mealId)

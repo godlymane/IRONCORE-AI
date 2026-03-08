@@ -15,7 +15,8 @@ export const FEATURE_ACCESS = {
     guilds:                { free: false, pro: false,    elite: true },
     guildWars:             { free: false, pro: false,    elite: true },
     battlePassPremiumTrack:{ free: false, pro: false,    elite: true },
-    formCorrection:        { free: false, pro: false,    elite: true },
+    formCorrectionBasic:   { free: true,  pro: true,     elite: true },   // Tier 1: voice, haptics, 6 exercises, basic analysis
+    formCorrection:        { free: false, pro: false,    elite: true },   // Tier 2: 12 exercises, rep tracking, fatigue, ghost, session summary
     priorityAI:            { free: false, pro: false,    elite: true },
     customPrograms:        { free: false, pro: false,    elite: true },
     advancedStats:         { free: false, pro: true,     elite: true },

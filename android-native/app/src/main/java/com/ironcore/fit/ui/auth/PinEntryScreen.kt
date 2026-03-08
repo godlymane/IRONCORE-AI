@@ -93,7 +93,11 @@ fun PinEntryScreen(
 
                 PinMode.VERIFY -> {
                     val hash = PlayerIdentity.hashPin(pin)
-                    if (hash == storedPinHash) {
+                    if (storedPinHash == null) {
+                        // Server-side verification — pass hash to callback
+                        HapticFeedback.success(context)
+                        onComplete(hash)
+                    } else if (hash == storedPinHash) {
                         HapticFeedback.success(context)
                         onComplete(hash)
                     } else {
@@ -135,8 +139,9 @@ fun PinEntryScreen(
             // ── Branding ─────────────────────────────────────────
             Text(
                 text = "IRONCORE",
+                fontFamily = OswaldFontFamily,
                 fontSize = 28.sp,
-                fontWeight = FontWeight.Black,
+                fontWeight = FontWeight.Bold,
                 color = IronRed,
                 letterSpacing = 4.sp
             )
@@ -146,6 +151,7 @@ fun PinEntryScreen(
             // ── Title & subtitle ─────────────────────────────────
             Text(
                 text = title,
+                fontFamily = OswaldFontFamily,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = IronTextPrimary
@@ -153,6 +159,7 @@ fun PinEntryScreen(
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = subtitle,
+                fontFamily = InterFontFamily,
                 fontSize = 14.sp,
                 color = IronTextTertiary,
                 textAlign = TextAlign.Center
