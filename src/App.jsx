@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Flame, Plus, Utensils, Dumbbell, Heart
 } from 'lucide-react';
@@ -21,7 +21,7 @@ const AILabView = React.lazy(() => import('./views/AILabView').then(m => ({ defa
 const AchievementsView = React.lazy(() => import('./views/AchievementsView').then(m => ({ default: m.AchievementsView })));
 const GhostMatchView = React.lazy(() => import('./views/GhostMatchView').then(m => ({ default: m.GhostMatchView })));
 
-import { NavBtn, ToastProvider, useToast, PageTransition, SkeletonCard, FloatingActionButton } from './components/UIComponents';
+import { NavBtn, ToastProvider, useToast, SkeletonCard, FloatingActionButton } from './components/UIComponents';
 import { OfflineIndicator } from './components/StatusComponents';
 import { SplashScreen, PullToRefresh } from './components/PremiumUI';
 import AmbientFX from './components/AmbientFX';
@@ -48,7 +48,7 @@ const TAB_KEYS = ['dashboard', 'arena', 'train', 'ailab', 'profile'];
 // --- MAIN CONTENT WRAPPER ---
 const MainContent = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [direction, setDirection] = useState(0);
+  // direction state removed — instant tab switching, no animation
   const prevTabRef = useRef('dashboard');
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
@@ -146,18 +146,16 @@ const MainContent = () => {
     lastScrollY.current = currentY;
   }, []);
 
-  // Direction-aware tab switching
+  // Instant tab switching — no animation delay
   const handleTabChange = useCallback((newTab) => {
-    const d = (TAB_ORDER[newTab] ?? 0) - (TAB_ORDER[prevTabRef.current] ?? 0);
-    setDirection(d > 0 ? 1 : d < 0 ? -1 : 0);
     prevTabRef.current = newTab;
     setActiveTab(newTab);
     setNavVisible(true);
     SFX.pageTransition();
   }, []);
 
-  // Lightweight touch-based swipe navigation (no Framer drag overhead)
-  const touchRef = useRef({ startX: 0, startY: 0, startTime: 0 });
+  // Edge-only swipe navigation — only triggers when swipe starts within 30px of screen edge
+  const touchRef = useRef({ startX: 0, startY: 0, startTime: 0, edgeSwipe: false });
   const viewportRef = useRef(null);
 
   useScrollIntoView(viewportRef);
@@ -165,17 +163,26 @@ const MainContent = () => {
   useEffect(() => {
     const el = viewportRef.current;
     if (!el) return;
+    const EDGE_ZONE = 30; // px from screen edge
 
     const onTouchStart = (e) => {
-      touchRef.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, startTime: Date.now() };
+      const x = e.touches[0].clientX;
+      const screenW = window.innerWidth;
+      touchRef.current = {
+        startX: x,
+        startY: e.touches[0].clientY,
+        startTime: Date.now(),
+        edgeSwipe: x < EDGE_ZONE || x > screenW - EDGE_ZONE,
+      };
     };
 
     const onTouchEnd = (e) => {
+      if (!touchRef.current.edgeSwipe) return; // ignore non-edge swipes
       const dx = e.changedTouches[0].clientX - touchRef.current.startX;
       const dy = e.changedTouches[0].clientY - touchRef.current.startY;
       const dt = Date.now() - touchRef.current.startTime;
-      // Only trigger if horizontal swipe > vertical and meets threshold
-      if (Math.abs(dx) > Math.abs(dy) * 1.5 && (Math.abs(dx) > 60 || (Math.abs(dx) > 30 && dt < 300))) {
+      // Horizontal swipe > vertical, minimum 80px or fast flick 50px
+      if (Math.abs(dx) > Math.abs(dy) * 2 && (Math.abs(dx) > 80 || (Math.abs(dx) > 50 && dt < 250))) {
         const currentIdx = TAB_ORDER[activeTab];
         if (dx < 0 && currentIdx < TAB_KEYS.length - 1) {
           handleTabChange(TAB_KEYS[currentIdx + 1]);
@@ -392,53 +399,41 @@ const MainContent = () => {
               className="p-5 overflow-y-auto overflow-x-hidden scrollbar-hide"
               style={{ height: '100dvh', paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}
             >
-              <AnimatePresence mode="wait">
-                {activeTab === 'dashboard' && (
-                  <PageTransition key="dashboard" direction={direction}>
-                    <ViewErrorBoundary viewName="Dashboard">
-                      <React.Suspense fallback={<DashboardSkeleton />}>
-                        <DashboardView meals={meals} burned={burned} workouts={workouts} updateData={updateData} deleteEntry={deleteEntry} profile={profile} uploadProfilePic={uploadProfilePic} user={user} completeDailyDrop={completeDailyDrop} buyItem={buyItem} isStorageReady={isStorageReady} dataLoaded={dataLoaded} />
-                      </React.Suspense>
-                    </ViewErrorBoundary>
-                  </PageTransition>
-                )}
-                {activeTab === 'train' && (
-                  <PageTransition key="train" direction={direction}>
-                    <ViewErrorBoundary viewName="Train">
-                      <React.Suspense fallback={<WorkoutSkeleton />}>
-                        <TrainView />
-                      </React.Suspense>
-                    </ViewErrorBoundary>
-                  </PageTransition>
-                )}
-                {activeTab === 'arena' && (
-                  <PageTransition key="arena" direction={direction}>
-                    <ViewErrorBoundary viewName="Arena">
-                      <React.Suspense fallback={<ArenaSkeleton />}>
-                        <ArenaView user={user} workouts={workouts} meals={meals} burned={burned} leaderboard={leaderboard} profile={profile} chat={chat} sendMessage={sendMessage} battles={battles} createBattle={createBattle} />
-                      </React.Suspense>
-                    </ViewErrorBoundary>
-                  </PageTransition>
-                )}
-                {activeTab === 'profile' && (
-                  <PageTransition key="profile" direction={direction}>
-                    <ViewErrorBoundary viewName="Profile">
-                      <React.Suspense fallback={<ProfileSkeleton />}>
-                        <ProfileHub deleteEntry={deleteEntry} onLogout={logout} />
-                      </React.Suspense>
-                    </ViewErrorBoundary>
-                  </PageTransition>
-                )}
-                {activeTab === 'ailab' && (
-                  <PageTransition key="ailab" direction={direction}>
-                    <ViewErrorBoundary viewName="AI Lab">
-                      <React.Suspense fallback={<AILabSkeleton />}>
-                        <AILabView workouts={workouts} meals={meals} profile={profile} updateData={updateData} weight={latestWeight} />
-                      </React.Suspense>
-                    </ViewErrorBoundary>
-                  </PageTransition>
-                )}
-              </AnimatePresence>
+              {activeTab === 'dashboard' && (
+                  <ViewErrorBoundary viewName="Dashboard">
+                    <React.Suspense fallback={<DashboardSkeleton />}>
+                      <DashboardView meals={meals} burned={burned} workouts={workouts} updateData={updateData} deleteEntry={deleteEntry} profile={profile} uploadProfilePic={uploadProfilePic} user={user} completeDailyDrop={completeDailyDrop} buyItem={buyItem} isStorageReady={isStorageReady} dataLoaded={dataLoaded} />
+                    </React.Suspense>
+                  </ViewErrorBoundary>
+              )}
+              {activeTab === 'train' && (
+                  <ViewErrorBoundary viewName="Train">
+                    <React.Suspense fallback={<WorkoutSkeleton />}>
+                      <TrainView />
+                    </React.Suspense>
+                  </ViewErrorBoundary>
+              )}
+              {activeTab === 'arena' && (
+                  <ViewErrorBoundary viewName="Arena">
+                    <React.Suspense fallback={<ArenaSkeleton />}>
+                      <ArenaView user={user} workouts={workouts} meals={meals} burned={burned} leaderboard={leaderboard} profile={profile} chat={chat} sendMessage={sendMessage} battles={battles} createBattle={createBattle} />
+                    </React.Suspense>
+                  </ViewErrorBoundary>
+              )}
+              {activeTab === 'profile' && (
+                  <ViewErrorBoundary viewName="Profile">
+                    <React.Suspense fallback={<ProfileSkeleton />}>
+                      <ProfileHub deleteEntry={deleteEntry} onLogout={logout} />
+                    </React.Suspense>
+                  </ViewErrorBoundary>
+              )}
+              {activeTab === 'ailab' && (
+                  <ViewErrorBoundary viewName="AI Lab">
+                    <React.Suspense fallback={<AILabSkeleton />}>
+                      <AILabView workouts={workouts} meals={meals} profile={profile} updateData={updateData} weight={latestWeight} />
+                    </React.Suspense>
+                  </ViewErrorBoundary>
+              )}
             </div>
           </PullToRefresh>
 

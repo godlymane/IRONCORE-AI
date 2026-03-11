@@ -339,10 +339,10 @@ export const SplashScreen = ({ onComplete }) => {
 
     useEffect(() => {
         const timers = [
-            setTimeout(() => setPhase(1), 500),
-            setTimeout(() => setPhase(2), 1200),
-            setTimeout(() => setPhase(3), 1800),
-            setTimeout(() => onComplete?.(), 2500),
+            setTimeout(() => setPhase(1), 100),   // logo slam
+            setTimeout(() => setPhase(2), 500),    // text reveal
+            setTimeout(() => setPhase(3), 1000),   // fade out
+            setTimeout(() => onComplete?.(), 1300), // done
         ];
         return () => timers.forEach(clearTimeout);
     }, [onComplete]);
@@ -350,56 +350,55 @@ export const SplashScreen = ({ onComplete }) => {
     return (
         <motion.div
             className="fixed inset-0 z-[10000] flex items-center justify-center"
-            style={{
-                background: 'linear-gradient(145deg, #000000 0%, #0a0a0a 100%)',
-            }}
+            style={{ background: '#000' }}
             initial={{ opacity: 1 }}
             animate={{ opacity: phase === 3 ? 0 : 1 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.3 }}
         >
-            {/* Background particles */}
-            <ParticleBackground count={20} />
+            {/* Red flash on logo slam */}
+            <motion.div
+                className="absolute inset-0"
+                style={{ background: 'radial-gradient(circle at center, rgba(220,38,38,0.3) 0%, transparent 60%)' }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: phase >= 1 ? [0, 1, 0] : 0 }}
+                transition={{ duration: 0.4 }}
+            />
 
             {/* Logo container */}
             <div className="relative flex flex-col items-center">
-                {/* Brand Logo */}
+                {/* Brand Logo — slams in */}
                 <motion.div
-                    className="w-28 h-28 mb-6"
-                    style={{
-                        filter: 'drop-shadow(0 0 40px rgba(220, 38, 38, 0.5)) drop-shadow(0 0 80px rgba(220, 38, 38, 0.2))',
-                    }}
-                    initial={{ scale: 0, opacity: 0 }}
+                    className="w-32 h-32 mb-4"
+                    initial={{ scale: 2, opacity: 0 }}
                     animate={{
-                        scale: phase >= 1 ? 1 : 0,
+                        scale: phase >= 1 ? 1 : 2,
                         opacity: phase >= 1 ? 1 : 0,
                     }}
-                    transition={{ duration: 0.5, type: 'spring', bounce: 0.4 }}
+                    transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                    style={{
+                        filter: 'drop-shadow(0 0 40px rgba(220, 38, 38, 0.6))',
+                    }}
                 >
-                    <img src="/icons/icon-192x192.png" alt="IronCore" className="w-full h-full object-contain" />
+                    <img src="/logo.png" alt="IronCore" className="w-full h-full object-contain" />
                 </motion.div>
 
-                {/* Brand text */}
-                <motion.h1
-                    className="text-3xl font-black italic uppercase tracking-tighter text-white"
-                    initial={{ opacity: 0, y: 20 }}
+                {/* Brand text — sharp cut-in */}
+                <motion.div
+                    className="text-center"
+                    initial={{ opacity: 0, y: 8 }}
                     animate={{
                         opacity: phase >= 2 ? 1 : 0,
-                        y: phase >= 2 ? 0 : 20,
+                        y: phase >= 2 ? 0 : 8,
                     }}
-                    transition={{ duration: 0.4 }}
+                    transition={{ duration: 0.2 }}
                 >
-                    <span className="text-red-500">IRONCORE</span><span className="text-gray-400">FIT</span> <span className="text-white">AI</span>
-                </motion.h1>
-
-                {/* Tagline */}
-                <motion.p
-                    className="text-xs text-gray-500 mt-2 uppercase tracking-widest"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: phase >= 2 ? 1 : 0 }}
-                    transition={{ duration: 0.4, delay: 0.2 }}
-                >
-                    Your Fitness. Your Way.
-                </motion.p>
+                    <h1 className="text-2xl font-black uppercase tracking-tight text-white">
+                        <span className="text-red-500">IRON</span>CORE
+                    </h1>
+                    <p className="text-[10px] text-gray-600 uppercase tracking-[0.3em] mt-1">
+                        Your Phone. Your Trainer.
+                    </p>
+                </motion.div>
             </div>
         </motion.div>
     );

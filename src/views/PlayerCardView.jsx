@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
-import { Shield, Copy, Check, Download, ChevronRight, AlertCircle, Loader2, Dumbbell, LogIn, UserPlus } from 'lucide-react';
+import { Shield, Copy, Check, Download, ChevronRight, AlertCircle, Loader2, LogIn, UserPlus } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { generatePhrase, hashPhrase, validateUsername } from '../utils/playerIdentity';
 import { PinEntryView } from './PinEntryView';
@@ -9,39 +9,76 @@ import { SFX, Haptics } from '../utils/audio';
 
 // ─── Landing Screen ─────────────────────────────────────────────
 const LandingScreen = ({ onCreateAccount, onLogin }) => (
-  <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6">
-    <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm text-center">
-      {/* Logo */}
-      <div className="flex justify-center mb-8">
-        <div className="relative">
-          <div className="absolute inset-0 rounded-3xl blur-xl opacity-60" style={{ background: 'linear-gradient(135deg, rgba(220,38,38,0.8), rgba(185,28,28,0.8))', transform: 'scale(1.2)' }} />
-          <div className="relative p-5 rounded-3xl" style={{ background: 'linear-gradient(135deg, rgba(220,38,38,0.9), rgba(185,28,28,0.9))', boxShadow: '0 20px 60px rgba(220,38,38,0.4), inset 0 2px 0 rgba(255,255,255,0.2)' }}>
-            <Dumbbell size={56} className="text-white" />
-          </div>
-        </div>
-      </div>
+  <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 overflow-hidden">
+    {/* Ambient red glow behind logo */}
+    <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full opacity-20 blur-[100px]" style={{ background: 'radial-gradient(circle, #dc2626 0%, transparent 70%)' }} />
 
-      <h1 className="text-4xl font-black text-white uppercase tracking-tight mb-2">IronCore</h1>
-      <p className="text-sm text-gray-500 mb-12">Your Phone. Your Trainer.</p>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4 }}
+      className="w-full max-w-sm text-center relative z-10"
+    >
+      {/* Logo */}
+      <motion.div
+        className="flex justify-center mb-6"
+        initial={{ scale: 0.5, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.5, type: 'spring', bounce: 0.3 }}
+      >
+        <div className="relative">
+          <div className="absolute inset-0 blur-2xl opacity-40" style={{ background: 'radial-gradient(circle, rgba(220,38,38,0.8), transparent 70%)', transform: 'scale(1.5)' }} />
+          <img
+            src="/logo.png"
+            alt="IronCore"
+            className="relative w-28 h-28 object-contain drop-shadow-[0_0_30px_rgba(220,38,38,0.5)]"
+          />
+        </div>
+      </motion.div>
+
+      <motion.h1
+        className="text-4xl font-black text-white uppercase tracking-tight mb-1"
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15, duration: 0.3 }}
+      >
+        IronCore
+      </motion.h1>
+      <motion.p
+        className="text-sm text-gray-500 mb-12"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.25, duration: 0.3 }}
+      >
+        Your Phone. Your Trainer.
+      </motion.p>
 
       {/* Create Account */}
-      <button
+      <motion.button
         onClick={onCreateAccount}
         className="w-full py-4 rounded-2xl font-black uppercase tracking-widest text-sm text-white mb-3 flex items-center justify-center gap-2"
         style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)', boxShadow: '0 15px 50px rgba(220,38,38,0.3)' }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3, duration: 0.3 }}
+        whileTap={{ scale: 0.97 }}
       >
         <UserPlus size={18} />
         Create Account
-      </button>
+      </motion.button>
 
       {/* Log In */}
-      <button
+      <motion.button
         onClick={onLogin}
         className="w-full py-4 rounded-2xl font-bold uppercase tracking-wider text-sm text-white border border-white/10 bg-white/5 active:bg-white/10 transition-all flex items-center justify-center gap-2"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.35, duration: 0.3 }}
+        whileTap={{ scale: 0.97 }}
       >
         <LogIn size={18} className="text-red-400" />
         Log In
-      </button>
+      </motion.button>
     </motion.div>
   </div>
 );
@@ -216,7 +253,7 @@ const CardRevealScreen = ({ username, phrase, onSaved }) => {
           <div className="relative p-6">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-2">
-                <Dumbbell size={18} className="text-red-500" />
+                <img src="/logo.png" alt="" className="w-5 h-5 object-contain" />
                 <span className="text-[10px] text-gray-500 font-black uppercase tracking-[0.2em]">Player Identity</span>
               </div>
               <Shield size={16} className="text-red-500/50" />
