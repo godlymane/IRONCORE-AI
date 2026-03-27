@@ -1,6 +1,10 @@
 // Push Notification Service
 // Setup and manage push notifications for workout reminders
 
+import { getToken, onMessage } from 'firebase/messaging';
+import { doc, setDoc } from 'firebase/firestore';
+import { db, getMessagingInstance } from '../firebase';
+
 /**
  * Check if push notifications are supported
  */
@@ -173,6 +177,64 @@ export const stopReminderChecker = () => {
 };
 
 /**
+ * Register FCM token and save to Firestore for server-side push.
+ * @param {string} userId - Firebase Auth UID
+ * @returns {{ success: boolean, token?: string }}
+ */
+export const registerFCMToken = async (userId) => {
+    if (!userId) return { success: false, error: 'No user ID' };
+
+    try {
+        const messaging = await getMessagingInstance();
+        if (!messaging) return { success: false, error: 'Messaging not supported' };
+
+        const swReg = await navigator.serviceWorker.ready;
+        const token = await getToken(messaging, {
+            vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
+            serviceWorkerRegistration: swReg
+        });
+
+        if (token) {
+            // Save token to Firestore — Cloud Functions read this to send push
+            await setDoc(doc(db, 'users', userId, 'data', 'fcm'), {
+                token,
+                platform: navigator.userAgent.includes('Android') ? 'android' : 'web',
+                updatedAt: new Date()
+            }, { merge: true });
+
+            return { success: true, token };
+        }
+
+        return { success: false, error: 'No token returned' };
+    } catch (error) {
+        console.warn('FCM registration failed:', error.message);
+        return { success: false, error: error.message };
+    }
+};
+
+/**
+ * Listen for foreground FCM messages and show as local notification.
+ */
+export const setupForegroundListener = async () => {
+    try {
+        const messaging = await getMessagingInstance();
+        if (!messaging) return null;
+
+        return onMessage(messaging, (payload) => {
+            const { title, body } = payload.notification || {};
+            if (title) {
+                showLocalNotification(title, {
+                    body: body || '',
+                    data: payload.data
+                });
+            }
+        });
+    } catch {
+        return null;
+    }
+};
+
+/**
  * Initialize push notifications
  */
 export const initializePushNotifications = async () => {
@@ -182,8 +244,11 @@ export const initializePushNotifications = async () => {
         console.warn('Service worker failed:', swResult.error);
     }
 
-    // Start reminder checker
+    // Start local reminder checker
     startReminderChecker();
+
+    // Set up foreground FCM listener
+    await setupForegroundListener();
 
     return {
         supported: isPushSupported(),
@@ -191,5 +256,3 @@ export const initializePushNotifications = async () => {
         serviceWorker: swResult.success,
     };
 };
-
-

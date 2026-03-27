@@ -21,6 +21,9 @@ import { runMigrations, CURRENT_SCHEMA_VERSION } from '../utils/migrations';
 import imageCompression from 'browser-image-compression';
 import { useStore } from './useStore';
 import { updateBossProgress } from '../services/arenaService';
+import { throttleAction } from '../utils/rateLimiter';
+import { enqueueOfflineOp, replayOfflineQueue } from '../utils/offlineQueue';
+import { registerFCMToken } from '../services/pushNotificationService';
 
 // --- Input validation helpers ---
 const MAX_MESSAGE_LENGTH = 500;
@@ -78,12 +81,51 @@ export function useFitnessData() {
                         updateState({ profile: { ...parsed } });
                     }
                 } catch (e) { /* ignore */ }
+
+                // Register FCM token for server-side push notifications
+                registerFCMToken(u.uid).catch(() => {});
             }
             setUser(u);
         });
 
         return () => unsubscribe();
     }, []);
+
+    // --- OFFLINE QUEUE REPLAY on reconnect ---
+    useEffect(() => {
+        const handleOnline = async () => {
+            if (!user) return;
+            try {
+                const count = await replayOfflineQueue({
+                    xp_update: async ({ userId, xpGain }) => {
+                        const profileRef = doc(db, 'users', userId, 'data', 'profile');
+                        await runTransaction(db, async (txn) => {
+                            const snap = await txn.get(profileRef);
+                            const current = snap.exists() ? snap.data() : {};
+                            txn.set(profileRef, { xp: (current.xp || 0) + xpGain }, { merge: true });
+                        });
+                    },
+                    leaderboard_sync: async ({ userId, username, photo, workoutVolume, col }) => {
+                        const profileRef = doc(db, 'users', userId, 'data', 'profile');
+                        const profileSnap = await getDoc(profileRef);
+                        const xp = profileSnap.exists() ? (profileSnap.data().xp || 0) : 0;
+                        await setDoc(doc(db, 'leaderboard', userId), {
+                            username, xp, userId, photo,
+                            todayVolume: col === 'workouts' ? workoutVolume : 0
+                        }, { merge: true });
+                    },
+                    boss_damage: async ({ userId, username, workoutVolume }) => {
+                        await updateBossProgress(userId, username, workoutVolume);
+                    }
+                });
+                if (count > 0) console.log(`Replayed ${count} offline operations.`);
+            } catch (err) {
+                console.error('Offline queue replay error:', err);
+            }
+        };
+        window.addEventListener('online', handleOnline);
+        return () => window.removeEventListener('online', handleOnline);
+    }, [user]);
 
     // --- AUTH ACTIONS (Web3 Player Card) ---
     const loginAnonymous = async () => {
@@ -465,6 +507,23 @@ export function useFitnessData() {
                         });
                     }
                 });
+
+                // Server-side anti-cheat validation (skip when offline — Firestore cache handles the write)
+                if (navigator.onLine) {
+                    try {
+                        const validateWorkout = httpsCallable(firebaseFunctions, 'validateWorkoutData');
+                        await validateWorkout({
+                            exercises: payload.exercises.map(ex => ({
+                                name: ex.name || ex.exercise || 'Unknown',
+                                sets: ex.sets || []
+                            })),
+                            duration: payload.duration || 0
+                        });
+                    } catch (validationErr) {
+                        console.error('Workout rejected by server:', validationErr.message);
+                        throw new Error(validationErr.message || 'Workout validation failed');
+                    }
+                }
             }
 
             try {
@@ -473,23 +532,6 @@ export function useFitnessData() {
                 else { await addDoc(collection(db, 'users', user.uid, col), docData); }
 
                 if (xpGain > 0 || col === 'workouts') {
-                    const profileRef = doc(db, 'users', user.uid, 'data', 'profile');
-                    let newXp = 0;
-                    let oldXp = 0;
-
-                    if (xpGain > 0) {
-                        await runTransaction(db, async (txn) => {
-                            const snap = await txn.get(profileRef);
-                            const current = snap.exists() ? snap.data() : {};
-                            oldXp = current.xp || 0;
-                            newXp = oldXp + xpGain;
-                            txn.set(profileRef, { xp: newXp }, { merge: true });
-                        });
-                    } else {
-                        newXp = profile.xp || 0;
-                        oldXp = newXp;
-                    }
-
                     let workoutVolume = 0;
                     if (col === 'workouts' && payload.exercises) {
                         payload.exercises.forEach(ex => {
@@ -497,33 +539,72 @@ export function useFitnessData() {
                         });
                     }
 
-                    const currentEntry = leaderboard.find(u => u.userId === user.uid);
-                    const currentVolume = currentEntry?.todayVolume || 0;
+                    // Offline: queue server-dependent ops for replay on reconnect
+                    if (!navigator.onLine) {
+                        if (xpGain > 0) {
+                            enqueueOfflineOp('xp_update', { userId: user.uid, xpGain });
+                        }
+                        enqueueOfflineOp('leaderboard_sync', {
+                            userId: user.uid,
+                            username: sanitizeText(user.displayName || "Anonymous", MAX_USERNAME_LENGTH),
+                            photo: profile.photoURL || user.photoURL,
+                            workoutVolume: col === 'workouts' ? workoutVolume : 0,
+                            col
+                        });
+                        if (col === 'workouts' && workoutVolume > 0) {
+                            enqueueOfflineOp('boss_damage', {
+                                userId: user.uid,
+                                username: user.displayName || "Anonymous",
+                                workoutVolume
+                            });
+                        }
+                    } else {
+                        // Online: execute immediately
+                        const profileRef = doc(db, 'users', user.uid, 'data', 'profile');
+                        let newXp = 0;
+                        let oldXp = 0;
 
-                    const leaderboardData = {
-                        username: sanitizeText(user.displayName || "Anonymous", MAX_USERNAME_LENGTH),
-                        xp: newXp,
-                        userId: user.uid,
-                        photo: profile.photoURL || user.photoURL,
-                        todayVolume: col === 'workouts' ? currentVolume + workoutVolume : currentVolume
-                    };
-                    await setDoc(doc(db, 'leaderboard', user.uid), leaderboardData, { merge: true });
+                        if (xpGain > 0) {
+                            await runTransaction(db, async (txn) => {
+                                const snap = await txn.get(profileRef);
+                                const current = snap.exists() ? snap.data() : {};
+                                oldXp = current.xp || 0;
+                                newXp = oldXp + xpGain;
+                                txn.set(profileRef, { xp: newXp }, { merge: true });
+                            });
+                        } else {
+                            newXp = profile.xp || 0;
+                            oldXp = newXp;
+                        }
 
-                    if (xpGain > 0 && Math.floor(oldXp / 500) < Math.floor(newXp / 500)) {
-                        broadcastEvent('level', 'leveled up!', 'Reached ' + newXp + ' XP');
-                    }
+                        const currentEntry = leaderboard.find(u => u.userId === user.uid);
+                        const currentVolume = currentEntry?.todayVolume || 0;
 
-                    // Apply Boss Damage based on Workout Volume
-                    if (col === 'workouts' && workoutVolume > 0) {
-                        try {
-                            const bossResult = await updateBossProgress(user.uid, leaderboardData.username, workoutVolume);
-                            if (bossResult && !bossResult.defeated) {
-                                broadcastEvent('boss_hit', 'Critical Hit!', `Dealt ${workoutVolume} damage to the Boss!`);
-                            } else if (bossResult && bossResult.defeated) {
-                                broadcastEvent('boss_kill', 'Boss Defeated!', `You struck the final blow!`);
+                        const leaderboardData = {
+                            username: sanitizeText(user.displayName || "Anonymous", MAX_USERNAME_LENGTH),
+                            xp: newXp,
+                            userId: user.uid,
+                            photo: profile.photoURL || user.photoURL,
+                            todayVolume: col === 'workouts' ? currentVolume + workoutVolume : currentVolume
+                        };
+                        await setDoc(doc(db, 'leaderboard', user.uid), leaderboardData, { merge: true });
+
+                        if (xpGain > 0 && Math.floor(oldXp / 500) < Math.floor(newXp / 500)) {
+                            broadcastEvent('level', 'leveled up!', 'Reached ' + newXp + ' XP');
+                        }
+
+                        // Apply Boss Damage based on Workout Volume
+                        if (col === 'workouts' && workoutVolume > 0 && throttleAction('workout_boss_damage', 10000).allowed) {
+                            try {
+                                const bossResult = await updateBossProgress(user.uid, leaderboardData.username, workoutVolume);
+                                if (bossResult && !bossResult.defeated) {
+                                    broadcastEvent('boss_hit', 'Critical Hit!', `Dealt ${workoutVolume} damage to the Boss!`);
+                                } else if (bossResult && bossResult.defeated) {
+                                    broadcastEvent('boss_kill', 'Boss Defeated!', `You struck the final blow!`);
+                                }
+                            } catch (err) {
+                                console.error("Failed to apply boss damage:", err);
                             }
-                        } catch (err) {
-                            console.error("Failed to apply boss damage:", err);
                         }
                     }
                 }

@@ -24,16 +24,26 @@ export function speakFormCue(message) {
     // Cancel any currently speaking utterance
     window.speechSynthesis.cancel();
 
-    const utterance = new SpeechSynthesisUtterance(message);
-    utterance.lang = 'en-US';
-    utterance.rate = 1.1;   // Slightly faster for gym urgency
-    utterance.pitch = 0.9;  // Slightly deeper for authority
-    utterance.volume = 1.0;
+    try {
+        const utterance = new SpeechSynthesisUtterance(message);
+        utterance.lang = 'en-US';
+        utterance.rate = 1.1;   // Slightly faster for gym urgency
+        utterance.pitch = 0.9;  // Slightly deeper for authority
+        utterance.volume = 1.0;
+        utterance.onerror = () => {}; // Swallow TTS errors during form correction (non-critical)
 
-    window.speechSynthesis.speak(utterance);
+        // Chrome bug: speechSynthesis can get stuck. Resume if paused.
+        if (window.speechSynthesis.paused) {
+            window.speechSynthesis.resume();
+        }
 
-    lastSpokenMessage = message;
-    lastSpokenTime = now;
+        window.speechSynthesis.speak(utterance);
+
+        lastSpokenMessage = message;
+        lastSpokenTime = now;
+    } catch {
+        // TTS unavailable on this device — silently degrade
+    }
 }
 
 /** Enable/disable voice cues globally */

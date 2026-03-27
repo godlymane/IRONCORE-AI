@@ -4,6 +4,7 @@ import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager
 import { getAuth } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
+import { getMessaging, isSupported as isMessagingSupported } from 'firebase/messaging';
 import { Capacitor } from '@capacitor/core';
 
 
@@ -41,6 +42,21 @@ export const storage = storageInstance;
 export const isStorageConfigured = !!storageInstance;
 
 export const functions = getFunctions(app);
+
+// Messaging — only supported in browser contexts with service workers
+let messagingInstance = null;
+export const getMessagingInstance = async () => {
+    if (messagingInstance) return messagingInstance;
+    try {
+        const supported = await isMessagingSupported();
+        if (supported) {
+            messagingInstance = getMessaging(app);
+        }
+    } catch (e) {
+        console.warn('Messaging init skipped:', e.message);
+    }
+    return messagingInstance;
+};
 
 export default app;
 

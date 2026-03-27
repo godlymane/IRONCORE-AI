@@ -10,7 +10,7 @@
 // - Session timer with auto-stop
 // =====================================================================
 
-const AudioContext = window.AudioContext || window.webkitAudioContext;
+const AudioContext = typeof window !== 'undefined' ? (window.AudioContext || window.webkitAudioContext) : null;
 
 // ── FREQUENCY PRESETS (research-backed) ──────────────────────────────
 // Each preset uses multiple entrainment layers for stronger effect

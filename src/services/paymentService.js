@@ -5,6 +5,7 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getApp } from 'firebase/app';
 import { db } from '../firebase';
+import { throttleAction } from '../utils/rateLimiter';
 
 // ─── Feature access matrix (3-tier: free / pro / elite) ────────────────────
 export const FEATURE_ACCESS = {
@@ -101,6 +102,11 @@ export const createPaymentOrder = async (planId, userId) => {
     const plan = PRICING_PLANS[planId];
     if (!plan || plan.price === 0) {
         throw new Error('Invalid plan selected');
+    }
+
+    const { allowed } = throttleAction('payment_order', 30000);
+    if (!allowed) {
+        throw new Error('Payment already in progress — please wait before retrying.');
     }
 
     try {

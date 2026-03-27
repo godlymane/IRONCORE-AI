@@ -13,6 +13,7 @@ import {
     initializeUser,
     checkDailyForge
 } from '../services/arenaService';
+import { throttleAction } from '../utils/rateLimiter';
 import { checkAITriggers } from '../services/NotificationService';
 
 const ArenaContext = createContext(null);
@@ -118,6 +119,11 @@ export const ArenaProvider = ({ children, user: authUser }) => {
     const dealBossDamage = useCallback(async (damage) => {
         if (!currentUser) return null;
 
+        const { allowed, retryIn } = throttleAction('boss_damage', 10000);
+        if (!allowed) {
+            throw new Error(`Too fast — wait ${Math.ceil(retryIn / 1000)}s before attacking again.`);
+        }
+
         try {
             const result = await updateBossProgress(
                 currentUser.id,
@@ -183,6 +189,9 @@ export const ArenaProvider = ({ children, user: authUser }) => {
 
     const handleAwardXP = useCallback(async (amount, reason) => {
         if (!currentUser) return null;
+
+        const { allowed, retryIn } = throttleAction(`award_xp_${reason}`, 5000);
+        if (!allowed) return null;
 
         try {
             const result = await awardXP(currentUser.id, amount, reason);

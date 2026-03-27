@@ -37,8 +37,13 @@ export const ExpBar = ({ xp = 0 }) => {
 
   return (
     <div
-      className="relative w-full cursor-pointer select-none"
+      className="relative w-full cursor-pointer select-none min-h-[44px] flex items-center"
       onClick={() => setExpanded(!expanded)}
+      role="button"
+      aria-label={`Level ${level}, ${Math.round(progress)}% to next level. Tap for details`}
+      aria-expanded={expanded}
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setExpanded(!expanded); }}
       style={{ zIndex: 45 }}
     >
       {/* Track */}

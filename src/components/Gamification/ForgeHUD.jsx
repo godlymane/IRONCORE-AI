@@ -59,9 +59,11 @@ export const ForgeHUD = ({ currentForge = 0, longestForge = 0, forgeShieldCount 
     <div className="relative flex items-center gap-1.5" style={{ zIndex: 44 }}>
       {/* Forge counter button */}
       <motion.button
-        className="flex items-center gap-1 px-2.5 py-1 rounded-full select-none"
+        className="flex items-center gap-1 px-2.5 min-h-[44px] rounded-full select-none"
         onClick={() => { setExpanded(!expanded); setShowConfirm(false); }}
         whileTap={{ scale: 0.95 }}
+        aria-label={`Forge streak: ${currentForge} days${multiplier ? `, ${multiplier.label} XP multiplier` : ''}. Tap for details`}
+        aria-expanded={expanded}
         style={{
           background: 'rgba(18, 18, 18, 0.9)',
           border: `1px solid ${currentForge >= 7 ? 'rgba(220, 38, 38, 0.3)' : 'rgba(255,255,255,0.08)'}`,
@@ -100,10 +102,11 @@ export const ForgeHUD = ({ currentForge = 0, longestForge = 0, forgeShieldCount 
       {/* Forge Shield button */}
       {forgeShieldCount > 0 && (
         <motion.button
-          className="flex items-center gap-0.5 px-2 py-1 rounded-full select-none"
+          className="flex items-center gap-0.5 px-2 min-h-[44px] rounded-full select-none"
           onClick={() => { setShowConfirm(true); setExpanded(false); }}
           whileTap={{ scale: 0.92 }}
           disabled={shieldLoading}
+          aria-label={`Use forge shield. ${forgeShieldCount} shield${forgeShieldCount !== 1 ? 's' : ''} remaining`}
           style={{
             background: 'rgba(18, 18, 18, 0.9)',
             border: '1px solid rgba(59, 130, 246, 0.3)',
@@ -160,6 +163,9 @@ export const ForgeHUD = ({ currentForge = 0, longestForge = 0, forgeShieldCount 
         {showConfirm && (
           <motion.div
             className="absolute top-full right-0 mt-1.5 px-4 py-3 rounded-xl min-w-[220px]"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Confirm forge shield use"
             initial={{ opacity: 0, y: -4, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.95 }}
@@ -180,14 +186,14 @@ export const ForgeHUD = ({ currentForge = 0, longestForge = 0, forgeShieldCount 
               <button
                 onClick={handleUseShield}
                 disabled={shieldLoading}
-                className="flex-1 py-1.5 rounded-lg text-[11px] font-black text-white"
+                className="flex-1 min-h-[44px] rounded-lg text-[11px] font-black text-white"
                 style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}
               >
                 {shieldLoading ? '...' : 'Use Shield'}
               </button>
               <button
                 onClick={() => setShowConfirm(false)}
-                className="flex-1 py-1.5 rounded-lg text-[11px] font-semibold text-gray-400"
+                className="flex-1 min-h-[44px] rounded-lg text-[11px] font-semibold text-gray-400"
                 style={{ background: 'rgba(255,255,255,0.05)' }}
               >
                 Cancel

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
 import { X, Check, AlertTriangle, Info, Loader2, Moon, Sun, Image, History, Swords, Dumbbell } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { SFX } from '../utils/audio';
@@ -330,54 +330,63 @@ export const Card = ({ children, className = "", onClick }) => {
 // --- CONSOLIDATED GLASS CARD ---
 // Single source of truth for all glass card styling across the app
 export const GlassCard = ({ children, className = "", onClick, highlight = false, animated = false }) => {
-  // Detect mobile to skip GPU-heavy blur effects and 3D tilts (inline styles bypass CSS media queries)
-  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+  // Detect mobile once — skip GPU-heavy blur, 3D tilts, and shine layers
+  const isMobile = useMemo(() => typeof window !== 'undefined' && window.innerWidth <= 768, []);
 
-  // 3D Magnetic Tilt Logic
+  // 3D Magnetic Tilt Logic — hooks always called (React rules) but values unused on mobile
   const x = useMotionValue(0.5);
   const y = useMotionValue(0.5);
   const rotateX = useTransform(y, [0, 1], [3, -3]);
   const rotateY = useTransform(x, [0, 1], [-3, 3]);
+  // Hoist shine gradient out of JSX (was violating hooks-in-JSX pattern)
+  const shineGradient = useTransform(
+    [x, y],
+    ([latestX, latestY]) => `radial-gradient(circle at ${latestX * 100}% ${latestY * 100}%, rgba(255,255,255,0.05) 0%, transparent 60%)`
+  );
 
-  const handleMouseMove = (e) => {
+  const handleMouseMove = useCallback((e) => {
     if (isMobile) return;
     const rect = e.currentTarget.getBoundingClientRect();
     x.set((e.clientX - rect.left) / rect.width);
     y.set((e.clientY - rect.top) / rect.height);
-  };
+  }, [isMobile, x, y]);
 
-  const handleMouseLeave = () => {
+  const handleMouseLeave = useCallback(() => {
     if (isMobile) return;
     x.set(0.5);
     y.set(0.5);
-  };
+  }, [isMobile, x, y]);
+
+  const mobileStyle = useMemo(() => ({
+    background: highlight ? 'rgba(40, 10, 10, 0.95)' : 'rgba(18, 18, 18, 0.95)',
+    border: highlight ? '1px solid rgba(220, 38, 38, 0.4)' : '1px solid rgba(220, 38, 38, 0.1)',
+    boxShadow: highlight
+      ? '0 0 20px rgba(220, 38, 38, 0.15), 0 4px 16px rgba(0, 0, 0, 0.5)'
+      : '0 4px 16px rgba(0, 0, 0, 0.5)',
+  }), [highlight]);
+
+  const desktopStyle = useMemo(() => ({
+    background: highlight
+      ? 'linear-gradient(145deg, rgba(220, 38, 38, 0.15) 0%, rgba(153, 27, 27, 0.08) 50%, rgba(220, 38, 38, 0.12) 100%)'
+      : 'linear-gradient(145deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 50%, rgba(255, 255, 255, 0.02) 100%)',
+    backdropFilter: 'blur(20px) saturate(180%)',
+    WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+    border: highlight ? '1px solid rgba(220, 38, 38, 0.35)' : '1px solid rgba(220, 38, 38, 0.1)',
+    boxShadow: highlight
+      ? '0 0 30px rgba(220, 38, 38, 0.12), 0 10px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08)'
+      : '0 10px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06)',
+  }), [highlight]);
 
   const content = (
     <motion.div
       onClick={onClick}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
+      onMouseMove={isMobile ? undefined : handleMouseMove}
+      onMouseLeave={isMobile ? undefined : handleMouseLeave}
       style={{
         rotateX: isMobile ? 0 : rotateX,
         rotateY: isMobile ? 0 : rotateY,
-        transformPerspective: 1000,
-        ...(isMobile ? {
-          background: highlight ? 'rgba(40, 10, 10, 0.95)' : 'rgba(18, 18, 18, 0.95)',
-          border: highlight ? '1px solid rgba(220, 38, 38, 0.4)' : '1px solid rgba(220, 38, 38, 0.1)',
-          boxShadow: highlight
-            ? '0 0 20px rgba(220, 38, 38, 0.15), 0 4px 16px rgba(0, 0, 0, 0.5)'
-            : '0 4px 16px rgba(0, 0, 0, 0.5)',
-        } : {
-          background: highlight
-            ? 'linear-gradient(145deg, rgba(220, 38, 38, 0.15) 0%, rgba(153, 27, 27, 0.08) 50%, rgba(220, 38, 38, 0.12) 100%)'
-            : 'linear-gradient(145deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 50%, rgba(255, 255, 255, 0.02) 100%)',
-          backdropFilter: 'blur(20px) saturate(180%)',
-          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-          border: highlight ? '1px solid rgba(220, 38, 38, 0.35)' : '1px solid rgba(220, 38, 38, 0.1)',
-          boxShadow: highlight
-            ? '0 0 30px rgba(220, 38, 38, 0.12), 0 10px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08)'
-            : '0 10px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06)',
-        })
+        transformPerspective: isMobile ? undefined : 1000,
+        ...(isMobile ? mobileStyle : desktopStyle)
       }}
       className={`group relative overflow-hidden rounded-3xl p-5 transition-colors duration-300 ${onClick ? 'cursor-pointer hover:border-red-500/30' : ''} ${className}`}
     >
@@ -385,12 +394,7 @@ export const GlassCard = ({ children, className = "", onClick, highlight = false
       {!isMobile && (
         <motion.div
           className="absolute inset-0 pointer-events-none rounded-3xl z-20"
-          style={{
-            background: useTransform(
-              [x, y],
-              ([latestX, latestY]) => `radial-gradient(circle at ${latestX * 100}% ${latestY * 100}%, rgba(255,255,255,0.05) 0%, transparent 60%)`
-            )
-          }}
+          style={{ background: shineGradient }}
         />
       )}
 
@@ -442,6 +446,9 @@ export const NavBtn = ({ active, onClick, icon, label }) => {
     <motion.button
       onClick={handleClick}
       whileTap={{ scale: 0.92 }}
+      role="tab"
+      aria-selected={active}
+      aria-label={`${label} tab`}
       className="relative flex flex-col items-center justify-center gap-0.5 min-h-[48px] w-full py-1.5 px-0 touch-target"
     >
       {/* Icon Container */}
@@ -490,6 +497,7 @@ export const FloatingActionButton = ({ actions = [], mainIcon }) => {
                 animate={{ opacity: 1, x: 0, transition: { delay: i * 0.05 } }}
                 exit={{ opacity: 0, x: 20 }}
                 onClick={() => { action.onClick(); setIsOpen(false); }}
+                aria-label={action.label}
                 className="flex items-center gap-3 px-4 py-3 rounded-2xl backdrop-blur-xl border border-white/10 shadow-xl"
                 style={{ background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%)' }}
               >
@@ -506,6 +514,8 @@ export const FloatingActionButton = ({ actions = [], mainIcon }) => {
         animate={{ rotate: isOpen ? 45 : 0 }}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
+        aria-label={isOpen ? 'Close quick actions' : 'Open quick actions'}
+        aria-expanded={isOpen}
         className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl"
         style={{
           background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.95) 0%, rgba(153, 27, 27, 0.95) 100%)',

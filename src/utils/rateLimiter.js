@@ -85,3 +85,27 @@ export const getUsageStats = (isPremium = false) => {
   const used = (record && record.date === today) ? (record.count || 0) : 0;
   return { used, cap, remaining: Math.max(0, cap - used) };
 };
+
+// ── General-purpose action throttle ──────────────────────────────────
+// Prevents any named action from firing more than once within its cooldown window.
+// Usage: const { allowed, retryIn } = throttleAction('boss_damage', 10000);
+
+const _actionTimestamps = new Map();
+
+/**
+ * @param {string} actionKey - Unique identifier for the action (e.g. 'boss_damage', 'award_xp')
+ * @param {number} cooldownMs - Minimum milliseconds between allowed calls
+ * @returns {{ allowed: boolean, retryIn: number }} retryIn is ms until next allowed call (0 if allowed)
+ */
+export const throttleAction = (actionKey, cooldownMs) => {
+  const now = Date.now();
+  const last = _actionTimestamps.get(actionKey) || 0;
+  const elapsed = now - last;
+
+  if (elapsed < cooldownMs) {
+    return { allowed: false, retryIn: cooldownMs - elapsed };
+  }
+
+  _actionTimestamps.set(actionKey, now);
+  return { allowed: true, retryIn: 0 };
+};

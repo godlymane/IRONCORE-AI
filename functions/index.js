@@ -2867,3 +2867,196 @@ exports.checkAndAwardAchievements = onCall(
     return { success: true, newBadges: [] };
   }
 );
+
+// ════════════════════════════════════════════════════════════════════════════
+// WORKOUT VALIDATION — Server-side anti-cheat for regular workout logging
+// ════════════════════════════════════════════════════════════════════════════
+
+exports.validateWorkoutData = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Must be logged in.");
+
+  const { exercises, duration } = request.data;
+
+  if (!Array.isArray(exercises) || exercises.length === 0) {
+    throw new HttpsError("invalid-argument", "Workout must have exercises.");
+  }
+
+  if (exercises.length > 50) {
+    throw new HttpsError("invalid-argument", "Too many exercises (max 50).");
+  }
+
+  // Duration: 0-4 hours (14400s)
+  if (typeof duration === "number" && (duration < 0 || duration > 14400)) {
+    throw new HttpsError("invalid-argument", "Duration out of range (0-4hrs).");
+  }
+
+  let totalVolume = 0;
+
+  for (const ex of exercises) {
+    if (typeof ex.name !== "string" || ex.name.length === 0 || ex.name.length > 200) {
+      throw new HttpsError("invalid-argument", "Invalid exercise name.");
+    }
+
+    if (!Array.isArray(ex.sets)) continue;
+    if (ex.sets.length > 100) {
+      throw new HttpsError("invalid-argument", `Too many sets for ${ex.name} (max 100).`);
+    }
+
+    const maxReps = REP_LIMITS[ex.name] || REP_LIMITS._default;
+
+    for (const s of ex.sets) {
+      const w = parseFloat(s.w) || 0;
+      const r = parseFloat(s.r) || 0;
+
+      if (w < 0 || w > 2000) {
+        throw new HttpsError("invalid-argument", `Weight ${w}kg out of range for ${ex.name}.`);
+      }
+      if (r < 0 || r > maxReps) {
+        throw new HttpsError("invalid-argument", `${r} reps exceeds limit (${maxReps}) for ${ex.name}.`);
+      }
+      totalVolume += w * r;
+    }
+  }
+
+  // Volume sanity: flag > 500,000 kg (elite powerlifter territory)
+  if (totalVolume > 500000) {
+    throw new HttpsError("invalid-argument", "Total volume exceeds plausible limits.");
+  }
+
+  // Historical check: compare against user's recent workouts
+  const recentSnap = await db.collection("users").doc(uid).collection("workouts")
+    .orderBy("createdAt", "desc").limit(10).get();
+
+  if (recentSnap.size >= 3) {
+    const volumes = recentSnap.docs.map(d => {
+      let v = 0;
+      (d.data().exercises || []).forEach(ex => {
+        (ex.sets || []).forEach(s => { v += (parseFloat(s.w) || 0) * (parseFloat(s.r) || 0); });
+      });
+      return v;
+    }).filter(v => v > 0);
+
+    if (volumes.length >= 3) {
+      const avg = volumes.reduce((a, b) => a + b, 0) / volumes.length;
+      if (avg > 0 && totalVolume > avg * 5) {
+        throw new HttpsError("invalid-argument",
+          `Volume ${Math.round(totalVolume)} is ${(totalVolume / avg).toFixed(1)}x your average — flagged for review.`);
+      }
+    }
+  }
+
+  // Timing: prevent rapid-fire logging (< 2 min between workouts with high volume)
+  if (recentSnap.size > 0) {
+    const lastCreated = recentSnap.docs[0].data().createdAt;
+    if (lastCreated && lastCreated.toDate) {
+      const diffMs = Date.now() - lastCreated.toDate().getTime();
+      if (diffMs < 120000 && totalVolume > 5000) {
+        throw new HttpsError("invalid-argument", "Too soon after last workout for this volume.");
+      }
+    }
+  }
+
+  return { valid: true, volume: Math.round(totalVolume) };
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// PUSH NOTIFICATIONS — Server-side FCM push to specific users
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Send a push notification to a user via their stored FCM token.
+ * Called by other Cloud Functions or admin triggers.
+ */
+async function sendPushToUser(userId, title, body, data = {}) {
+  try {
+    const fcmDoc = await db.doc(`users/${userId}/data/fcm`).get();
+    if (!fcmDoc.exists || !fcmDoc.data().token) return { sent: false, reason: "no_token" };
+
+    const token = fcmDoc.data().token;
+
+    const message = {
+      token,
+      notification: { title, body },
+      data: { ...data, url: data.url || "/" },
+      android: {
+        priority: "high",
+        notification: {
+          channelId: "ironcore_default",
+          icon: "ic_launcher",
+          color: "#dc2626",
+        },
+      },
+    };
+
+    await admin.messaging().send(message);
+    return { sent: true };
+  } catch (error) {
+    // Token expired or invalid — clean up
+    if (error.code === "messaging/registration-token-not-registered" ||
+        error.code === "messaging/invalid-registration-token") {
+      await db.doc(`users/${userId}/data/fcm`).delete().catch(() => {});
+    }
+    return { sent: false, reason: error.code || error.message };
+  }
+}
+
+/**
+ * Callable function — send push notification to a user (admin/internal use).
+ */
+exports.sendPushNotification = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Must be logged in.");
+
+  const { targetUserId, title, body } = request.data;
+  if (!targetUserId || !title || !body) {
+    throw new HttpsError("invalid-argument", "targetUserId, title, and body are required.");
+  }
+
+  return await sendPushToUser(targetUserId, title, body);
+});
+
+/**
+ * Scheduled — send daily workout reminder at 6 PM to users who haven't worked out today.
+ */
+exports.dailyWorkoutReminder = onSchedule("every day 18:00", async () => {
+  const today = new Date().toISOString().split("T")[0];
+
+  // Get all users with FCM tokens
+  const fcmSnapshots = await db.collectionGroup("fcm").get();
+
+  for (const fcmDoc of fcmSnapshots.docs) {
+    const userId = fcmDoc.ref.parent.parent.parent.id;
+    const token = fcmDoc.data().token;
+    if (!token) continue;
+
+    // Check if user logged a workout today
+    const workoutsToday = await db.collection(`users/${userId}/workouts`)
+      .where("date", "==", today)
+      .limit(1)
+      .get();
+
+    if (workoutsToday.empty) {
+      try {
+        await admin.messaging().send({
+          token,
+          notification: {
+            title: "No workout yet today",
+            body: "Your streak is waiting. Even 10 minutes counts.",
+          },
+          data: { url: "/" },
+          android: {
+            priority: "high",
+            notification: {
+              channelId: "ironcore_default",
+              icon: "ic_launcher",
+              color: "#dc2626",
+            },
+          },
+        });
+      } catch {
+        // Token invalid — skip
+      }
+    }
+  }
+});

@@ -20,6 +20,7 @@ public/wasm/
 
 # Firebase secrets & mocks
 auth_users.json
+scripts/seedDatabase.js
 android/app/google-services.json
 ios/App/App/GoogleService-Info.plist
 ios-native/**/GoogleService-Info.plist
@@ -28,6 +29,7 @@ ios-native/**/GoogleService-Info.plist
 # Android signing
 *.jks
 *.keystore
+android/local.properties
 
 # IDE
 .idea/

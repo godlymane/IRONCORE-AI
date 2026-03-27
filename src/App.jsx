@@ -479,7 +479,7 @@ const MainContent = () => {
                 />
 
                 {/* Nav Items Grid */}
-                <div className="relative z-10 grid grid-cols-5 gap-0">
+                <div className="relative z-10 grid grid-cols-5 gap-0" role="tablist" aria-label="Main navigation">
                   <NavBtn active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} icon={<EliteFlameIcon active={activeTab === 'dashboard'} size={22} />} label="Home" />
                   <NavBtn active={activeTab === 'arena'} onClick={() => handleTabChange('arena')} icon={<EliteSwordsIcon active={activeTab === 'arena'} size={22} />} label="Arena" />
                   <NavBtn active={activeTab === 'train'} onClick={() => handleTabChange('train')} icon={<EliteDumbbellIcon active={activeTab === 'train'} size={22} />} label="Train" />

@@ -67,28 +67,43 @@ function parseIntent(text) {
 // TTS ENGINE
 // ===========================
 function speak(text, onEnd) {
-    if (!window.speechSynthesis) {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
         onEnd?.();
         return;
     }
-    window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(text);
 
-    // Pick the best voice — prefer English male
-    const voices = window.speechSynthesis.getVoices();
-    const preferred = voices.find(v =>
-        v.lang.startsWith('en') && v.name.toLowerCase().includes('male')
-    ) || voices.find(v =>
-        v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Daniel'))
-    ) || voices.find(v => v.lang.startsWith('en'));
+    try {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
 
-    if (preferred) utter.voice = preferred;
-    utter.rate = 1.05;
-    utter.pitch = 0.9; // Slightly deeper
-    utter.volume = 1;
-    utter.onend = () => onEnd?.();
-    utter.onerror = () => onEnd?.();
-    window.speechSynthesis.speak(utter);
+        // Pick the best voice — prefer English male
+        const voices = window.speechSynthesis.getVoices();
+        const preferred = voices.find(v =>
+            v.lang.startsWith('en') && v.name.toLowerCase().includes('male')
+        ) || voices.find(v =>
+            v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Daniel'))
+        ) || voices.find(v => v.lang.startsWith('en'));
+
+        if (preferred) utter.voice = preferred;
+        utter.rate = 1.05;
+        utter.pitch = 0.9; // Slightly deeper
+        utter.volume = 1;
+        utter.onend = () => onEnd?.();
+        utter.onerror = (e) => {
+            console.warn('Speech synthesis error:', e?.error || 'unknown');
+            onEnd?.();
+        };
+
+        // Chrome bug: speechSynthesis can get stuck. Resume if paused.
+        if (window.speechSynthesis.paused) {
+            window.speechSynthesis.resume();
+        }
+
+        window.speechSynthesis.speak(utter);
+    } catch (err) {
+        console.warn('Speech synthesis unavailable:', err.message);
+        onEnd?.();
+    }
 }
 
 // Coach system prompt — gives Gemini its personality
@@ -389,6 +404,7 @@ const VoiceCoach = ({ updateData, analyzeFood, cleanAIResponse }) => {
                         >
                             <button
                                 onClick={dismissBubble}
+                                aria-label="Dismiss coach message"
                                 className="absolute top-2 right-2 p-1 rounded-full text-gray-500 hover:text-white transition-colors"
                             >
                                 <X size={12} />
@@ -453,6 +469,7 @@ const VoiceCoach = ({ updateData, analyzeFood, cleanAIResponse }) => {
                 data-keyboard-hide
                 onClick={toggleListening}
                 whileTap={{ scale: 0.9 }}
+                aria-label={state === 'listening' ? 'Stop listening' : state === 'processing' ? 'Processing voice input' : state === 'speaking' ? 'Coach is speaking' : 'Start voice coach'}
                 className="fixed left-4 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl"
                 style={{
                     bottom: 'calc(env(safe-area-inset-bottom, 0px) + 7rem)',
