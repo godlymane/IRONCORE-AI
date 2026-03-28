@@ -1,7 +1,7 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, Crown, Medal } from 'lucide-react';
 
-export const LeaderboardCard = ({ user, rank, isUser = false }) => {
+export const LeaderboardCard = React.memo(({ user, rank, isUser = false }) => {
     const getRankIcon = () => {
         if (rank === 1) return <Crown className="text-yellow-400" fill="currentColor" size={16} />;
         if (rank === 2) return <Medal className="text-gray-400" size={16} />;
@@ -70,7 +70,4 @@ export const LeaderboardCard = ({ user, rank, isUser = false }) => {
             </div>
         </div>
     );
-};
-
-
-
+});

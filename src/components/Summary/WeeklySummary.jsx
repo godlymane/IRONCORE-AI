@@ -4,6 +4,11 @@ import { Calendar, X, Trophy, Flame, Dumbbell, UtensilsCrossed, TrendingUp, Shar
 import { generateWeeklySummary } from '../../utils/exportUtils';
 import { shareAchievement, openSharePicker } from '../../utils/shareUtils';
 
+const WEEKLY_GOALS = {
+    PROTEIN_WEEKLY: 700,
+    CALORIES_BURNED_WEEKLY: 2000,
+};
+
 // Weekly Summary Modal/Card
 export const WeeklySummary = ({ workouts = [], meals = [], isModal = false, onClose }) => {
     const [showShareOptions, setShowShareOptions] = useState(false);
@@ -21,11 +26,11 @@ export const WeeklySummary = ({ workouts = [], meals = [], isModal = false, onCl
             items.push({ icon: '💪', text: 'Solid workout consistency!' });
         }
 
-        if (summary.nutrition.totalProtein >= 700) {
+        if (summary.nutrition.totalProtein >= WEEKLY_GOALS.PROTEIN_WEEKLY) {
             items.push({ icon: '🥩', text: 'Protein goals smashed!' });
         }
 
-        if (summary.workouts.caloriesBurned >= 2000) {
+        if (summary.workouts.caloriesBurned >= WEEKLY_GOALS.CALORIES_BURNED_WEEKLY) {
             items.push({ icon: '🔥', text: 'Mega calorie burn!' });
         }
 

@@ -3,16 +3,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Share2, UserPlus, Check, X, Flame, Swords, Loader2, Copy } from 'lucide-react';
 import { useStore } from '../../hooks/useStore';
 import { useToast } from '../UIComponents';
+import { LEAGUE_THRESHOLDS } from '../../utils/constants';
 
-// ─── League Data ──────────────────────────────────────────────────
-const LEAGUES = [
-  { name: 'Iron',     min: 0,     borderColor: '#6b7280', glowColor: 'rgba(107,114,128,0.25)', textColor: '#9ca3af' },
-  { name: 'Bronze',   min: 1000,  borderColor: '#92400e', glowColor: 'rgba(146,64,14,0.3)',    textColor: '#b45309' },
-  { name: 'Silver',   min: 2500,  borderColor: '#9ca3af', glowColor: 'rgba(156,163,175,0.3)',  textColor: '#d1d5db' },
-  { name: 'Gold',     min: 5000,  borderColor: '#d97706', glowColor: 'rgba(217,119,6,0.4)',    textColor: '#fbbf24' },
-  { name: 'Platinum', min: 10000, borderColor: '#0d9488', glowColor: 'rgba(13,148,136,0.45)',  textColor: '#2dd4bf' },
-  { name: 'Diamond',  min: 25000, borderColor: '#06b6d4', glowColor: 'rgba(6,182,212,0.55)',   textColor: '#67e8f9' },
-];
+// ─── League Data — thresholds from shared constants, visual styles local ──
+const LEAGUE_STYLES = {
+  Iron:     { borderColor: '#6b7280', glowColor: 'rgba(107,114,128,0.25)', textColor: '#9ca3af' },
+  Bronze:   { borderColor: '#92400e', glowColor: 'rgba(146,64,14,0.3)',    textColor: '#b45309' },
+  Silver:   { borderColor: '#9ca3af', glowColor: 'rgba(156,163,175,0.3)',  textColor: '#d1d5db' },
+  Gold:     { borderColor: '#d97706', glowColor: 'rgba(217,119,6,0.4)',    textColor: '#fbbf24' },
+  Platinum: { borderColor: '#0d9488', glowColor: 'rgba(13,148,136,0.45)',  textColor: '#2dd4bf' },
+  Diamond:  { borderColor: '#06b6d4', glowColor: 'rgba(6,182,212,0.55)',   textColor: '#67e8f9' },
+};
+const LEAGUES = LEAGUE_THRESHOLDS.map(l => ({ ...l, ...(LEAGUE_STYLES[l.name] || {}) }));
 
 const getLeague = (xp = 0) =>
   [...LEAGUES].reverse().find(l => xp >= l.min) || LEAGUES[0];

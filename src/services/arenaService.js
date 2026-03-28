@@ -1,5 +1,6 @@
 // Arena Service - All Firebase CRUD operations for Arena tab
 import { db } from '../firebase';
+import { GAME_BALANCE } from '../utils/constants';
 import {
     collection,
     doc,
@@ -192,7 +193,7 @@ const updateLeaderboardEntry = async (userId, userData) => {
  * @param {number} limitCount - Number of players to fetch (default 100)
  * @returns {Promise<Array>}
  */
-export const getLeaderboard = async (limitCount = 100) => {
+export const getLeaderboard = async (limitCount = GAME_BALANCE.DEFAULT_LEADERBOARD_LIMIT) => {
     try {
         const q = query(
             collection(db, 'leaderboard'),
@@ -350,7 +351,7 @@ export const createCommunityBoss = async (bossData) => {
 
         // Prevent accidental overwrites of an active boss
         if (snap.exists() && snap.data().status === 'active') {
-            console.log("Boss already active, skipping creation.");
+            console.debug("Boss already active, skipping creation.");
             return;
         }
 
@@ -454,44 +455,49 @@ export const declineBattle = async (battleId) => {
  * @param {string} winnerId 
  * @param {number} xpReward - XP awarded to winner
  */
-export const completeBattle = async (battleId, winnerId, xpReward = 100) => {
+export const completeBattle = async (battleId, winnerId, xpReward = GAME_BALANCE.DEFAULT_BATTLE_XP_REWARD) => {
     try {
         const battleRef = doc(db, 'battles', battleId);
-        const battleSnap = await getDoc(battleRef);
 
-        if (!battleSnap.exists()) {
-            throw new Error('Battle not found');
-        }
+        const result = await runTransaction(db, async (transaction) => {
+            const battleSnap = await transaction.get(battleRef);
+            if (!battleSnap.exists()) throw new Error('Battle not found');
 
-        const battleData = battleSnap.data();
-        const loserId = winnerId === battleData.challenger.userId
-            ? battleData.opponent.userId
-            : battleData.challenger.userId;
+            const battleData = battleSnap.data();
+            if (battleData.status === 'completed') throw new Error('Battle already completed');
 
-        // Update battle status
-        await updateDoc(battleRef, {
-            status: 'completed',
-            winnerId,
-            completedAt: serverTimestamp()
+            const loserId = winnerId === battleData.challenger.userId
+                ? battleData.opponent.userId
+                : battleData.challenger.userId;
+
+            const winnerRef = doc(db, 'users', winnerId);
+            const loserRef = doc(db, 'users', loserId);
+
+            const loserSnap = await transaction.get(loserRef);
+            const currentLoserForge = loserSnap.exists() ? (loserSnap.data().currentForge || 0) : 0;
+
+            // All writes inside the transaction — atomic
+            transaction.update(battleRef, {
+                status: 'completed',
+                winnerId,
+                completedAt: serverTimestamp()
+            });
+
+            transaction.update(winnerRef, {
+                wins: increment(1),
+                xp: increment(xpReward),
+                currentForge: increment(1)
+            });
+
+            transaction.update(loserRef, {
+                losses: increment(1),
+                currentForge: Math.max(0, currentLoserForge - 1)
+            });
+
+            return { winnerId, loserId, xpReward };
         });
 
-        // Update winner stats
-        const winnerRef = doc(db, 'users', winnerId);
-        await updateDoc(winnerRef, {
-            wins: increment(1),
-            xp: increment(xpReward),
-            currentForge: increment(1)
-        });
-
-        // Update loser stats
-        const loserRef = doc(db, 'users', loserId);
-        await updateDoc(loserRef, {
-            losses: increment(1),
-            currentForge: 0
-        });
-
-        // Battle completed
-        return { winnerId, loserId, xpReward };
+        return result;
     } catch (error) {
         console.error('Error completing battle:', error);
         throw error;
@@ -541,15 +547,30 @@ export const getUserBattles = async (userId, status = 'all') => {
                 )
                 .sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
         } else {
-            q = query(
+            // Query battles with specific status where user is participant
+            const challengerQ = query(
                 collection(db, 'battles'),
+                where('challenger.userId', '==', userId),
+                where('status', '==', status),
+                orderBy('createdAt', 'desc'),
+                limit(20)
+            );
+            const opponentQ = query(
+                collection(db, 'battles'),
+                where('opponent.userId', '==', userId),
                 where('status', '==', status),
                 orderBy('createdAt', 'desc'),
                 limit(20)
             );
 
-            const snapshot = await getDocs(q);
-            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const [cSnap, oSnap] = await Promise.all([getDocs(challengerQ), getDocs(opponentQ)]);
+            const battles = [
+                ...cSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+                ...oSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+            ];
+            return battles
+                .filter((b, i, self) => i === self.findIndex(x => x.id === b.id))
+                .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
         }
     } catch (error) {
         console.error('Error getting user battles:', error);
@@ -659,27 +680,33 @@ export const subscribeToChatMessages = (limitCount, callback) => {
 export const awardXP = async (userId, amount, reason = 'activity') => {
     try {
         const userRef = doc(db, 'users', userId);
-        const userSnap = await getDoc(userRef);
 
-        if (!userSnap.exists()) {
-            throw new Error('User not found');
-        }
+        const result = await runTransaction(db, async (transaction) => {
+            const userSnap = await transaction.get(userRef);
+            if (!userSnap.exists()) throw new Error('User not found');
 
-        const userData = userSnap.data();
-        const newXP = (userData.xp || 0) + amount;
-        const newLevel = calculateLevel(newXP);
+            const userData = userSnap.data();
+            const newXP = (userData.xp || 0) + amount;
+            const newLevel = calculateLevel(newXP);
 
-        await updateDoc(userRef, {
-            xp: newXP,
-            level: newLevel,
-            [`xpHistory.${Date.now()}`]: { amount, reason }
+            // Cap xpHistory to last 100 entries (stored as array, not unbounded map)
+            const xpHistory = Array.isArray(userData.xpHistory) ? userData.xpHistory : [];
+            const newEntry = { amount, reason, ts: Date.now() };
+            const trimmedHistory = [...xpHistory, newEntry].slice(-100);
+
+            transaction.update(userRef, {
+                xp: newXP,
+                level: newLevel,
+                xpHistory: trimmedHistory
+            });
+
+            return { newXP, newLevel, leveledUp: newLevel > (userData.level || 0), userData };
         });
 
-        // Update leaderboard
-        await updateLeaderboardEntry(userId, { ...userData, xp: newXP, level: newLevel });
+        // Update leaderboard outside transaction (non-critical)
+        await updateLeaderboardEntry(userId, { ...result.userData, xp: result.newXP, level: result.newLevel });
 
-        // XP awarded
-        return { newXP, newLevel, leveledUp: newLevel > userData.level };
+        return { newXP: result.newXP, newLevel: result.newLevel, leveledUp: result.leveledUp };
     } catch (error) {
         console.error('Error awarding XP:', error);
         throw error;
@@ -692,15 +719,15 @@ export const awardXP = async (userId, amount, reason = 'activity') => {
  * @returns {number} Level
  */
 export const calculateLevel = (xp) => {
-    // XP needed per level: 100, 200, 300, 400... (100 * level)
+    // XP needed per level: BASE_XP_PER_LEVEL * 1, * 2, * 3... (scales linearly)
     let level = 1;
-    let xpNeeded = 100;
+    let xpNeeded = GAME_BALANCE.BASE_XP_PER_LEVEL;
     let totalXP = 0;
 
     while (totalXP + xpNeeded <= xp) {
         totalXP += xpNeeded;
         level++;
-        xpNeeded = 100 * level;
+        xpNeeded = GAME_BALANCE.BASE_XP_PER_LEVEL * level;
     }
 
     return level;
@@ -717,11 +744,11 @@ export const getLevelProgress = (xp) => {
     // Calculate XP at start of current level
     let xpAtLevelStart = 0;
     for (let i = 1; i < level; i++) {
-        xpAtLevelStart += 100 * i;
+        xpAtLevelStart += GAME_BALANCE.BASE_XP_PER_LEVEL * i;
     }
 
     const currentLevelXP = xp - xpAtLevelStart;
-    const xpForNextLevel = 100 * level;
+    const xpForNextLevel = GAME_BALANCE.BASE_XP_PER_LEVEL * level;
     const progress = (currentLevelXP / xpForNextLevel) * 100;
 
     return { currentLevelXP, xpForNextLevel, progress: Math.min(100, progress) };

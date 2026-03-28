@@ -11,14 +11,8 @@ import { BodyHeatmap } from '../components/BodyHeatmap';
 import { usePremium } from '../context/PremiumContext';
 import { useStore } from '../hooks/useStore';
 
-const LEAGUES = [
-    { name: 'Iron', min: 0, color: 'text-gray-400', border: 'border-gray-500', bg: 'bg-gray-500/10' },
-    { name: 'Bronze', min: 1000, color: 'text-orange-700', border: 'border-orange-700', bg: 'bg-orange-700/10' },
-    { name: 'Silver', min: 2500, color: 'text-slate-300', border: 'border-slate-300', bg: 'bg-slate-300/10' },
-    { name: 'Gold', min: 5000, color: 'text-yellow-400', border: 'border-yellow-400', bg: 'bg-yellow-400/10' },
-    { name: 'Platinum', min: 10000, color: 'text-cyan-400', border: 'border-cyan-400', bg: 'bg-cyan-400/10' },
-    { name: 'Diamond', min: 25000, color: 'text-red-400', border: 'border-red-400', bg: 'bg-red-400/10' }
-];
+// Use shared LEVELS array as league display data (same thresholds as LEAGUE_THRESHOLDS)
+const LEAGUES = LEVELS;
 
 export const StatsView = () => {
     const { profile, progress, meals, workouts, userDoc } = useStore();

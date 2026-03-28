@@ -68,7 +68,7 @@ export const CardioView = () => {
     const [cycIntensity, setCycIntensity] = useState("moderate");
 
     // Robust Stats Fetching
-    const weight = profile.weight || progress.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).find(p => p.weight)?.weight;
+    const weight = profile.weight || [...progress].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).find(p => p.weight)?.weight;
     const height = profile.height || profile.heightCm;
 
     // Locked State - Premium Version
@@ -163,9 +163,14 @@ export const CardioView = () => {
             if (cycIntensity === 'high') met = 8.5;
             if (cycIntensity === 'extreme') met = 12.0;
             cals = (met * 3.5 * weight / 200) * cycDuration;
+        } else {
+            // Default MET for unknown/general activity
+            const met = 3.5;
+            cals = (met * 3.5 * weight / 200) * 30; // assume 30 min default
         }
 
-        setBurn(Math.round(cals));
+        // Ensure we always return a valid number
+        setBurn(Math.round(cals) || 0);
     };
 
     const logSession = async () => {

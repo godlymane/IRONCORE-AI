@@ -183,17 +183,19 @@ export const exportPDFReport = ({ workouts = [], meals = [], profile = {}, progr
         win.addEventListener('load', () => {
             win.print();
         });
-    }
-    // Fallback for blocked popups: download the HTML file
-    if (!win) {
+        // Revoke when window unloads or after 60s fallback
+        win.addEventListener('unload', () => URL.revokeObjectURL(url));
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } else {
+        // Fallback for blocked popups: download the HTML file
         const link = document.createElement('a');
         link.href = url;
         link.download = `ironcore-report-${new Date().toISOString().split('T')[0]}.html`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     }
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
     return { success: true };
 };
 

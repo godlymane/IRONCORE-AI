@@ -20,15 +20,16 @@ export const TrackView = () => {
     const targetWeight = profile.targetWeight || 0;
     const photoURL = profile.photoURL;
 
-    // --- FFMI Calculation ---
+    // --- FFMI Calculation (Fat-Free Mass Index) ---
     const calculateFFMI = () => {
         if (!currentWeight || !currentHeight || !currentFat || currentWeight === "--" || currentHeight === "--" || currentFat === "--") return "--";
         const weightKg = parseFloat(currentWeight);
         const heightM = parseFloat(currentHeight) / 100;
         const bodyFatDec = parseFloat(currentFat) / 100;
+        if (weightKg <= 0 || heightM <= 0 || bodyFatDec < 0 || bodyFatDec >= 1) return "--";
         const leanMass = weightKg * (1 - bodyFatDec);
         const ffmi = (leanMass / (heightM * heightM)) + (6.1 * (1.8 - heightM));
-        return !isNaN(ffmi) ? ffmi.toFixed(1) : "--";
+        return !isNaN(ffmi) && isFinite(ffmi) ? ffmi.toFixed(1) : "--";
     };
 
     // Progress Calculation — use earliest recorded weight as starting point

@@ -1,21 +1,13 @@
-import { Capacitor } from '@capacitor/core';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getApp } from 'firebase/app';
 
-// Direct API key — ONLY used as fallback for local dev when Cloud Functions aren't deployed
-const AI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
-const AI_MODEL = "gemini-2.0-flash";
-
-// Lazy-init Cloud Functions callable
+// Cloud Functions callable — the ONLY path to Gemini API.
+// No direct API fallback. All AI calls go through server-side Cloud Functions.
 let _callGeminiCF = null;
 const getCallGeminiCF = () => {
   if (!_callGeminiCF) {
-    try {
-      const functions = getFunctions(getApp());
-      _callGeminiCF = httpsCallable(functions, 'callGemini');
-    } catch (e) {
-      console.warn('Cloud Functions not available, using direct API fallback');
-    }
+    const functions = getFunctions(getApp());
+    _callGeminiCF = httpsCallable(functions, 'callGemini');
   }
   return _callGeminiCF;
 };
@@ -27,109 +19,39 @@ const getAnalyzeFoodCF = () => {
     try {
       const functions = getFunctions(getApp());
       _analyzeFoodCF = httpsCallable(functions, 'analyzeFood');
-    } catch (e) { }
+    } catch (e) { console.debug('[helpers] Parse error:', e.message); }
   }
   return _analyzeFoodCF;
 };
 
 /**
- * Native HTTP request using XMLHttpRequest to bypass CapacitorHttp's fetch patching.
- */
-const nativePost = (url, payload) => {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', url, true);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.timeout = 30000;
-    xhr.onload = () => {
-      resolve({
-        ok: xhr.status >= 200 && xhr.status < 300,
-        status: xhr.status,
-        statusText: xhr.statusText,
-        json: () => Promise.resolve(JSON.parse(xhr.responseText)),
-        text: () => Promise.resolve(xhr.responseText),
-      });
-    };
-    xhr.onerror = () => reject(new Error('Network request failed'));
-    xhr.ontimeout = () => reject(new Error('Request timed out'));
-    xhr.send(JSON.stringify(payload));
-  });
-};
-
-/**
- * Call Gemini via Cloud Function (preferred) or direct API (dev fallback).
+ * Call Gemini via Cloud Function. All AI traffic goes through server-side functions
+ * to keep API keys secure and enforce rate limiting.
  */
 export const callGemini = async (userQuery, systemPrompt, imageBase64 = null, expectJson = false, retries = 0, feature = 'chat') => {
-  // 1. Try Cloud Function first (keeps API key server-side)
   const cf = getCallGeminiCF();
-  if (cf) {
-    try {
-      const result = await cf({
-        prompt: userQuery,
-        systemPrompt,
-        imageBase64,
-        expectJson,
-        feature,
-      });
-      return result.data.text;
-    } catch (e) {
-      // If it's a real auth/rate-limit error, surface it
-      if (e.code === 'functions/unauthenticated') return "Error: Not logged in.";
-      if (e.code === 'functions/resource-exhausted') return "Error: Rate limit exceeded. Wait a moment.";
-      // Otherwise fall through to direct API
-      console.warn('Cloud Function call failed, falling back to direct API:', e.message);
-    }
-  }
-
-  // 2. Fallback: direct API call (for local dev only)
-  if (!AI_API_KEY) {
-    console.error("Missing AI API Key and Cloud Functions unavailable.");
-    return "Error: AI service unavailable. Deploy Cloud Functions or set VITE_GEMINI_API_KEY.";
-  }
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${AI_MODEL}:generateContent?key=${AI_API_KEY}`;
-
-  let finalPrompt = `${systemPrompt}\n\nUser Request: ${userQuery}`;
-  if (expectJson) {
-    finalPrompt = `${systemPrompt}\n\nCRITICAL INSTRUCTION: Return ONLY valid JSON. Do not use Markdown code blocks. Do not add introductory text.\n\nUser Request: ${userQuery}`;
-  }
-
-  const parts = [{ text: finalPrompt }];
-  if (imageBase64) {
-    parts.push({ inlineData: { mimeType: "image/jpeg", data: imageBase64 } });
-  }
-
-  const payload = { contents: [{ role: "user", parts }] };
-
   try {
-    const isNative = Capacitor.isNativePlatform();
-    const response = isNative
-      ? await nativePost(url, payload)
-      : await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+    const result = await cf({
+      prompt: userQuery,
+      systemPrompt,
+      imageBase64,
+      expectJson,
+      feature,
+    });
+    return result.data.text;
+  } catch (e) {
+    if (e.code === 'functions/unauthenticated') return "Error: Not logged in.";
+    if (e.code === 'functions/resource-exhausted') return "Error: Rate limit exceeded. Wait a moment.";
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      if (response.status === 429) return "Error: API Usage Limit Exceeded (429). Wait a moment and try again.";
-      if (response.status === 400) return "Error: Bad Request (400). Check input format.";
-      if (response.status === 404) return "Error: Model not found (404). The AI model may have changed.";
-      return `Error: ${errData?.error?.message || response.statusText} (${response.status})`;
-    }
-
-    const result = await response.json();
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) return "Error: AI returned empty response.";
-    return text;
-
-  } catch (error) {
+    // Retry on transient network errors
     if (retries < 2) {
       await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
       return callGemini(userQuery, systemPrompt, imageBase64, expectJson, retries + 1, feature);
     }
-    return `Error: Network connection failed. Check your internet.`;
+    if (expectJson) {
+      return JSON.stringify({ error: 'Network connection failed. Check your internet.' });
+    }
+    return "Error: AI service unavailable. Check your internet connection.";
   }
 };
 
@@ -138,23 +60,20 @@ export const callGemini = async (userQuery, systemPrompt, imageBase64 = null, ex
  */
 export const analyzeFood = async (mealText, imageBase64 = null, retries = 0) => {
   const cf = getAnalyzeFoodCF();
-  if (cf) {
-    try {
-      const result = await cf({ mealText, imageBase64 });
-      return result.data.text;
-    } catch (e) {
-      if (e.code === 'functions/unauthenticated') return "Error: Not logged in.";
-      if (e.code === 'functions/resource-exhausted') return "Error: Rate limit exceeded. Wait a moment.";
-      console.warn('Cloud Function analyzeFood failed, falling back to direct API:', e.message);
+  try {
+    const result = await cf({ mealText, imageBase64 });
+    return result.data.text;
+  } catch (e) {
+    if (e.code === 'functions/unauthenticated') return "Error: Not logged in.";
+    if (e.code === 'functions/resource-exhausted') return "Error: Rate limit exceeded. Wait a moment.";
+
+    // Retry on transient errors
+    if (retries < 2) {
+      await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+      return analyzeFood(mealText, imageBase64, retries + 1);
     }
+    return JSON.stringify({ error: 'Food analysis unavailable. Check your internet.' });
   }
-
-  // Fallback to direct API
-  const prompt = imageBase64
-    ? `Act as an expert nutritionist AI. Analyze this image with EXTREME precision. Identify all visible ingredients, estimate exact portion sizes (in grams or ml), account for likely cooking oils or hidden sauces, and calculate the exact macronutrients. Return JSON: { "mealName": "string", "calories": number, "protein": number, "carbs": number, "fat": number }.`
-    : `Act as an expert nutritionist AI. For the meal "${mealText}", return JSON: { "mealName": "string", "calories": number, "protein": number, "carbs": number, "fat": number }. Make educated but highly precise estimations down to the gram.`;
-
-  return callGemini(prompt, "Nutrition API. JSON Only.", imageBase64, true, retries, 'nutrition');
 };
 
 export const cleanAIResponse = (text) => {
@@ -186,5 +105,35 @@ export const calculateBMI = (weightKg, heightCm) => {
 };
 
 export const getLevel = (xp, levels) => {
-  return levels.slice().reverse().find(l => xp >= l.minXp) || levels[0];
+  return levels.slice().reverse().find(l => xp >= l.min) || levels[0];
+};
+
+/**
+ * Calculate forge streak — consecutive days with logged meals counting back from today.
+ * @param {Array} meals - Array of meal objects, each with a `date` string (YYYY-MM-DD).
+ * @returns {number} Number of consecutive days with meals.
+ */
+export const calculateForgeStreak = (meals) => {
+  // Use local date to avoid UTC/DST timezone shift issues
+  const now = new Date();
+  const toLocalDateStr = (d) => {
+    const dt = new Date(d);
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  };
+  const today = toLocalDateStr(now);
+  const dates = [...new Set(meals.map(m => m.date))].sort().reverse();
+  let count = 0;
+  // Start from midnight local time to ensure day-only comparison
+  let checkDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (!dates.includes(today)) checkDate.setDate(checkDate.getDate() - 1);
+  for (let i = 0; i < 365; i++) {
+    const dateStr = toLocalDateStr(checkDate);
+    if (dates.includes(dateStr)) {
+      count++;
+      checkDate.setDate(checkDate.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+  return count;
 };

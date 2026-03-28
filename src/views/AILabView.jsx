@@ -120,7 +120,7 @@ const CameraPermissionPriming = ({ onGranted, onSkip }) => {
  */
 export const AILabView = () => {
     const { workouts = [], meals = [], profile = {}, updateData, progress = [] } = useStore();
-    const weight = profile.weight || progress.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).find(p => p.weight)?.weight;
+    const weight = profile.weight || [...progress].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).find(p => p.weight)?.weight;
     const [labTab, setLabTab] = useState('coach'); // 'coach' or 'vision'
     const [activeFeature, setActiveFeature] = useState(null);
     const [cameraPermGranted, setCameraPermGranted] = useState(false);

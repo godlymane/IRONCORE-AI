@@ -4,6 +4,15 @@
  * No Firestore writes needed.
  */
 
+const BADGE_THRESHOLDS = {
+    FORGE_STREAK_100: 100,
+    WORKOUT_COUNT_100: 100,
+    TOTAL_VOLUME_100K: 100000,
+    MEAL_COUNT_100: 100,
+    XP_50K: 50000,
+    XP_10K: 10000,
+};
+
 export const BADGE_CATEGORIES = {
   CONSISTENCY: { label: 'Consistency', icon: '🔥', color: 'text-orange-400' },
   STRENGTH: { label: 'Strength', icon: '💪', color: 'text-red-400' },
@@ -66,7 +75,7 @@ export const BADGES = [
     icon: '🌋',
     category: 'CONSISTENCY',
     rarity: 'legendary',
-    check: (d) => (d.longestForge ?? d.longestStreak ?? 0) >= 100,
+    check: (d) => (d.longestForge ?? d.longestStreak ?? 0) >= BADGE_THRESHOLDS.FORGE_STREAK_100,
   },
   {
     id: 'centurion',
@@ -75,7 +84,7 @@ export const BADGES = [
     icon: '🏛️',
     category: 'CONSISTENCY',
     rarity: 'epic',
-    check: (d) => (d.workoutCount || d.workouts?.length || 0) >= 100,
+    check: (d) => (d.workoutCount || d.workouts?.length || 0) >= BADGE_THRESHOLDS.WORKOUT_COUNT_100,
   },
 
   // ─── STRENGTH ───
@@ -140,7 +149,7 @@ export const BADGES = [
     icon: '👑',
     category: 'STRENGTH',
     rarity: 'legendary',
-    check: (d) => (d.totalVolume || 0) >= 100000,
+    check: (d) => (d.totalVolume || 0) >= BADGE_THRESHOLDS.TOTAL_VOLUME_100K,
   },
   {
     id: 'perfect_form',
@@ -270,7 +279,7 @@ export const BADGES = [
     icon: '🥗',
     category: 'MASTERY',
     rarity: 'rare',
-    check: (d) => (d.mealCount || d.meals?.length || 0) >= 100,
+    check: (d) => (d.mealCount || d.meals?.length || 0) >= BADGE_THRESHOLDS.MEAL_COUNT_100,
   },
   {
     id: 'photographer',
@@ -308,7 +317,7 @@ export const BADGES = [
     icon: '💰',
     category: 'MILESTONES',
     rarity: 'epic',
-    check: (d) => (d.xp || 0) >= 50000,
+    check: (d) => (d.xp || 0) >= BADGE_THRESHOLDS.XP_50K,
   },
   {
     id: 'ten_k',
@@ -317,7 +326,7 @@ export const BADGES = [
     icon: '🎖️',
     category: 'MILESTONES',
     rarity: 'rare',
-    check: (d) => (d.xp || 0) >= 10000,
+    check: (d) => (d.xp || 0) >= BADGE_THRESHOLDS.XP_10K,
   },
 ];
 

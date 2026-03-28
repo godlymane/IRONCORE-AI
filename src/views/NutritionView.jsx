@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, Plus, ScanLine, Search, Droplets, Flame, ChefHat, Utensils, Coffee } from 'lucide-react';
+import { ChevronLeft, Plus, ScanLine, Search, Flame, ChefHat, Utensils, Coffee } from 'lucide-react';
 import { Button, Card, useToast } from '../components/UIComponents';
 import { PremiumIcon } from '../components/PremiumIcon';
 import { MacroPieChart, WaterTracker, FastingTimer, SupplementTracker, CalorieBurnCard } from '../components/NutritionEnhancements';
@@ -8,10 +8,23 @@ import { AddMealForm } from '../components/Nutrition';
 
 // Import Icons
 import { ChefHatIcon, UtensilsIcon } from '../components/IronCoreIcons';
+import { getNutritionGoals } from '../utils/constants';
 
 export const NutritionView = ({ meals, burned, profile, updateData, onBack }) => {
     const { addToast } = useToast();
     const [showAddMeal, setShowAddMeal] = useState(false);
+
+    // Debounced water update — batches rapid taps into a single Firestore write
+    const waterDebounceRef = useRef(null);
+    const pendingWaterRef = useRef(null);
+    const debouncedWaterUpdate = useCallback((newGlasses) => {
+        pendingWaterRef.current = Math.max(0, newGlasses);
+        if (waterDebounceRef.current) clearTimeout(waterDebounceRef.current);
+        waterDebounceRef.current = setTimeout(() => {
+            updateData('update', 'profile', { waterGlasses: pendingWaterRef.current });
+            waterDebounceRef.current = null;
+        }, 500);
+    }, [updateData]);
 
     // Calculate daily totals
     const today = new Date().toISOString().split('T')[0];
@@ -22,15 +35,13 @@ export const NutritionView = ({ meals, burned, profile, updateData, onBack }) =>
     const totalFat = todaysMeals.reduce((acc, m) => acc + (m.fat || 0), 0);
     const totalBurned = burned.filter(b => b.date === today).reduce((acc, b) => acc + (b.calories || 0), 0);
 
-    // Goals (default or from profile)
-    const goals = {
-        calories: profile.dailyCalories || 2000,
-        protein: profile.dailyProtein || 150,
-        carbs: profile.dailyCarbs || 200,
-        fats: profile.dailyFats || 60,
-    };
+    // Goals — configurable from user profile, falling back to centralized defaults
+    const goals = getNutritionGoals(profile);
 
+    const [addingMeal, setAddingMeal] = useState(false);
     const handleAddMeal = async (mealData) => {
+        if (addingMeal) return; // prevent duplicate submissions
+        setAddingMeal(true);
         try {
             await updateData('add', 'meals', mealData);
             addToast(`Logged: ${mealData.name || mealData.mealName || 'Meal'}`, 'success');
@@ -38,6 +49,8 @@ export const NutritionView = ({ meals, burned, profile, updateData, onBack }) =>
         } catch (e) {
             console.error('Failed to log meal:', e);
             addToast('Failed to log meal. Try again.', 'error');
+        } finally {
+            setAddingMeal(false);
         }
     };
 
@@ -81,10 +94,10 @@ export const NutritionView = ({ meals, burned, profile, updateData, onBack }) =>
 
                 <div className="space-y-4">
                     <WaterTracker
-                        glasses={profile.waterGlasses || 0}
+                        glasses={pendingWaterRef.current ?? (profile.waterGlasses || 0)}
                         goal={profile.waterGoal || 8}
-                        onAdd={() => updateData('update', 'profile', { waterGlasses: (profile.waterGlasses || 0) + 1 })}
-                        onRemove={() => updateData('update', 'profile', { waterGlasses: Math.max(0, (profile.waterGlasses || 0) - 1) })}
+                        onAdd={() => debouncedWaterUpdate((pendingWaterRef.current ?? (profile.waterGlasses || 0)) + 1)}
+                        onRemove={() => debouncedWaterUpdate((pendingWaterRef.current ?? (profile.waterGlasses || 0)) - 1)}
                     />
                     <CalorieBurnCard
                         burned={totalBurned}

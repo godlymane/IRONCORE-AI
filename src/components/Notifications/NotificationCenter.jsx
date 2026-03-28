@@ -34,7 +34,7 @@ const NotificationItem = ({ note, onRead }) => {
                 {!note.read && (
                     <button
                         onClick={() => onRead(note.id)}
-                        className="self-start p-1 hover:bg-white/10 rounded-full text-red-400 transition-colors"
+                        className="self-start min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-white/10 rounded-full text-red-400 transition-colors"
                         title="Mark as read"
                     >
                         <Check size={12} />
@@ -79,7 +79,7 @@ export const NotificationCenter = ({ userId }) => {
         <div className="relative" ref={dropdownRef}>
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="relative p-2 bg-white/5 rounded-full hover:bg-white/10 transition-colors"
+                className="relative min-h-[44px] min-w-[44px] flex items-center justify-center bg-white/5 rounded-full hover:bg-white/10 transition-colors"
             >
                 <Bell size={18} className={unreadCount > 0 ? 'text-white' : 'text-gray-400'} />
                 {unreadCount > 0 && (
@@ -105,7 +105,7 @@ export const NotificationCenter = ({ userId }) => {
                                 {unreadCount > 0 && (
                                     <button
                                         onClick={handleMarkAllRead}
-                                        className="text-[11px] text-red-400 font-bold hover:text-red-300"
+                                        className="text-[11px] text-red-400 font-bold hover:text-red-300 min-h-[44px] min-w-[44px] flex items-center justify-center"
                                     >
                                         Mark all read
                                     </button>

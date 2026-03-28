@@ -100,7 +100,9 @@ export const shareProgressPhoto = async (photoUrl, caption) => {
             // Try to fetch and share the actual image
             const response = await fetch(photoUrl);
             const blob = await response.blob();
-            const file = new File([blob], 'progress.jpg', { type: 'image/jpeg' });
+            const mimeType = blob.type || 'image/jpeg';
+            const ext = mimeType.includes('png') ? 'png' : 'jpg';
+            const file = new File([blob], `progress.${ext}`, { type: mimeType });
 
             await navigator.share({
                 title: 'My Fitness Progress',
@@ -110,6 +112,8 @@ export const shareProgressPhoto = async (photoUrl, caption) => {
             return { success: true };
         }
     } catch (err) {
+        // User cancelled share — silent exit
+        if (err.name === 'AbortError') return { success: false, cancelled: true };
         console.error('Photo share failed:', err);
     }
 

@@ -1,7 +1,7 @@
 // IronCore AI - Premium Context
 // Global state for subscription status and feature gating
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import {
     checkPremiumStatus,
     openCheckout,
@@ -83,8 +83,11 @@ export const PremiumProvider = ({ children, user }) => {
             return;
         }
 
+        // Capture uid at call time to prevent stale closure in async callback
+        const capturedUid = user.uid;
+
         try {
-            const orderData = await createPaymentOrder(planId, user.uid);
+            const orderData = await createPaymentOrder(planId, capturedUid);
 
             openCheckout(
                 orderData,
@@ -94,15 +97,20 @@ export const PremiumProvider = ({ children, user }) => {
                     phone: user.phoneNumber
                 },
                 async (response) => {
-                    // Payment successful - refresh status
-                    const status = await checkPremiumStatus(user.uid);
-                    setIsPremium(status.isPremium);
-                    setPlan(status.plan);
-                    setTier(status.tier || getTierFromPlan(status.plan));
-                    setIsTrial(status.isTrial || false);
-                    setExpiryDate(status.expiryDate || null);
-                    setShowPaywall(false);
-                    onSuccess?.(response);
+                    // Payment successful - refresh status using captured uid
+                    try {
+                        const status = await checkPremiumStatus(capturedUid);
+                        setIsPremium(status.isPremium);
+                        setPlan(status.plan);
+                        setTier(status.tier || getTierFromPlan(status.plan));
+                        setIsTrial(status.isTrial || false);
+                        setExpiryDate(status.expiryDate || null);
+                        setShowPaywall(false);
+                        onSuccess?.(response);
+                    } catch (err) {
+                        console.error('Error refreshing premium status:', err);
+                        onSuccess?.(response); // Payment succeeded even if status refresh fails
+                    }
                 },
                 (error) => {
                     console.error('Payment failed:', error);
@@ -125,17 +133,22 @@ export const PremiumProvider = ({ children, user }) => {
     const restorePurchase = useCallback(async () => {
         if (!user?.uid) return { restored: false, message: 'Not signed in.' };
 
-        const status = await checkPremiumStatus(user.uid);
-        if (status.isPremium) {
-            setIsPremium(true);
-            setPlan(status.plan);
-            setTier(status.tier || getTierFromPlan(status.plan));
-            setIsTrial(status.isTrial || false);
-            setExpiryDate(status.expiryDate || null);
-            setShowPaywall(false);
-            return { restored: true };
+        try {
+            const status = await checkPremiumStatus(user.uid);
+            if (status.isPremium) {
+                setIsPremium(true);
+                setPlan(status.plan);
+                setTier(status.tier || getTierFromPlan(status.plan));
+                setIsTrial(status.isTrial || false);
+                setExpiryDate(status.expiryDate || null);
+                setShowPaywall(false);
+                return { restored: true };
+            }
+            return { restored: false, message: 'No active subscription found. Contact support if you believe this is wrong.' };
+        } catch (err) {
+            console.error('[Premium] restorePurchase failed:', err.message);
+            return { restored: false, message: 'Connection error. Try again.' };
         }
-        return { restored: false, message: 'No active subscription found. Contact support if you believe this is wrong.' };
     }, [user]);
 
     // Start 7-day free trial
@@ -145,8 +158,9 @@ export const PremiumProvider = ({ children, user }) => {
             return;
         }
         try {
-            await startFreeTrial(user.uid);
-            const status = await checkPremiumStatus(user.uid);
+            const capturedUid = user.uid;
+            await startFreeTrial(capturedUid);
+            const status = await checkPremiumStatus(capturedUid);
             setIsPremium(status.isPremium);
             setPlan(status.plan);
             setTier(status.tier || 'elite');
@@ -159,7 +173,7 @@ export const PremiumProvider = ({ children, user }) => {
         }
     }, [user]);
 
-    const value = {
+    const value = useMemo(() => ({
         // State
         isPremium,
         plan,
@@ -184,7 +198,8 @@ export const PremiumProvider = ({ children, user }) => {
         // Plans info
         plans: PRICING_PLANS,
         featureAccess: FEATURE_ACCESS,
-    };
+    }), [isPremium, plan, tier, isTrial, expiryDate, loading, showPaywall, paywallFeature, paywallMinTier,
+         closePaywall, requirePremium, checkFeature, purchasePlan, beginFreeTrial, restorePurchase]);
 
     return (
         <PremiumContext.Provider value={value}>

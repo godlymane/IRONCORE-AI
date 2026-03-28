@@ -1,7 +1,16 @@
 import React from 'react';
 import { Swords, Trophy, TrendingUp, User, Shield } from 'lucide-react';
 
-export const BattleCard = ({ opponent, userStats, onBattle }) => {
+const DEFAULT_USER_STATS = {
+    name: 'You',
+    level: 1,
+    rank: 'Iron Novice',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=warrior',
+    winRate: 50,
+    power: 100
+};
+
+export const BattleCard = React.memo(({ opponent, userStats, onBattle }) => {
     // Opponent is required - no demo fallback
     if (!opponent) {
         return (
@@ -12,15 +21,7 @@ export const BattleCard = ({ opponent, userStats, onBattle }) => {
         );
     }
 
-    // User stats from context/props
-    const user = userStats || {
-        name: 'You',
-        level: 1,
-        rank: 'Iron Novice',
-        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=warrior',
-        winRate: 50,
-        power: 100
-    };
+    const user = userStats || DEFAULT_USER_STATS;
 
     const opp = opponent;
     const winProbability = Math.round((user.power / (user.power + opp.power)) * 100);
@@ -108,8 +109,4 @@ export const BattleCard = ({ opponent, userStats, onBattle }) => {
             </div>
         </div>
     );
-};
-
-
-
-
+});

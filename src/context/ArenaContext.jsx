@@ -53,18 +53,24 @@ export const ArenaProvider = ({ children, user: authUser }) => {
             return;
         }
 
+        let isMounted = true;
+
         const initUser = async () => {
             try {
                 // Check daily Forge first (updates firestore if needed)
                 await checkDailyForge(userId);
+                if (!isMounted) return;
 
                 let user = await getUserStats(userId);
+                if (!isMounted) return;
 
                 if (!user) {
                     // Create new user if doesn't exist in arena, fallback to 'Warrior' ONLY here if auth also lacks a name
                     const finalUsername = authUsername || 'Warrior';
                     await initializeUser(userId, finalUsername, userPhoto);
+                    if (!isMounted) return;
                     user = await getUserStats(userId);
+                    if (!isMounted) return;
                 }
 
                 setCurrentUser(user);
@@ -72,47 +78,70 @@ export const ArenaProvider = ({ children, user: authUser }) => {
                 // Check AI Triggers (Notifications etc.)
                 await checkAITriggers(user);
 
-                setLoading(prev => ({ ...prev, user: false }));
+                if (isMounted) setLoading(prev => ({ ...prev, user: false }));
             } catch (error) {
                 console.error('Error initializing user:', error);
-                setErrors(prev => ({ ...prev, user: error.message }));
-                setLoading(prev => ({ ...prev, user: false }));
+                if (isMounted) {
+                    setErrors(prev => ({ ...prev, user: error.message }));
+                    setLoading(prev => ({ ...prev, user: false }));
+                }
             }
         };
 
         initUser();
+
+        return () => { isMounted = false; };
     }, [userId, authUsername, userPhoto]);
 
-    // Subscribe to leaderboard
+    // Subscribe to leaderboard only when user is authenticated
     useEffect(() => {
-        const unsubscribe = subscribeToLeaderboard(100, (data) => {
-            setLeaderboard(data);
+        if (!userId) {
             setLoading(prev => ({ ...prev, leaderboard: false }));
+            return;
+        }
+
+        let isMounted = true;
+        const unsubscribe = subscribeToLeaderboard(100, (data) => {
+            if (isMounted) {
+                setLeaderboard(data);
+                setLoading(prev => ({ ...prev, leaderboard: false }));
+            }
         });
 
-        return () => unsubscribe();
-    }, []);
+        return () => { isMounted = false; unsubscribe(); };
+    }, [userId]);
 
-    // Subscribe to boss
+    // Subscribe to boss only when user is authenticated
     useEffect(() => {
-        const unsubscribe = subscribeToBoss((data) => {
-            setBoss(data);
+        if (!userId) {
             setLoading(prev => ({ ...prev, boss: false }));
+            return;
+        }
+
+        let isMounted = true;
+        const unsubscribe = subscribeToBoss((data) => {
+            if (isMounted) {
+                setBoss(data);
+                setLoading(prev => ({ ...prev, boss: false }));
+            }
         });
 
-        return () => unsubscribe();
-    }, []);
+        return () => { isMounted = false; unsubscribe(); };
+    }, [userId]);
 
     // Subscribe to pending battles for current user
     useEffect(() => {
         if (!currentUser?.id) return;
 
+        let isMounted = true;
         const unsubscribe = subscribeToPendingBattles(currentUser.id, (data) => {
-            setPendingBattles(data);
-            setLoading(prev => ({ ...prev, battles: false }));
+            if (isMounted) {
+                setPendingBattles(data);
+                setLoading(prev => ({ ...prev, battles: false }));
+            }
         });
 
-        return () => unsubscribe();
+        return () => { isMounted = false; unsubscribe(); };
     }, [currentUser?.id]);
 
     // Actions
@@ -143,8 +172,14 @@ export const ArenaProvider = ({ children, user: authUser }) => {
         }
     }, [currentUser]);
 
-    const challengePlayer = useCallback(async (opponentId, opponentUsername, opponentXP, opponentPhoto) => {
+    const challengePlayer = useCallback(async (opponentId, opponentUsername, opponentXP, opponentPhoto, { skipConfirm = false } = {}) => {
         if (!currentUser) return null;
+
+        // Require explicit confirmation to prevent accidental challenges
+        if (!skipConfirm) {
+            const confirmed = window.confirm(`Challenge ${opponentUsername} to a 24hr PvP battle?`);
+            if (!confirmed) return null;
+        }
 
         try {
             const battleId = await createBattle(
@@ -167,7 +202,7 @@ export const ArenaProvider = ({ children, user: authUser }) => {
             console.error('Error creating battle:', error);
             throw error;
         }
-    }, [currentUser]);
+    }, [currentUser, userPhoto]);
 
     const handleAcceptBattle = useCallback(async (battleId) => {
         try {
@@ -212,6 +247,17 @@ export const ArenaProvider = ({ children, user: authUser }) => {
         }
     }, [currentUser]);
 
+    // Memoized refresh to avoid recreating on every render
+    const refreshUser = useCallback(async () => {
+        if (!userId) return;
+        try {
+            const user = await getUserStats(userId);
+            setCurrentUser(user);
+        } catch (err) {
+            console.error('[Arena] refreshUser failed:', err.message);
+        }
+    }, [userId]);
+
     // Compute derived state
     const isLoading = Object.values(loading).some(Boolean);
     const hasErrors = Object.values(errors).some(Boolean);
@@ -243,11 +289,7 @@ export const ArenaProvider = ({ children, user: authUser }) => {
         awardXP: handleAwardXP,
 
         // Refresh user data
-        refreshUser: async () => {
-            if (!userId) return;
-            const user = await getUserStats(userId);
-            setCurrentUser(user);
-        }
+        refreshUser,
     };
 
     return (

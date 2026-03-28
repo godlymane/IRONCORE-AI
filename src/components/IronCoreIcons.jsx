@@ -4,61 +4,61 @@ import React from 'react';
 const IconDefs = () => (
     <defs>
         {/* Common Gradients */}
-        <linearGradient id="grad-glass" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id="ic-grad-glass" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="white" stopOpacity="0.4" />
             <stop offset="50%" stopColor="white" stopOpacity="0.1" />
             <stop offset="100%" stopColor="white" stopOpacity="0.05" />
         </linearGradient>
-        <linearGradient id="grad-gloss" x1="0%" y1="0%" x2="0%" y2="100%">
+        <linearGradient id="ic-grad-gloss" x1="0%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" stopColor="white" stopOpacity="0.8" />
             <stop offset="100%" stopColor="white" stopOpacity="0" />
         </linearGradient>
 
         {/* Icon Specific Gradients */}
-        <linearGradient id="grad-cyan" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id="ic-grad-cyan" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#22d3ee" />
             <stop offset="100%" stopColor="#0ea5e9" />
         </linearGradient>
-        <linearGradient id="grad-blue" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id="ic-grad-blue" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#60a5fa" />
             <stop offset="100%" stopColor="#2563eb" />
         </linearGradient>
-        <linearGradient id="grad-purple" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id="ic-grad-purple" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#c084fc" />
             <stop offset="100%" stopColor="#7c3aed" />
         </linearGradient>
-        <linearGradient id="grad-orange" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id="ic-grad-orange" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#fbbf24" />
             <stop offset="100%" stopColor="#ea580c" />
         </linearGradient>
-        <linearGradient id="grad-green" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id="ic-grad-green" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#4ade80" />
             <stop offset="100%" stopColor="#16a34a" />
         </linearGradient>
-        <linearGradient id="grad-pink" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id="ic-grad-pink" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#f472b6" />
             <stop offset="100%" stopColor="#db2777" />
         </linearGradient>
-        <linearGradient id="grad-gold" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id="ic-grad-gold" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#facc15" />
             <stop offset="100%" stopColor="#ca8a04" />
         </linearGradient>
-        <linearGradient id="grad-silver" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id="ic-grad-silver" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#f1f5f9" />
             <stop offset="100%" stopColor="#94a3b8" />
         </linearGradient>
-        <linearGradient id="grad-egg" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id="ic-grad-egg" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#fef3c7" />
             <stop offset="100%" stopColor="#fbbf24" />
         </linearGradient>
-        <linearGradient id="grad-red" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id="ic-grad-red" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#ff4444" />
             <stop offset="50%" stopColor="#dc2626" />
             <stop offset="100%" stopColor="#991b1b" />
         </linearGradient>
 
         {/* Filters */}
-        <filter id="glow-inner">
+        <filter id="ic-glow-inner">
             <feGaussianBlur stdDeviation="2" result="coloredBlur" />
             <feMerge>
                 <feMergeNode in="coloredBlur" />
@@ -131,10 +131,10 @@ export const WaterDropIcon = (props) => (
     <IconBase {...props}>
         {/* Layer 1: Outer droplet body - sharp 8-vertex polygon */}
         <path d="M50 3 L65 28 L75 50 L72 72 L60 88 L40 88 L28 72 L25 50 L35 28 Z"
-              fill="url(#grad-cyan)" stroke="#0c4a6e" strokeWidth="2" strokeLinejoin="miter" />
+              fill="url(#ic-grad-cyan)" stroke="#0c4a6e" strokeWidth="2" strokeLinejoin="miter" />
         {/* Layer 2: Glass highlight - inner polygon offset */}
         <path d="M50 10 L62 30 L70 50 L67 68 L57 82 L43 82 L33 68 L30 50 L38 30 Z"
-              fill="url(#grad-glass)" />
+              fill="url(#ic-grad-glass)" />
         {/* Layer 3: Depth shadow - lower inner shape */}
         <path d="M50 50 L62 58 L58 78 L50 85 L42 78 L38 58 Z"
               fill="#0369a1" opacity="0.3" />
@@ -173,10 +173,10 @@ export const ProteinBoltIcon = (props) => (
     <IconBase {...props}>
         {/* Layer 1: Outer bolt body - sharp zigzag 7-vertex */}
         <path d="M62 3 L22 52 L44 52 L32 97 L82 42 L58 42 L68 3 Z"
-              fill="url(#grad-blue)" stroke="#1e3a8a" strokeWidth="2" strokeLinejoin="miter" />
+              fill="url(#ic-grad-blue)" stroke="#1e3a8a" strokeWidth="2" strokeLinejoin="miter" />
         {/* Layer 2: Glass overlay - same bolt shape */}
         <path d="M62 3 L22 52 L44 52 L32 97 L82 42 L58 42 L68 3 Z"
-              fill="url(#grad-glass)" />
+              fill="url(#ic-grad-glass)" />
         {/* Layer 3: Inner highlight bolt - narrower path */}
         <path d="M58 15 L35 48 L48 48 L40 82 L70 45 L56 45 L62 15 Z"
               fill="white" opacity="0.12" />
@@ -223,13 +223,13 @@ export const EggIcon = (props) => (
               fill="#fefce8" stroke="#d4d4d8" strokeWidth="1.5" strokeLinejoin="miter" />
         {/* Layer 2: Glass overlay on shell */}
         <path d="M50 3 L62 12 L74 28 L80 48 L78 68 L70 82 L58 92 L42 92 L30 82 L22 68 L20 48 L26 28 L38 12 Z"
-              fill="url(#grad-glass)" />
+              fill="url(#ic-grad-glass)" />
         {/* Layer 3: Yolk - inner hexagon, gold gradient */}
         <path d="M50 45 L62 52 L62 66 L50 73 L38 66 L38 52 Z"
-              fill="url(#grad-gold)" opacity="0.85" />
+              fill="url(#ic-grad-gold)" opacity="0.85" />
         {/* Layer 3b: Yolk highlight - small diamond */}
         <path d="M50 50 L55 55 L50 60 L45 55 Z"
-              fill="url(#grad-egg)" opacity="0.6" />
+              fill="url(#ic-grad-egg)" opacity="0.6" />
         {/* Layer 4: Crack detail - angular zigzag near top */}
         <path d="M42 22 L48 30 L52 24 L58 32 L62 26"
               stroke="#fbbf24" strokeWidth="2" fill="none" opacity="0.5" strokeLinejoin="miter" />
@@ -277,13 +277,13 @@ export const ChickenIcon = (props) => (
               stroke="#a8a29e" strokeWidth="3" fill="none" strokeLinejoin="miter" />
         {/* Layer 1: Body - large angular polygon */}
         <path d="M25 42 L35 30 L65 28 L80 38 L85 55 L78 72 L68 80 L32 80 L20 70 L15 55 Z"
-              fill="url(#grad-orange)" stroke="#92400e" strokeWidth="1.5" strokeLinejoin="miter" />
+              fill="url(#ic-grad-orange)" stroke="#92400e" strokeWidth="1.5" strokeLinejoin="miter" />
         {/* Layer 7: Glass shine on body */}
         <path d="M35 32 L60 30 L72 38 L62 42 L38 40 Z"
               fill="white" opacity="0.2" />
         {/* Layer 2: Head - angular polygon on top */}
         <path d="M20 35 L28 18 L42 12 L52 16 L50 30 L35 35 Z"
-              fill="url(#grad-orange)" stroke="#92400e" strokeWidth="1.5" strokeLinejoin="miter" />
+              fill="url(#ic-grad-orange)" stroke="#92400e" strokeWidth="1.5" strokeLinejoin="miter" />
         {/* Layer 5: Comb - triangular crest on head */}
         <path d="M32 18 L35 6 L38 15 L42 4 L44 14"
               stroke="#dc2626" strokeWidth="3" fill="#ef4444" strokeLinejoin="miter" />
@@ -312,7 +312,7 @@ export const ChickenIcon = (props) => (
 export const ChefHatIcon = (props) => (
     <IconBase {...props}>
         {/* Layer 1: Hatband base - rigid trapezoid */}
-        <path d="M18 72 L82 72 L80 95 L20 95 Z" fill="url(#grad-silver)" />
+        <path d="M18 72 L82 72 L80 95 L20 95 Z" fill="url(#ic-grad-silver)" />
         <path d="M18 72 L82 72 L80 80 L20 80 Z" fill="#94a3b8" opacity="0.4" />
 
         {/* Layer 2: Angular dome - stacked trapezoidal puffs */}
@@ -321,7 +321,7 @@ export const ChefHatIcon = (props) => (
 
         {/* Layer 3: Glass overlay on dome */}
         <path d="M18 72 L10 60 L5 42 L12 25 L25 12 L38 5 L50 2 L62 5 L75 12 L88 25 L95 42 L90 60 L82 72 Z"
-              fill="url(#grad-glass)" />
+              fill="url(#ic-grad-glass)" />
 
         {/* Layer 4: Pleat lines - angular vertical creases */}
         <path d="M35 72 L37 45 L40 18" stroke="#94a3b8" strokeWidth="1.5" opacity="0.25" fill="none" strokeLinejoin="miter" />
@@ -348,7 +348,7 @@ export const UtensilsIcon = (props) => (
         {/* Layer 1: Knife - angled blade with sharp edge */}
         <g transform="rotate(25, 50, 50)">
             {/* Knife blade */}
-            <path d="M44 8 L52 8 L54 15 L54 55 L48 55 L44 15 Z" fill="url(#grad-silver)" />
+            <path d="M44 8 L52 8 L54 15 L54 55 L48 55 L44 15 Z" fill="url(#ic-grad-silver)" />
             {/* Knife edge highlight */}
             <path d="M44 8 L44 15 L48 55" stroke="white" strokeWidth="1.5" opacity="0.4" fill="none" strokeLinejoin="miter" />
             {/* Knife handle */}
@@ -361,20 +361,20 @@ export const UtensilsIcon = (props) => (
         {/* Layer 2: Fork - angular tines */}
         <g transform="rotate(-25, 50, 50)">
             {/* Fork tines - 3 sharp prongs */}
-            <path d="M38 8 L42 8 L42 32 L38 32 Z" fill="url(#grad-silver)" />
-            <path d="M46 8 L54 8 L54 32 L46 32 Z" fill="url(#grad-silver)" />
-            <path d="M58 8 L62 8 L62 32 L58 32 Z" fill="url(#grad-silver)" />
+            <path d="M38 8 L42 8 L42 32 L38 32 Z" fill="url(#ic-grad-silver)" />
+            <path d="M46 8 L54 8 L54 32 L46 32 Z" fill="url(#ic-grad-silver)" />
+            <path d="M58 8 L62 8 L62 32 L58 32 Z" fill="url(#ic-grad-silver)" />
 
             {/* Fork neck - connecting tines to handle */}
-            <path d="M36 32 L64 32 L58 48 L42 48 Z" fill="url(#grad-silver)" />
+            <path d="M36 32 L64 32 L58 48 L42 48 Z" fill="url(#ic-grad-silver)" />
 
             {/* Fork handle */}
             <path d="M44 48 L56 48 L55 92 L45 92 Z" fill="#64748b" />
 
             {/* Glass overlay on tines */}
-            <path d="M38 8 L42 8 L42 32 L38 32 Z" fill="url(#grad-glass)" />
-            <path d="M46 8 L54 8 L54 32 L46 32 Z" fill="url(#grad-glass)" />
-            <path d="M58 8 L62 8 L62 32 L58 32 Z" fill="url(#grad-glass)" />
+            <path d="M38 8 L42 8 L42 32 L38 32 Z" fill="url(#ic-grad-glass)" />
+            <path d="M46 8 L54 8 L54 32 L46 32 Z" fill="url(#ic-grad-glass)" />
+            <path d="M58 8 L62 8 L62 32 L58 32 Z" fill="url(#ic-grad-glass)" />
         </g>
 
         {/* Layer 3: Center crossing accent diamond */}
@@ -393,7 +393,7 @@ export const FlameIcon = (props) => (
     <IconBase {...props}>
         {/* Layer 1: Outer flame - angular zigzag silhouette */}
         <path d="M50 2 L62 18 L58 28 L72 15 L78 35 L85 30 L88 55 L82 68 L75 78 L68 88 L58 95 L50 97 L42 95 L32 88 L25 78 L18 68 L12 55 L15 30 L22 35 L28 15 L42 28 L38 18 Z"
-              fill="url(#grad-orange)" />
+              fill="url(#ic-grad-orange)" />
 
         {/* Layer 2: Inner hot core - brighter angular shape */}
         <path d="M50 25 L58 38 L55 48 L65 42 L68 58 L62 72 L55 82 L50 85 L45 82 L38 72 L32 58 L35 42 L45 48 L42 38 Z"
@@ -424,7 +424,7 @@ export const WaterFullIcon = (props) => (
     <IconBase {...props}>
         {/* Layer 1: Angular droplet body - pointed top, wide angular base */}
         <path d="M50 5 L62 28 L75 48 L82 62 L85 72 L82 82 L75 88 L65 93 L50 95 L35 93 L25 88 L18 82 L15 72 L18 62 L25 48 L38 28 Z"
-              fill="url(#grad-blue)" />
+              fill="url(#ic-grad-blue)" />
 
         {/* Layer 2: Angular wave line across middle */}
         <path d="M22 62 L30 58 L38 64 L46 56 L54 64 L62 56 L70 62 L78 58"
@@ -432,7 +432,7 @@ export const WaterFullIcon = (props) => (
 
         {/* Layer 3: Glass overlay - upper portion */}
         <path d="M50 5 L62 28 L75 48 L82 62 L50 62 L18 62 L25 48 L38 28 Z"
-              fill="url(#grad-glass)" />
+              fill="url(#ic-grad-glass)" />
 
         {/* Layer 4: Highlight diamond - specular reflection */}
         <path d="M68 48 L72 52 L68 56 L64 52 Z" fill="white" opacity="0.5" />
@@ -472,24 +472,24 @@ export const FormCoachIconShape = (props) => (
     <IconBase {...props}>
         {/* Layer 1: Octagonal viewfinder frame */}
         <path d="M20 10 L80 10 L95 25 L95 75 L80 90 L20 90 L5 75 L5 25 Z"
-              fill="#1e293b" stroke="url(#grad-cyan)" strokeWidth="3" strokeLinejoin="miter" />
+              fill="#1e293b" stroke="url(#ic-grad-cyan)" strokeWidth="3" strokeLinejoin="miter" />
         {/* Layer 2: Corner brackets - top-left */}
-        <path d="M12 20 L12 12 L20 12" stroke="url(#grad-cyan)" strokeWidth="4" fill="none" strokeLinejoin="miter" />
+        <path d="M12 20 L12 12 L20 12" stroke="url(#ic-grad-cyan)" strokeWidth="4" fill="none" strokeLinejoin="miter" />
         {/* Corner bracket - top-right */}
-        <path d="M80 12 L88 12 L88 20" stroke="url(#grad-cyan)" strokeWidth="4" fill="none" strokeLinejoin="miter" />
+        <path d="M80 12 L88 12 L88 20" stroke="url(#ic-grad-cyan)" strokeWidth="4" fill="none" strokeLinejoin="miter" />
         {/* Corner bracket - bottom-left */}
-        <path d="M12 80 L12 88 L20 88" stroke="url(#grad-cyan)" strokeWidth="4" fill="none" strokeLinejoin="miter" />
+        <path d="M12 80 L12 88 L20 88" stroke="url(#ic-grad-cyan)" strokeWidth="4" fill="none" strokeLinejoin="miter" />
         {/* Corner bracket - bottom-right */}
-        <path d="M80 88 L88 88 L88 80" stroke="url(#grad-cyan)" strokeWidth="4" fill="none" strokeLinejoin="miter" />
+        <path d="M80 88 L88 88 L88 80" stroke="url(#ic-grad-cyan)" strokeWidth="4" fill="none" strokeLinejoin="miter" />
         {/* Layer 3: Crosshair lines */}
-        <path d="M50 20 L50 42 M50 58 L50 80" stroke="url(#grad-cyan)" strokeWidth="2" fill="none" />
-        <path d="M20 50 L42 50 M58 50 L80 50" stroke="url(#grad-cyan)" strokeWidth="2" fill="none" />
+        <path d="M50 20 L50 42 M50 58 L50 80" stroke="url(#ic-grad-cyan)" strokeWidth="2" fill="none" />
+        <path d="M20 50 L42 50 M58 50 L80 50" stroke="url(#ic-grad-cyan)" strokeWidth="2" fill="none" />
         {/* Layer 4: Center target diamond */}
         <path d="M50 42 L58 50 L50 58 L42 50 Z"
-              fill="url(#grad-cyan)" opacity="0.8" />
+              fill="url(#ic-grad-cyan)" opacity="0.8" />
         {/* Layer 5: Recording indicator - top right */}
         <path d="M72 8 L88 8 L88 20 L72 20 Z"
-              fill="#1e293b" stroke="url(#grad-cyan)" strokeWidth="2" strokeLinejoin="miter" />
+              fill="#1e293b" stroke="url(#ic-grad-cyan)" strokeWidth="2" strokeLinejoin="miter" />
         <path d="M80 11 L83 14 L80 17 L77 14 Z"
               fill="red" className="animate-pulse" />
         {/* Layer 6: Grid detection lines */}
@@ -501,14 +501,14 @@ export const FormCoachIconShape = (props) => (
 // 10. AI Brain
 export const BrainIconShape = (props) => (
     <IconBase {...props}>
-        <path d="M20 50 C20 20, 40 10, 50 10 C60 10, 80 20, 80 50 C80 80, 60 90, 50 90 C40 90, 20 80, 20 50 Z" fill="none" stroke="url(#grad-purple)" strokeWidth="3" />
-        <path d="M30 40 Q50 30 70 40 M30 60 Q50 70 70 60" stroke="url(#grad-purple)" strokeWidth="2" opacity="0.5" fill="none" />
-        <circle cx="50" cy="50" r="5" fill="url(#grad-purple)">
+        <path d="M20 50 C20 20, 40 10, 50 10 C60 10, 80 20, 80 50 C80 80, 60 90, 50 90 C40 90, 20 80, 20 50 Z" fill="none" stroke="url(#ic-grad-purple)" strokeWidth="3" />
+        <path d="M30 40 Q50 30 70 40 M30 60 Q50 70 70 60" stroke="url(#ic-grad-purple)" strokeWidth="2" opacity="0.5" fill="none" />
+        <circle cx="50" cy="50" r="5" fill="url(#ic-grad-purple)">
             <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" repeatCount="indefinite" />
         </circle>
-        <line x1="50" y1="50" x2="20" y2="50" stroke="url(#grad-purple)" strokeWidth="1" strokeDasharray="4 2" />
-        <line x1="50" y1="50" x2="80" y2="30" stroke="url(#grad-purple)" strokeWidth="1" strokeDasharray="4 2" />
-        <line x1="50" y1="50" x2="60" y2="80" stroke="url(#grad-purple)" strokeWidth="1" strokeDasharray="4 2" />
+        <line x1="50" y1="50" x2="20" y2="50" stroke="url(#ic-grad-purple)" strokeWidth="1" strokeDasharray="4 2" />
+        <line x1="50" y1="50" x2="80" y2="30" stroke="url(#ic-grad-purple)" strokeWidth="1" strokeDasharray="4 2" />
+        <line x1="50" y1="50" x2="60" y2="80" stroke="url(#ic-grad-purple)" strokeWidth="1" strokeDasharray="4 2" />
     </IconBase>
 );
 
@@ -545,7 +545,7 @@ export const SmartTimerIconShape = (props) => (
               fill="#1e293b" stroke="#334155" strokeWidth="4" strokeLinejoin="miter" />
         {/* Layer 2: Progress segments - 270° filled (orange gradient) */}
         <path d="M50 50 L50 14 L63 16 L74 24 L82 37 L84 50 L82 65 L74 78 L63 86 L50 88 L37 86 L26 78 L18 65 L16 50 Z"
-              fill="url(#grad-orange)" opacity="0.35" />
+              fill="url(#ic-grad-orange)" opacity="0.35" />
         {/* Layer 3: Tick marks - 12 positions at 30° intervals */}
         <path d="M50 14 L50 20" stroke="#94a3b8" strokeWidth="2" />
         <path d="M74 22 L70 27" stroke="#94a3b8" strokeWidth="2" />
@@ -558,7 +558,7 @@ export const SmartTimerIconShape = (props) => (
         {/* Layer 4: Minute hand - points to 12 o'clock */}
         <path d="M48 50 L50 24 L52 50 Z" fill="white" opacity="0.9" />
         {/* Layer 4b: Second hand - points to 8 o'clock area */}
-        <path d="M50 50 L24 62" stroke="url(#grad-orange)" strokeWidth="2" />
+        <path d="M50 50 L24 62" stroke="url(#ic-grad-orange)" strokeWidth="2" />
         {/* Layer 5: Center hub diamond */}
         <path d="M50 46 L54 50 L50 54 L46 50 Z" fill="white" />
         {/* Layer 6: Crown button at top */}
@@ -600,7 +600,7 @@ export const MoonIconShape = (props) => (
     <IconBase {...props}>
         {/* Layer 1: Crescent moon - angular polygon body */}
         <path d="M55 5 L65 10 L72 20 L75 35 L72 52 L65 65 L55 75 L42 78 L30 75 L22 65 L18 52 L18 35 L22 22 L30 12 L40 7 Z"
-              fill="url(#grad-cyan)" filter="url(#glow-inner)" />
+              fill="url(#ic-grad-cyan)" filter="url(#ic-glow-inner)" />
         {/* Layer 2: Inner cutout - creates crescent shape */}
         <path d="M48 15 L58 20 L64 30 L66 42 L64 55 L58 64 L48 70 L38 68 L32 60 L28 48 L30 35 L35 25 L42 18 Z"
               fill="#1e293b" />
@@ -621,9 +621,9 @@ export const MoonIconShape = (props) => (
         </path>
         {/* Layer 6: Sleep wave pattern - angular zigzags */}
         <path d="M15 85 L22 80 L29 85 L36 80 L43 85 L50 80 L57 85"
-              stroke="url(#grad-cyan)" strokeWidth="2" fill="none" opacity="0.25" strokeLinejoin="miter" />
+              stroke="url(#ic-grad-cyan)" strokeWidth="2" fill="none" opacity="0.25" strokeLinejoin="miter" />
         <path d="M25 92 L30 88 L35 92 L40 88 L45 92 L50 88"
-              stroke="url(#grad-cyan)" strokeWidth="1.5" fill="none" opacity="0.15" strokeLinejoin="miter" />
+              stroke="url(#ic-grad-cyan)" strokeWidth="1.5" fill="none" opacity="0.15" strokeLinejoin="miter" />
     </IconBase>
 );
 
@@ -657,10 +657,10 @@ export const TrophyIconShape = (props) => (
     <IconBase {...props}>
         {/* Layer 1: Cup body - angular trapezoid */}
         <path d="M25 15 L75 15 L70 22 L65 55 L55 62 L45 62 L35 55 L30 22 Z"
-              fill="url(#grad-gold)" stroke="#a16207" strokeWidth="2" strokeLinejoin="miter" />
+              fill="url(#ic-grad-gold)" stroke="#a16207" strokeWidth="2" strokeLinejoin="miter" />
         {/* Layer 1b: Cup inner depth */}
         <path d="M30 18 L70 18 L66 24 L62 52 L53 58 L47 58 L38 52 L34 24 Z"
-              fill="url(#grad-glass)" />
+              fill="url(#ic-grad-glass)" />
         {/* Layer 2: Left handle - angular L-shape */}
         <path d="M25 22 L15 22 L12 28 L12 45 L16 50 L22 50 L22 42 L18 38 L18 28 L25 28"
               fill="none" stroke="#facc15" strokeWidth="3" strokeLinejoin="miter" />
@@ -718,7 +718,7 @@ export const NutritionIconShape = (props) => (
     <IconBase {...props}>
         {/* Layer 1: Leaf body - 10-vertex angular polygon */}
         <path d="M50 5 L62 15 L75 28 L82 45 L78 60 L68 75 L55 85 L50 92 L45 85 L32 75 L22 60 L18 45 L25 28 L38 15 Z"
-              fill="url(#grad-green)" stroke="#166534" strokeWidth="2" strokeLinejoin="miter" />
+              fill="url(#ic-grad-green)" stroke="#166534" strokeWidth="2" strokeLinejoin="miter" />
         {/* Layer 2: Glass highlight - upper left */}
         <path d="M50 8 L40 18 L28 32 L24 45 L30 35 L42 20 Z"
               fill="white" opacity="0.2" />
@@ -772,16 +772,16 @@ export const AnalyticsIconShape = (props) => (
         <path d="M8 10 L8 92 L92 92" stroke="#94a3b8" strokeWidth="2" fill="none" strokeLinejoin="miter" />
         {/* Layer 3: Bar 1 (shortest) - chamfered top */}
         <path d="M14 92 L14 72 L16 68 L24 68 L26 72 L26 92 Z"
-              fill="url(#grad-pink)" opacity="0.4" />
+              fill="url(#ic-grad-pink)" opacity="0.4" />
         {/* Bar 2 */}
         <path d="M34 92 L34 55 L36 51 L44 51 L46 55 L46 92 Z"
-              fill="url(#grad-pink)" opacity="0.6" />
+              fill="url(#ic-grad-pink)" opacity="0.6" />
         {/* Bar 3 */}
         <path d="M54 92 L54 38 L56 34 L64 34 L66 38 L66 92 Z"
-              fill="url(#grad-pink)" opacity="0.8" />
+              fill="url(#ic-grad-pink)" opacity="0.8" />
         {/* Bar 4 (tallest) */}
         <path d="M74 92 L74 18 L76 14 L84 14 L86 18 L86 92 Z"
-              fill="url(#grad-pink)" />
+              fill="url(#ic-grad-pink)" />
         {/* Layer 4: Trend arrow line */}
         <path d="M20 65 L40 48 L60 30 L78 12"
               stroke="white" strokeWidth="3" fill="none" strokeLinejoin="miter" />
@@ -793,8 +793,8 @@ export const AnalyticsIconShape = (props) => (
 // 16. Pulse Heart
 export const PulseHeartIcon = (props) => (
     <IconBase {...props}>
-        <path d="M50 90 C20 70, 10 40, 10 30 C10 15, 25 5, 40 5 C55 5, 50 25, 50 25 C50 25, 45 5, 60 5 C75 5, 90 15, 90 30 C90 40, 80 70, 50 90 Z" fill="url(#grad-pink)" />
-        <path d="M50 90 C20 70, 10 40, 10 30 C10 15, 25 5, 40 5 C55 5, 50 25, 50 25 C50 25, 45 5, 60 5 C75 5, 90 15, 90 30 C90 40, 80 70, 50 90 Z" fill="url(#grad-glass)" />
+        <path d="M50 90 C20 70, 10 40, 10 30 C10 15, 25 5, 40 5 C55 5, 50 25, 50 25 C50 25, 45 5, 60 5 C75 5, 90 15, 90 30 C90 40, 80 70, 50 90 Z" fill="url(#ic-grad-pink)" />
+        <path d="M50 90 C20 70, 10 40, 10 30 C10 15, 25 5, 40 5 C55 5, 50 25, 50 25 C50 25, 45 5, 60 5 C75 5, 90 15, 90 30 C90 40, 80 70, 50 90 Z" fill="url(#ic-grad-glass)" />
         <path d="M15 50 L30 50 L40 25 L50 75 L60 35 L70 50 L85 50" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none" className="animate-pulse" />
     </IconBase>
 );
@@ -841,7 +841,7 @@ export const TreadmillIcon = (props) => (
         <path d="M78 40 L88 38" stroke="#94a3b8" strokeWidth="3" fill="none" />
         {/* Layer 3: Display screen */}
         <path d="M68 14 L90 10 L92 24 L70 28 Z"
-              fill="url(#grad-blue)" stroke="#1e3a8a" strokeWidth="1.5" strokeLinejoin="miter" />
+              fill="url(#ic-grad-blue)" stroke="#1e3a8a" strokeWidth="1.5" strokeLinejoin="miter" />
         {/* Display data lines */}
         <path d="M72 17 L86 14 M72 22 L82 20"
               stroke="white" strokeWidth="1" fill="none" opacity="0.5" />
@@ -886,16 +886,16 @@ export const TreadmillIcon = (props) => (
 export const WalkingIcon = (props) => (
     <IconBase {...props}>
         {/* Layer 5: Trail dots behind - diamond shapes */}
-        <path d="M28 90 L30 88 L32 90 L30 92 Z" fill="url(#grad-cyan)" opacity="0.2" />
-        <path d="M58 88 L60 86 L62 88 L60 90 Z" fill="url(#grad-cyan)" opacity="0.15" />
+        <path d="M28 90 L30 88 L32 90 L30 92 Z" fill="url(#ic-grad-cyan)" opacity="0.2" />
+        <path d="M58 88 L60 86 L62 88 L60 90 Z" fill="url(#ic-grad-cyan)" opacity="0.15" />
 
         {/* Layer 1: Left footprint (back foot) - angular polygon */}
         <g transform="translate(12, 42) rotate(-15)">
             {/* Foot body */}
             <path d="M5 0 L22 0 L25 4 L25 32 L22 38 L18 40 L8 40 L4 38 L0 32 L0 4 Z"
-                  fill="url(#grad-cyan)" opacity="0.55" stroke="#0e7490" strokeWidth="1.5" strokeLinejoin="miter" />
+                  fill="url(#ic-grad-cyan)" opacity="0.55" stroke="#0e7490" strokeWidth="1.5" strokeLinejoin="miter" />
             {/* Toe bumps */}
-            <path d="M6 0 L8 -4 L11 0 M14 0 L16 -5 L19 0" stroke="#0e7490" strokeWidth="1.5" fill="url(#grad-cyan)" opacity="0.55" strokeLinejoin="miter" />
+            <path d="M6 0 L8 -4 L11 0 M14 0 L16 -5 L19 0" stroke="#0e7490" strokeWidth="1.5" fill="url(#ic-grad-cyan)" opacity="0.55" strokeLinejoin="miter" />
             {/* Arch detail */}
             <path d="M8 15 L8 28 M18 15 L18 28" stroke="#0c4a6e" strokeWidth="1" fill="none" opacity="0.3" />
         </g>
@@ -904,9 +904,9 @@ export const WalkingIcon = (props) => (
         <g transform="translate(48, 10) rotate(12)">
             {/* Foot body */}
             <path d="M5 0 L22 0 L25 4 L25 32 L22 38 L18 40 L8 40 L4 38 L0 32 L0 4 Z"
-                  fill="url(#grad-cyan)" stroke="#0e7490" strokeWidth="1.5" strokeLinejoin="miter" />
+                  fill="url(#ic-grad-cyan)" stroke="#0e7490" strokeWidth="1.5" strokeLinejoin="miter" />
             {/* Toe bumps */}
-            <path d="M6 0 L8 -4 L11 0 M14 0 L16 -5 L19 0" stroke="#0e7490" strokeWidth="1.5" fill="url(#grad-cyan)" strokeLinejoin="miter" />
+            <path d="M6 0 L8 -4 L11 0 M14 0 L16 -5 L19 0" stroke="#0e7490" strokeWidth="1.5" fill="url(#ic-grad-cyan)" strokeLinejoin="miter" />
             {/* Arch detail */}
             <path d="M8 15 L8 28 M18 15 L18 28" stroke="#0c4a6e" strokeWidth="1" fill="none" opacity="0.3" />
         </g>
@@ -945,14 +945,14 @@ export const CyclingIcon = (props) => (
     <IconBase {...props}>
         {/* Layer 1: Rear wheel - 12-sided polygon */}
         <path d="M25 52 L29 54 L32 58 L33 63 L32 68 L29 72 L25 74 L21 72 L18 68 L17 63 L18 58 L21 54 Z"
-              fill="none" stroke="url(#grad-orange)" strokeWidth="3.5" strokeLinejoin="miter" />
+              fill="none" stroke="url(#ic-grad-orange)" strokeWidth="3.5" strokeLinejoin="miter" />
         {/* Layer 1b: Front wheel - 12-sided polygon */}
         <path d="M75 52 L79 54 L82 58 L83 63 L82 68 L79 72 L75 74 L71 72 L68 68 L67 63 L68 58 L71 54 Z"
-              fill="none" stroke="url(#grad-orange)" strokeWidth="3.5" strokeLinejoin="miter" />
+              fill="none" stroke="url(#ic-grad-orange)" strokeWidth="3.5" strokeLinejoin="miter" />
         {/* Layer 2: Spokes - rear wheel */}
-        <path d="M25 54 L25 72 M18 63 L32 63" stroke="url(#grad-orange)" strokeWidth="1" opacity="0.4" />
+        <path d="M25 54 L25 72 M18 63 L32 63" stroke="url(#ic-grad-orange)" strokeWidth="1" opacity="0.4" />
         {/* Layer 2b: Spokes - front wheel */}
-        <path d="M75 54 L75 72 M68 63 L82 63" stroke="url(#grad-orange)" strokeWidth="1" opacity="0.4" />
+        <path d="M75 54 L75 72 M68 63 L82 63" stroke="url(#ic-grad-orange)" strokeWidth="1" opacity="0.4" />
         {/* Layer 3: Frame - diamond triangle */}
         <path d="M25 63 L45 35 L75 63 M45 35 L62 35 L75 63 M25 63 L50 63"
               stroke="white" strokeWidth="3" fill="none" strokeLinejoin="miter" />
@@ -962,8 +962,8 @@ export const CyclingIcon = (props) => (
         {/* Layer 4b: Seat */}
         <path d="M40 33 L50 33 L48 35 L42 35 Z" fill="white" />
         {/* Layer 5: Pedal crank detail */}
-        <path d="M50 63 L46 70 M50 63 L54 56" stroke="url(#grad-orange)" strokeWidth="2.5" fill="none" />
-        <path d="M43 70 L49 70 M51 56 L57 56" stroke="url(#grad-orange)" strokeWidth="2" fill="none" />
+        <path d="M50 63 L46 70 M50 63 L54 56" stroke="url(#ic-grad-orange)" strokeWidth="2.5" fill="none" />
+        <path d="M43 70 L49 70 M51 56 L57 56" stroke="url(#ic-grad-orange)" strokeWidth="2" fill="none" />
     </IconBase>
 );
 
@@ -994,27 +994,27 @@ export const SunIcon = (props) => (
     <IconBase {...props}>
         {/* Layer 1: 8 triangular rays at 45° intervals */}
         {/* Top ray */}
-        <path d="M46 30 L50 5 L54 30 Z" fill="url(#grad-gold)" />
+        <path d="M46 30 L50 5 L54 30 Z" fill="url(#ic-grad-gold)" />
         {/* Top-right ray */}
-        <path d="M62 34 L82 18 L66 38 Z" fill="url(#grad-gold)" />
+        <path d="M62 34 L82 18 L66 38 Z" fill="url(#ic-grad-gold)" />
         {/* Right ray */}
-        <path d="M70 46 L95 50 L70 54 Z" fill="url(#grad-gold)" />
+        <path d="M70 46 L95 50 L70 54 Z" fill="url(#ic-grad-gold)" />
         {/* Bottom-right ray */}
-        <path d="M66 62 L82 82 L62 66 Z" fill="url(#grad-gold)" />
+        <path d="M66 62 L82 82 L62 66 Z" fill="url(#ic-grad-gold)" />
         {/* Bottom ray */}
-        <path d="M54 70 L50 95 L46 70 Z" fill="url(#grad-gold)" />
+        <path d="M54 70 L50 95 L46 70 Z" fill="url(#ic-grad-gold)" />
         {/* Bottom-left ray */}
-        <path d="M38 66 L18 82 L34 62 Z" fill="url(#grad-gold)" />
+        <path d="M38 66 L18 82 L34 62 Z" fill="url(#ic-grad-gold)" />
         {/* Left ray */}
-        <path d="M30 54 L5 50 L30 46 Z" fill="url(#grad-gold)" />
+        <path d="M30 54 L5 50 L30 46 Z" fill="url(#ic-grad-gold)" />
         {/* Top-left ray */}
-        <path d="M34 38 L18 18 L38 34 Z" fill="url(#grad-gold)" />
+        <path d="M34 38 L18 18 L38 34 Z" fill="url(#ic-grad-gold)" />
         {/* Layer 2: Outer octagon body */}
         <path d="M50 28 L64 32 L72 44 L72 56 L64 68 L50 72 L36 68 L28 56 L28 44 L36 32 Z"
-              fill="url(#grad-gold)" stroke="#a16207" strokeWidth="2" strokeLinejoin="miter" />
+              fill="url(#ic-grad-gold)" stroke="#a16207" strokeWidth="2" strokeLinejoin="miter" />
         {/* Layer 3: Glass highlight - inner octagon */}
         <path d="M50 34 L60 37 L66 46 L66 54 L60 63 L50 66 L40 63 L34 54 L34 46 L40 37 Z"
-              fill="url(#grad-glass)" />
+              fill="url(#ic-grad-glass)" />
         {/* Layer 4: Center diamond */}
         <path d="M50 44 L56 50 L50 56 L44 50 Z" fill="white" opacity="0.4" />
     </IconBase>
@@ -1048,22 +1048,22 @@ export const BatteryIcon = (props) => (
     <IconBase {...props}>
         {/* Layer 1: Battery body - chamfered rectangle */}
         <path d="M27 22 L29 20 L71 20 L73 22 L73 82 L71 84 L29 84 L27 82 Z"
-              fill="none" stroke="url(#grad-green)" strokeWidth="3.5" strokeLinejoin="miter" />
+              fill="none" stroke="url(#ic-grad-green)" strokeWidth="3.5" strokeLinejoin="miter" />
         {/* Layer 2: Positive terminal */}
         <path d="M40 12 L42 10 L58 10 L60 12 L60 20 L40 20 Z"
-              fill="url(#grad-green)" stroke="#166534" strokeWidth="1" strokeLinejoin="miter" />
+              fill="url(#ic-grad-green)" stroke="#166534" strokeWidth="1" strokeLinejoin="miter" />
         {/* Layer 3: Charge bar 1 (bottom, lowest charge) */}
         <path d="M33 72 L35 70 L65 70 L67 72 L67 78 L65 80 L35 80 L33 78 Z"
-              fill="url(#grad-green)" opacity="0.4" />
+              fill="url(#ic-grad-green)" opacity="0.4" />
         {/* Charge bar 2 */}
         <path d="M33 57 L35 55 L65 55 L67 57 L67 63 L65 65 L35 65 L33 63 Z"
-              fill="url(#grad-green)" opacity="0.6" />
+              fill="url(#ic-grad-green)" opacity="0.6" />
         {/* Charge bar 3 */}
         <path d="M33 42 L35 40 L65 40 L67 42 L67 48 L65 50 L35 50 L33 48 Z"
-              fill="url(#grad-green)" opacity="0.8" />
+              fill="url(#ic-grad-green)" opacity="0.8" />
         {/* Charge bar 4 (top, full) */}
         <path d="M33 27 L35 25 L65 25 L67 27 L67 33 L65 35 L35 35 L33 33 Z"
-              fill="url(#grad-green)" opacity="0.95" />
+              fill="url(#ic-grad-green)" opacity="0.95" />
         {/* Layer 4: Lightning bolt overlay */}
         <path d="M56 32 L44 52 L52 52 L44 72 Z"
               fill="white" opacity="0.3" stroke="white" strokeWidth="1" strokeLinejoin="miter" />
@@ -1078,11 +1078,11 @@ export const DumbbellIcon = (props) => (
         {/* Bar */}
         <line x1="20" y1="50" x2="80" y2="50" stroke="#cbd5e1" strokeWidth="6" strokeLinecap="round" />
         {/* Weights Left */}
-        <rect x="10" y="30" width="10" height="40" rx="2" fill="url(#grad-blue)" />
-        <rect x="5" y="35" width="5" height="30" rx="1" fill="url(#grad-blue)" opacity="0.8" />
+        <rect x="10" y="30" width="10" height="40" rx="2" fill="url(#ic-grad-blue)" />
+        <rect x="5" y="35" width="5" height="30" rx="1" fill="url(#ic-grad-blue)" opacity="0.8" />
         {/* Weights Right */}
-        <rect x="80" y="30" width="10" height="40" rx="2" fill="url(#grad-blue)" />
-        <rect x="90" y="35" width="5" height="30" rx="1" fill="url(#grad-blue)" opacity="0.8" />
+        <rect x="80" y="30" width="10" height="40" rx="2" fill="url(#ic-grad-blue)" />
+        <rect x="90" y="35" width="5" height="30" rx="1" fill="url(#ic-grad-blue)" opacity="0.8" />
     </IconBase>
 );
 
@@ -1121,7 +1121,7 @@ export const ScaleIcon = (props) => (
         <path d="M74 92 L78 89 L82 92 Z" fill="#334155" />
         {/* Layer 1: Platform body - chamfered rectangle */}
         <path d="M12 20 L16 16 L84 16 L88 20 L88 82 L84 86 L16 86 L12 82 Z"
-              fill="url(#grad-silver)" stroke="#94a3b8" strokeWidth="1.5" strokeLinejoin="miter" />
+              fill="url(#ic-grad-silver)" stroke="#94a3b8" strokeWidth="1.5" strokeLinejoin="miter" />
         {/* Layer 5: Glass highlight on surface */}
         <path d="M16 18 L84 18 L82 24 L18 24 Z" fill="white" opacity="0.3" />
         {/* Layer 2: Display screen - inset rectangle */}
@@ -1167,7 +1167,7 @@ export const RulerIcon = (props) => (
         <g transform="rotate(12 50 50)">
             {/* Layer 1: Ruler body - chamfered rectangle */}
             <path d="M33 6 L35 4 L67 4 L69 6 L69 96 L67 98 L35 98 L33 96 Z"
-                  fill="url(#grad-orange)" stroke="#92400e" strokeWidth="1.5" strokeLinejoin="miter" />
+                  fill="url(#ic-grad-orange)" stroke="#92400e" strokeWidth="1.5" strokeLinejoin="miter" />
             {/* Layer 4: Glass highlight - top edge */}
             <path d="M35 5 L67 5 L66 10 L36 10 Z" fill="white" opacity="0.2" />
             {/* Layer 2: Major ticks (long) - every 20 units */}
@@ -1217,16 +1217,16 @@ export const TargetIcon = (props) => (
     <IconBase {...props}>
         {/* Layer 1: Crosshair lines - extending beyond rings */}
         <path d="M50 5 L50 20 M50 80 L50 95 M5 50 L20 50 M80 50 L95 50"
-              stroke="url(#grad-red)" strokeWidth="3" />
+              stroke="url(#ic-grad-red)" strokeWidth="3" />
         {/* Layer 2: Outer octagonal ring */}
         <path d="M50 12 L70 18 L82 32 L88 50 L82 68 L70 82 L50 88 L30 82 L18 68 L12 50 L18 32 L30 18 Z"
-              fill="none" stroke="url(#grad-red)" strokeWidth="3.5" strokeLinejoin="miter" />
+              fill="none" stroke="url(#ic-grad-red)" strokeWidth="3.5" strokeLinejoin="miter" />
         {/* Layer 3: Middle octagonal ring */}
         <path d="M50 22 L64 26 L74 38 L78 50 L74 62 L64 74 L50 78 L36 74 L26 62 L22 50 L26 38 L36 26 Z"
-              fill="none" stroke="url(#grad-red)" strokeWidth="3" strokeLinejoin="miter" opacity="0.6" />
+              fill="none" stroke="url(#ic-grad-red)" strokeWidth="3" strokeLinejoin="miter" opacity="0.6" />
         {/* Layer 4: Inner octagonal ring - filled */}
         <path d="M50 34 L58 37 L64 44 L66 50 L64 56 L58 63 L50 66 L42 63 L36 56 L34 50 L36 44 L42 37 Z"
-              fill="url(#grad-red)" stroke="#991b1b" strokeWidth="1.5" strokeLinejoin="miter" />
+              fill="url(#ic-grad-red)" stroke="#991b1b" strokeWidth="1.5" strokeLinejoin="miter" />
         {/* Layer 4b: Inner ring glass highlight */}
         <path d="M42 38 L50 35 L58 38 L55 44 L45 44 Z"
               fill="white" opacity="0.15" />
@@ -1266,7 +1266,7 @@ export const PlateIcon = (props) => (
     <IconBase {...props}>
         {/* Layer 1: Outer rim - 12-sided polygon */}
         <path d="M50 8 L62 10 L73 16 L81 27 L85 40 L85 60 L81 73 L73 84 L62 90 L50 92 L38 90 L27 84 L19 73 L15 60 L15 40 L19 27 L27 16 L38 10 Z"
-              fill="#1e293b" stroke="url(#grad-silver)" strokeWidth="3.5" strokeLinejoin="miter" />
+              fill="#1e293b" stroke="url(#ic-grad-silver)" strokeWidth="3.5" strokeLinejoin="miter" />
         {/* Layer 2: Inner ring - concentric dodecagon */}
         <path d="M50 20 L58 21 L66 25 L72 32 L75 40 L75 60 L72 68 L66 75 L58 79 L50 80 L42 79 L34 75 L28 68 L25 60 L25 40 L28 32 L34 25 L42 21 Z"
               fill="none" stroke="#334155" strokeWidth="2" opacity="0.5" strokeLinejoin="miter" />
@@ -1299,7 +1299,7 @@ export const ChatIcon = (props) => (
     <IconBase {...props}>
         {/* Layer 1: Angular speech bubble body with sharp tail */}
         <path d="M15 18 L75 18 L82 22 L85 30 L85 60 L82 68 L75 72 L38 72 L20 90 L22 72 L15 72 L8 68 L5 60 L5 30 L8 22 Z"
-              fill="url(#grad-blue)" />
+              fill="url(#ic-grad-blue)" />
 
         {/* Layer 2: Bubble outline stroke */}
         <path d="M15 18 L75 18 L82 22 L85 30 L85 60 L82 68 L75 72 L38 72 L20 90 L22 72 L15 72 L8 68 L5 60 L5 30 L8 22 Z"
@@ -1312,7 +1312,7 @@ export const ChatIcon = (props) => (
 
         {/* Layer 4: Glass overlay - top portion of bubble */}
         <path d="M15 18 L75 18 L82 22 L85 30 L85 45 L5 45 L5 30 L8 22 Z"
-              fill="url(#grad-glass)" />
+              fill="url(#ic-grad-glass)" />
 
         {/* Layer 5: Top edge highlight */}
         <path d="M15 18 L75 18 L82 22" stroke="white" strokeWidth="1.5" opacity="0.3" fill="none" strokeLinejoin="miter" />

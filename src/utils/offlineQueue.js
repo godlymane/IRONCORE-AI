@@ -33,7 +33,10 @@ export const enqueueOfflineOp = (type, data) => {
     const queue = loadQueue();
     queue.push({ type, data, queuedAt: Date.now() });
     // Cap at 50 entries to prevent localStorage bloat
-    if (queue.length > 50) queue.shift();
+    if (queue.length > 50) {
+        console.warn('[offlineQueue] Queue full (50 ops) — dropping oldest entry:', queue[0]?.type);
+        queue.shift();
+    }
     saveQueue(queue);
 };
 
@@ -46,13 +49,20 @@ export const replayOfflineQueue = async (handlers) => {
     const queue = loadQueue();
     if (queue.length === 0) return 0;
 
-    // Clear queue immediately to prevent double-replay
-    saveQueue([]);
+    // Mark queue as being replayed to prevent double-replay
+    // (don't clear yet — if all ops fail we'd lose data)
+    saveQueue([{ _replaying: true }]);
 
     let replayed = 0;
     const failed = [];
 
     for (const op of queue) {
+        // Stop replay if we've gone offline mid-replay
+        if (!navigator.onLine) {
+            failed.push(op);
+            continue;
+        }
+
         // Skip ops older than 24 hours — stale data
         if (Date.now() - op.queuedAt > 86400000) continue;
 
@@ -68,8 +78,8 @@ export const replayOfflineQueue = async (handlers) => {
         }
     }
 
-    // Re-queue anything that failed (will retry next reconnect)
-    if (failed.length > 0) saveQueue(failed);
+    // Always update queue: save failures for retry, or clear if all succeeded
+    saveQueue(failed);
 
     return replayed;
 };

@@ -16,7 +16,16 @@ function copyTfjsWasm() {
       const wasmDest = resolve('public/wasm')
       mkdirSync(wasmDest, { recursive: true })
 
-      const wasmFiles = readdirSync(wasmSrc).filter(f => f.endsWith('.wasm'))
+      let wasmFiles = []
+      try {
+        wasmFiles = readdirSync(wasmSrc).filter(f => f.endsWith('.wasm'))
+      } catch (err) {
+        console.error(`[tfjs-wasm] ERROR: WASM source directory not found at ${wasmSrc}. Run "npm install" to fix.`)
+        throw new Error(`TensorFlow.js WASM binaries missing — AI Lab will not work offline. Source: ${wasmSrc}`)
+      }
+      if (wasmFiles.length === 0) {
+        throw new Error('[tfjs-wasm] No .wasm files found in ' + wasmSrc + ' — AI Lab will be broken offline.')
+      }
       for (const file of wasmFiles) {
         copyFileSync(join(wasmSrc, file), join(wasmDest, file))
       }
@@ -39,6 +48,7 @@ export default defineConfig({
     target: 'es2020',
     sourcemap: false,
     rollupOptions: {
+      external: ['@capacitor/local-notifications'],
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom'],
@@ -54,8 +64,8 @@ export default defineConfig({
         }
       }
     },
-    chunkSizeWarningLimit: 600,
-    assetsInlineLimit: 0,
+    chunkSizeWarningLimit: 400,
+    assetsInlineLimit: 4096,
   },
   assetsInclude: ['**/*.wasm'],
   publicDir: 'public',

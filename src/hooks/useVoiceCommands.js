@@ -62,10 +62,18 @@ export function useVoiceCommands({ onCommand, onQuery, enabled = false }) {
             voices.find(v => v.lang.startsWith('en'));
         if (preferred) utterance.voice = preferred;
 
+        // Fallback timeout in case onend never fires (Chrome bug)
+        const speakTimeout = setTimeout(() => {
+            window.speechSynthesis.cancel();
+            onDone?.();
+        }, 15000);
+
         utterance.onend = () => {
+            clearTimeout(speakTimeout);
             onDone?.();
         };
         utterance.onerror = () => {
+            clearTimeout(speakTimeout);
             onDone?.();
         };
 
@@ -174,7 +182,9 @@ export function useVoiceCommands({ onCommand, onQuery, enabled = false }) {
         return () => {
             clearTimeout(silenceTimerRef.current);
             clearTimeout(restartTimerRef.current);
-            try { recognition.abort(); } catch (_) {}
+            try { recognition.abort(); } catch (_err) { /* expected: recognition may already be stopped */ }
+            // Close reusable AudioContext to free native audio resources
+            try { activationCtxRef.current?.close(); } catch (_err) { /* expected: context may already be closed */ }
         };
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -185,8 +195,8 @@ export function useVoiceCommands({ onCommand, onQuery, enabled = false }) {
             if (recognitionRef.current && enabledRef.current) {
                 try {
                     recognitionRef.current.start();
-                } catch (_) {
-                    // Already started, ignore
+                } catch (_err) {
+                    /* expected: recognition may already be started */
                 }
             }
         }, 300);
@@ -257,10 +267,14 @@ export function useVoiceCommands({ onCommand, onQuery, enabled = false }) {
         });
     }, [onCommand, onQuery, speak]);
 
-    // Play short activation sound
+    // Shared AudioContext for activation sounds — reuse to prevent leak
+    const activationCtxRef = useRef(null);
     const playActivationSound = useCallback(() => {
         try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            if (!activationCtxRef.current || activationCtxRef.current.state === 'closed') {
+                activationCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            const ctx = activationCtxRef.current;
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.connect(gain);
@@ -271,7 +285,7 @@ export function useVoiceCommands({ onCommand, onQuery, enabled = false }) {
             gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
             osc.start(ctx.currentTime);
             osc.stop(ctx.currentTime + 0.15);
-        } catch (_) {}
+        } catch (_err) { /* expected: AudioContext may not be available */ }
     }, []);
 
     // Start/stop based on enabled prop
@@ -283,11 +297,11 @@ export function useVoiceCommands({ onCommand, onQuery, enabled = false }) {
             voiceStateRef.current = VOICE_STATE.LISTENING;
             try {
                 recognitionRef.current.start();
-            } catch (_) {}
+            } catch (_err) { /* expected: recognition may already be started */ }
         } else {
             clearTimeout(silenceTimerRef.current);
             clearTimeout(restartTimerRef.current);
-            try { recognitionRef.current.abort(); } catch (_) {}
+            try { recognitionRef.current.abort(); } catch (_err) { /* expected: recognition may already be stopped */ }
             setVoiceState(VOICE_STATE.IDLE);
             voiceStateRef.current = VOICE_STATE.IDLE;
             setTranscript('');
@@ -297,15 +311,16 @@ export function useVoiceCommands({ onCommand, onQuery, enabled = false }) {
 
     // Manual activate (for tap-to-talk fallback)
     const manualActivate = useCallback(() => {
-        if (voiceStateRef.current === VOICE_STATE.LISTENING || voiceStateRef.current === VOICE_STATE.IDLE) {
+        const wasIdle = voiceStateRef.current === VOICE_STATE.IDLE;
+        if (voiceStateRef.current === VOICE_STATE.LISTENING || wasIdle) {
             playActivationSound();
             setVoiceState(VOICE_STATE.ACTIVE);
             voiceStateRef.current = VOICE_STATE.ACTIVE;
             setTranscript('');
 
-            // If not already listening, start recognition
-            if (voiceStateRef.current === VOICE_STATE.IDLE && recognitionRef.current) {
-                try { recognitionRef.current.start(); } catch (_) {}
+            // If was idle (not already listening), start recognition
+            if (wasIdle && recognitionRef.current) {
+                try { recognitionRef.current.start(); } catch (_err) { /* expected: recognition may already be started */ }
             }
 
             clearTimeout(silenceTimerRef.current);

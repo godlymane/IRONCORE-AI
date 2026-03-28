@@ -65,27 +65,77 @@ export function generatePhrase() {
     .join(' ');
 }
 
+// ── Helpers ──────────────────────────────────────────────────────────
+const toHex = (buf) => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+const PBKDF2_ITERATIONS = 100000;
+
+/**
+ * PBKDF2 key-stretch with random salt. Returns "v2:<salt>:<hash>".
+ * 100 000 iterations of SHA-256 makes brute-force costly for short inputs (PINs).
+ */
+async function pbkdf2Hash(input, iterations = PBKDF2_ITERATIONS) {
+  const enc = new TextEncoder();
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(input), 'PBKDF2', false, ['deriveBits']);
+  const derived = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+    keyMaterial,
+    256,
+  );
+  return `v2:${toHex(salt)}:${toHex(derived)}`;
+}
+
+/**
+ * Verify an input against a stored hash (supports both v1 plain SHA-256 and v2 PBKDF2).
+ */
+async function pbkdf2Verify(input, storedHash) {
+  if (!storedHash.startsWith('v2:')) {
+    // Legacy v1 — plain SHA-256
+    const data = new TextEncoder().encode(input);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    return toHex(hashBuffer) === storedHash;
+  }
+  // v2 — PBKDF2
+  const parts = storedHash.split(':');
+  if (parts.length < 3 || !parts[1] || !parts[2]) return false;
+  const [, saltHex, expectedHex] = parts;
+  const salt = new Uint8Array(saltHex.match(/.{2}/g).map(b => parseInt(b, 16)));
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(input), 'PBKDF2', false, ['deriveBits']);
+  const derived = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+    keyMaterial,
+    256,
+  );
+  return toHex(derived) === expectedHex;
+}
+
 /**
  * SHA-256 hash of a recovery phrase (normalized).
+ * Deterministic — used as Firestore lookup key for account recovery.
+ * High entropy (12 words from 280-word list ≈ 2^99) makes rainbow tables impractical.
  */
 export async function hashPhrase(phrase) {
   const normalized = phrase.toLowerCase().trim().replace(/\s+/g, ' ');
   const data = new TextEncoder().encode(normalized);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
+  return toHex(hashBuffer);
 }
 
 /**
- * SHA-256 hash of a 6-digit PIN.
+ * PBKDF2 hash of a 6-digit PIN with random salt.
+ * Returns "v2:<salt>:<hash>". Verify with verifyPin().
  */
 export async function hashPin(pin) {
-  const data = new TextEncoder().encode(String(pin));
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
+  return pbkdf2Hash(String(pin));
+}
+
+/**
+ * Verify a PIN against a stored hash (v1 or v2).
+ */
+export async function verifyPin(pin, storedHash) {
+  return pbkdf2Verify(String(pin), storedHash);
 }
 
 /**

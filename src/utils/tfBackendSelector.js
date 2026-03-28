@@ -82,20 +82,20 @@ function isWebGLSupported() {
  */
 export async function initializeTensorFlowBackend() {
   if (backendInitialized) {
-    console.log(`[TensorFlow] Already initialized with backend: ${selectedBackend}`);
+    console.debug(`[TensorFlow] Already initialized with backend: ${selectedBackend}`);
     return selectedBackend;
   }
 
-  console.log('[TensorFlow] Detecting device capability...');
+  console.debug('[TensorFlow] Detecting device capability...');
   const deviceCapability = detectDeviceCapability();
   const webglSupported = isWebGLSupported();
   
-  console.log(`[TensorFlow] Device: ${deviceCapability}, WebGL: ${webglSupported}`);
+  console.debug(`[TensorFlow] Device: ${deviceCapability}, WebGL: ${webglSupported}`);
 
   try {
     // Strategy 1: Flagship devices with WebGL support -> Use WebGL
     if (deviceCapability === 'flagship' && webglSupported) {
-      console.log('[TensorFlow] Using WebGL backend (flagship device)');
+      console.debug('[TensorFlow] Using WebGL backend (flagship device)');
       await tf.setBackend('webgl');
       await tf.ready();
       selectedBackend = 'webgl';
@@ -103,7 +103,7 @@ export async function initializeTensorFlowBackend() {
     
     // Strategy 2: Mid-range devices OR flagship without proper WebGL -> Use WASM
     else if (deviceCapability === 'midrange' || (deviceCapability === 'flagship' && !webglSupported)) {
-      console.log('[TensorFlow] Using WASM backend (mid-range device or WebGL unavailable)');
+      console.debug('[TensorFlow] Using WASM backend (mid-range device or WebGL unavailable)');
       
       // CRITICAL: Set WASM paths to local bundled files (not CDN)
       // Vite will copy these to the dist folder
@@ -116,7 +116,7 @@ export async function initializeTensorFlowBackend() {
     
     // Strategy 3: Budget devices -> Try WASM, fallback to CPU
     else {
-      console.log('[TensorFlow] Budget device detected, trying WASM...');
+      console.debug('[TensorFlow] Budget device detected, trying WASM...');
       
       try {
         setWasmPaths('/wasm/');
@@ -132,8 +132,8 @@ export async function initializeTensorFlowBackend() {
     }
 
     backendInitialized = true;
-    console.log(`[TensorFlow] Backend initialized: ${selectedBackend}`);
-    console.log(`[TensorFlow] Num tensors: ${tf.memory().numTensors}`);
+    console.debug(`[TensorFlow] Backend initialized: ${selectedBackend}`);
+    console.debug(`[TensorFlow] Num tensors: ${tf.memory().numTensors}`);
     
     return selectedBackend;
     
@@ -173,7 +173,7 @@ export function getBackendInfo() {
 export function cleanupTensorFlow() {
   if (backendInitialized) {
     tf.disposeVariables();
-    console.log('[TensorFlow] Resources cleaned up');
+    console.debug('[TensorFlow] Resources cleaned up');
   }
 }
 
@@ -198,7 +198,7 @@ export async function lazyLoadPoseDetector(modelOverride) {
   const useThunder = modelOverride === 'thunder' || (!modelOverride && capability === 'flagship');
   const modelLabel = useThunder ? 'Thunder' : 'Lightning';
 
-  console.log(`[TensorFlow] Lazy loading MoveNet ${modelLabel} (device: ${capability})...`);
+  console.debug(`[TensorFlow] Lazy loading MoveNet ${modelLabel} (device: ${capability})...`);
 
   // Dynamic import to code-split TensorFlow models
   const poseDetection = await import('@tensorflow-models/pose-detection');
@@ -215,6 +215,6 @@ export async function lazyLoadPoseDetector(modelOverride) {
     detectorConfig
   );
 
-  console.log(`[TensorFlow] Pose detector loaded (${modelLabel})`);
+  console.debug(`[TensorFlow] Pose detector loaded (${modelLabel})`);
   return detector;
 }

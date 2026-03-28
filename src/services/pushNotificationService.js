@@ -61,10 +61,43 @@ export const registerServiceWorker = async () => {
 };
 
 /**
+ * Check and request POST_NOTIFICATIONS permission on Android 13+ (Capacitor).
+ * Returns true if permission is granted, false otherwise.
+ */
+const ensureNativeNotificationPermission = async () => {
+    try {
+        const { Capacitor } = await import('@capacitor/core');
+        if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
+            const pkg = '@capacitor/' + 'local-notifications';
+            const { LocalNotifications } = await import(/* @vite-ignore */ pkg);
+            const permStatus = await LocalNotifications.checkPermissions();
+            if (permStatus.display !== 'granted') {
+                const reqResult = await LocalNotifications.requestPermissions();
+                return reqResult.display === 'granted';
+            }
+            return true;
+        }
+    } catch {
+        // Capacitor plugins not available (web context) — fall through
+    }
+    return true; // Non-Android or web — permission handled elsewhere
+};
+
+/**
  * Show a local notification (doesn't require server)
  */
 export const showLocalNotification = async (title, options = {}) => {
-    if (Notification.permission !== 'granted') {
+    try {
+        // On Android 13+, check POST_NOTIFICATIONS permission via Capacitor
+        const nativePermGranted = await ensureNativeNotificationPermission();
+        if (!nativePermGranted) {
+            return { success: false, error: 'Notification permission denied on Android' };
+        }
+    } catch (err) {
+        console.warn('Native permission check failed:', err);
+    }
+
+    if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
         const result = await requestNotificationPermission();
         if (!result.success) return result;
     }
@@ -95,7 +128,10 @@ export const showLocalNotification = async (title, options = {}) => {
  */
 export const scheduleWorkoutReminder = (hour, minute, message) => {
     // Store reminder preferences in localStorage
-    const reminders = JSON.parse(localStorage.getItem('workoutReminders') || '[]');
+    let reminders = [];
+    try {
+        reminders = JSON.parse(localStorage.getItem('workoutReminders') || '[]');
+    } catch { /* corrupted data — reset */ }
     const id = `reminder_${Date.now()}`;
 
     reminders.push({
@@ -107,7 +143,7 @@ export const scheduleWorkoutReminder = (hour, minute, message) => {
         createdAt: new Date().toISOString(),
     });
 
-    localStorage.setItem('workoutReminders', JSON.stringify(reminders));
+    try { localStorage.setItem('workoutReminders', JSON.stringify(reminders)); } catch { /* private browsing / quota */ }
 
     // Set up check interval if not already running
     startReminderChecker();
@@ -235,7 +271,8 @@ export const setupForegroundListener = async () => {
 };
 
 /**
- * Initialize push notifications
+ * Initialize push notifications.
+ * Returns a cleanup function to tear down the reminder interval and FCM listener.
  */
 export const initializePushNotifications = async () => {
     // Register service worker
@@ -248,11 +285,19 @@ export const initializePushNotifications = async () => {
     startReminderChecker();
 
     // Set up foreground FCM listener
-    await setupForegroundListener();
+    const unsubscribeFCM = await setupForegroundListener();
 
-    return {
+    const result = {
         supported: isPushSupported(),
         permission: getNotificationPermission(),
         serviceWorker: swResult.success,
     };
+
+    // Return cleanup function for callers to invoke on unmount / logout
+    result.cleanup = () => {
+        stopReminderChecker();
+        if (typeof unsubscribeFCM === 'function') unsubscribeFCM();
+    };
+
+    return result;
 };

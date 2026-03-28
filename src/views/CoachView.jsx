@@ -31,7 +31,7 @@ RULES:
 
 export const CoachView = () => {
     const { meals = [], workouts = [], profile = {}, updateData, progress = [] } = useStore();
-    const weight = profile.weight || progress.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).find(p => p.weight)?.weight;
+    const weight = profile.weight || [...progress].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).find(p => p.weight)?.weight;
     const [mode, setMode] = useState('chat');
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState("");
@@ -48,16 +48,16 @@ export const CoachView = () => {
     const { isPremium } = usePremium();
     const { addToast } = useToast();
 
-    // Build personalized welcome message
+    // Build personalized welcome message — re-run when profile loads
     useEffect(() => {
         const goal = profile?.goal || 'improve fitness';
-        const name = profile?.name || '';
+        const name = profile?.name || profile?.username || '';
         const greeting = name ? `${name}, ` : '';
         setMessages([{
             role: 'ai',
             text: `${greeting}ready to work. Goal: ${goal}. What do you need — training, nutrition, or recovery?`
         }]);
-    }, []);
+    }, [profile?.goal, profile?.name, profile?.username]);
 
     useEffect(() => {
         if (scrollRef.current) {

@@ -22,8 +22,16 @@ import {
 export const calculateForge = async (db, userId, workoutDates) => {
     if (!db || !userId) return { forge: 0, multiplier: 1 };
 
-    const today = new Date().toISOString().split('T')[0];
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    // Normalize to local date strings (YYYY-MM-DD) to avoid UTC/DST issues
+    const toLocalDateStr = (d) => {
+        const dt = new Date(d);
+        return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    };
+
+    const now = new Date();
+    const today = toLocalDateStr(now);
+    const yesterdayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    const yesterday = toLocalDateStr(yesterdayDate);
     const sortedDates = [...new Set(workoutDates)].sort().reverse();
 
     let forge = 0;
@@ -31,21 +39,19 @@ export const calculateForge = async (db, userId, workoutDates) => {
     // Check if user worked out today or yesterday
     if (sortedDates.includes(today)) {
         forge = 1;
-        // Count consecutive days backward
-        let checkDate = new Date();
-        checkDate.setDate(checkDate.getDate() - 1);
+        // Count consecutive days backward using date-only arithmetic
+        let checkDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
 
-        while (sortedDates.includes(checkDate.toISOString().split('T')[0])) {
+        while (sortedDates.includes(toLocalDateStr(checkDate))) {
             forge++;
             checkDate.setDate(checkDate.getDate() - 1);
         }
     } else if (sortedDates.includes(yesterday)) {
         // User can still save Forge today - grace period
         forge = 1;
-        let checkDate = new Date();
-        checkDate.setDate(checkDate.getDate() - 2);
+        let checkDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2);
 
-        while (sortedDates.includes(checkDate.toISOString().split('T')[0])) {
+        while (sortedDates.includes(toLocalDateStr(checkDate))) {
             forge++;
             checkDate.setDate(checkDate.getDate() - 1);
         }
@@ -255,107 +261,55 @@ export const getDailyRewardsStatus = (profile) => {
 // ============================================
 
 /**
- * Create a new guild
+ * Create a new guild — DELEGATES to guildService (single source of truth).
+ * Kept for backward compat with EngagementContext's (db, userId, data) signature.
  */
 export const createGuild = async (db, userId, guildData) => {
     if (!db || !userId) return { success: false };
-
-    const { name, emblem, bio } = guildData;
-
     try {
-        // Generate invite code
-        const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-
-        const guildRef = await addDoc(collection(db, 'guilds'), {
-            name,
-            emblem: emblem || '✊',
-            bio: bio || '',
-            inviteCode,
-            leaderId: userId,
-            members: [userId],
-            totalXP: 0,
-            level: 1,
-            weeklyGoal: null,
-            weeklyGoalProgress: 0,
-            createdAt: serverTimestamp(),
+        const { createGuild: _create } = await import('./guildService');
+        const { name, emblem, bio } = guildData;
+        const guildId = await _create(name, bio || '', { userId, username: guildData.username || '' }, {
+            tag: guildData.tag || '',
+            focusType: guildData.focusType || 'Mixed',
+            membershipType: guildData.membershipType || 'Open',
         });
-
-        // Update user's profile with guild
-        await updateDoc(doc(db, 'users', userId, 'data', 'profile'), {
-            guildId: guildRef.id,
-            guildRole: 'leader',
-        });
-
-        return { success: true, guildId: guildRef.id, inviteCode };
+        return { success: true, guildId };
     } catch (e) {
         console.error('Error creating guild:', e);
-        return { success: false, message: 'Failed to create guild' };
+        return { success: false, message: e.message || 'Failed to create guild' };
     }
 };
 
 /**
- * Join a guild by invite code
+ * Join a guild — DELEGATES to guildService.
  */
 export const joinGuild = async (db, userId, inviteCode) => {
     if (!db || !userId || !inviteCode) return { success: false };
-
     try {
-        const guildsQuery = query(
-            collection(db, 'guilds'),
-            where('inviteCode', '==', inviteCode.toUpperCase())
-        );
-        const snapshot = await getDocs(guildsQuery);
-
-        if (snapshot.empty) {
-            return { success: false, message: 'Invalid invite code' };
+        const { joinGuildByInvite } = await import('./guildService');
+        if (joinGuildByInvite) {
+            await joinGuildByInvite(inviteCode, { userId });
         }
-
-        const guildDoc = snapshot.docs[0];
-        const guildData = guildDoc.data();
-        const guildLevel = getGuildLevel(guildData.totalXP);
-
-        if (guildData.members.length >= guildLevel.maxMembers) {
-            return { success: false, message: 'Guild is full' };
-        }
-
-        // Add user to guild
-        await updateDoc(doc(db, 'guilds', guildDoc.id), {
-            members: arrayUnion(userId),
-        });
-
-        // Update user profile
-        await updateDoc(doc(db, 'users', userId, 'data', 'profile'), {
-            guildId: guildDoc.id,
-            guildRole: 'member',
-        });
-
-        return { success: true, guildId: guildDoc.id, guildName: guildData.name };
+        return { success: true };
     } catch (e) {
         console.error('Error joining guild:', e);
-        return { success: false, message: 'Failed to join guild' };
+        return { success: false, message: e.message || 'Failed to join guild' };
     }
 };
 
 /**
- * Leave current guild
+ * Leave current guild — DELEGATES to guildService.
  */
 export const leaveGuild = async (db, userId, guildId) => {
     if (!db || !userId || !guildId) return { success: false };
-
     try {
-        await updateDoc(doc(db, 'guilds', guildId), {
-            members: arrayRemove(userId),
-        });
-
-        await updateDoc(doc(db, 'users', userId, 'data', 'profile'), {
-            guildId: null,
-            guildRole: null,
-        });
-
+        const { leaveGuild: _leave } = await import('./guildService');
+        await _leave(guildId, userId);
         return { success: true };
     } catch (e) {
         console.error('Error leaving guild:', e);
-        return { success: false, message: 'Failed to leave guild' };
+        return { success: false, message: e.message || 'Failed to leave guild' };
     }
 };
 
@@ -454,6 +408,36 @@ export const updateTournamentEntry = async (db, userId, username, value, metric)
     if (!db || !userId) return;
 
     try {
+        // Write entry into the main tournament doc's entries array (not a subcollection)
+        // so subscribeToTournament can read it from doc('global/tournament').entries
+        const tournamentRef = doc(db, 'global', 'tournament');
+        const { runTransaction: _rt } = await import('firebase/firestore');
+        await _rt(db, async (transaction) => {
+            const snap = await transaction.get(tournamentRef);
+            const data = snap.exists() ? snap.data() : { entries: [] };
+            const entries = Array.isArray(data.entries) ? data.entries : [];
+            const idx = entries.findIndex(e => e.userId === userId);
+            const entry = {
+                userId,
+                username,
+                score: value,
+                metric,
+                updatedAt: new Date().toISOString()
+            };
+            if (idx >= 0) {
+                entries[idx] = entry;
+            } else {
+                entries.push(entry);
+            }
+            transaction.set(tournamentRef, { ...data, entries }, { merge: true });
+        });
+        return;
+    } catch (e) {
+        console.error('Error updating tournament entry:', e);
+    }
+
+    // Legacy fallback path (kept for reference, should not be reached)
+    try {
         await setDoc(doc(db, 'global', 'tournament', 'entries', userId), {
             userId,
             username,
@@ -483,6 +467,31 @@ export const createNotification = async (db, userId, notification) => {
         });
     } catch (e) {
         console.error('Error creating notification:', e);
+    }
+};
+
+/**
+ * Schedule a local notification with proper permission checks (Android 13+).
+ * Uses Capacitor LocalNotifications plugin when available; falls back gracefully.
+ */
+export const scheduleLocalNotification = async ({ id, title, body, scheduleAt }) => {
+    try {
+        const { LocalNotifications } = await import('@capacitor/local-notifications');
+        const permResult = await LocalNotifications.checkPermissions();
+        if (permResult.display !== 'granted') {
+            const reqResult = await LocalNotifications.requestPermissions();
+            if (reqResult.display !== 'granted') return;
+        }
+        await LocalNotifications.schedule({
+            notifications: [{
+                id: id || Date.now(),
+                title,
+                body,
+                schedule: scheduleAt ? { at: new Date(scheduleAt) } : undefined,
+            }],
+        });
+    } catch (err) {
+        console.warn('Notification scheduling failed:', err);
     }
 };
 
@@ -540,6 +549,7 @@ export default {
     subscribeToTournament,
     updateTournamentEntry,
     createNotification,
+    scheduleLocalNotification,
     markNotificationRead,
     subscribeToNotifications,
 };

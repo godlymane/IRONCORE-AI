@@ -33,7 +33,7 @@ const GlassInput = ({ label, value, onChange, placeholder, type = 'number', high
     </div>
 );
 
-// Activity level options with multipliers
+// TDEE multipliers (Harris-Benedict formula): BMR × activity level
 const ACTIVITY_LEVELS = [
     { value: 1.2, label: 'Sedentary', desc: 'Desk job, no exercise', icon: '\uD83D\uDECB\uFE0F' },
     { value: 1.375, label: 'Light', desc: '1-2 days/week', icon: '\uD83D\uDEB6' },

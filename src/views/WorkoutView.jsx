@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Plus, Trash2, Play, Dumbbell, Trophy, Edit2, List, Calculator, X, Ghost, CheckCircle2, Circle, Timer, StopCircle, Clock, Zap } from 'lucide-react';
 import { Card, Button, GlassCard } from '../components/UIComponents';
 import { EXERCISE_DB } from '../utils/constants';
@@ -26,6 +26,52 @@ export const WorkoutView = () => {
     const [isResting, setIsResting] = useState(false);
     const [defaultRest, setDefaultRest] = useState(90);
 
+    // UNDO DELETE STATE
+    const [undoToast, setUndoToast] = useState(null); // { type, item, index, timeoutId }
+    const undoTimerRef = useRef(null);
+
+    const handleRemoveExercise = useCallback((exerciseId) => {
+        const idx = sessionExercises.findIndex(e => e.id === exerciseId);
+        if (idx === -1) return;
+        const removed = sessionExercises[idx];
+        setSessionExercises(prev => prev.filter(e => e.id !== exerciseId));
+        if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+        const timeoutId = setTimeout(() => setUndoToast(null), 5000);
+        undoTimerRef.current = timeoutId;
+        setUndoToast({ type: 'exercise', item: removed, index: idx, timeoutId });
+    }, [sessionExercises]);
+
+    const handleDeleteWorkout = useCallback((workoutId) => {
+        const workout = workouts.find(w => w.id === workoutId);
+        if (!workout) return;
+        deleteEntry('workouts', workoutId);
+        if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+        const timeoutId = setTimeout(() => setUndoToast(null), 5000);
+        undoTimerRef.current = timeoutId;
+        setUndoToast({ type: 'workout', item: workout, timeoutId });
+    }, [workouts, deleteEntry]);
+
+    const handleUndo = useCallback(() => {
+        if (!undoToast) return;
+        if (undoToast.timeoutId) clearTimeout(undoToast.timeoutId);
+        if (undoToast.type === 'exercise') {
+            setSessionExercises(prev => {
+                const copy = [...prev];
+                copy.splice(undoToast.index, 0, undoToast.item);
+                return copy;
+            });
+        } else if (undoToast.type === 'workout') {
+            // Re-save the workout back to Firestore
+            updateData('workouts', undoToast.item, undoToast.item.id);
+        }
+        setUndoToast(null);
+    }, [undoToast, updateData]);
+
+    // Timestamp refs for background-safe timers
+    const sessionStartRef = React.useRef(null);
+    const restStartRef = React.useRef(null);
+    const restDurationRef = React.useRef(0);
+
     const getGhostSet = (exerciseName, setIndex) => {
         const history = workouts.find(w => w.exercises && w.exercises.some(e => e.name === exerciseName));
         if (!history) return null;
@@ -51,21 +97,55 @@ export const WorkoutView = () => {
         return maxWeight;
     };
 
-    // Main Workout Timer
+    // Main Workout Timer — uses start timestamp so it catches up after background
     useEffect(() => {
         let interval;
-        if (isSessionActive) interval = setInterval(() => setElapsed(t => t + 1), 1000);
+        if (isSessionActive) {
+            if (!sessionStartRef.current) {
+                sessionStartRef.current = Date.now() - elapsed * 1000;
+            }
+            interval = setInterval(() => {
+                setElapsed(Math.floor((Date.now() - sessionStartRef.current) / 1000));
+            }, 1000);
+        } else {
+            sessionStartRef.current = null;
+        }
         return () => clearInterval(interval);
     }, [isSessionActive]);
 
-    // Rest Timer Logic
+    // Rest Timer Logic — uses start timestamp so it catches up after background
     useEffect(() => {
         let interval;
+
+        const recalcRest = () => {
+            if (!restStartRef.current) return;
+            const elapsedRest = Math.floor((Date.now() - restStartRef.current) / 1000);
+            const remaining = restDurationRef.current - elapsedRest;
+            if (remaining <= 0) {
+                setRestTimer(0);
+                SFX.timerFinished();
+                setIsResting(false);
+                restStartRef.current = null;
+            } else {
+                setRestTimer(remaining);
+            }
+        };
+
         if (isResting && restTimer > 0) {
-            interval = setInterval(() => setRestTimer(t => t - 1), 1000);
+            if (!restStartRef.current) {
+                restStartRef.current = Date.now();
+                restDurationRef.current = restTimer;
+            }
+            interval = setInterval(recalcRest, 1000);
+
+            // Immediately catch up when returning from background
+            const onVisible = () => { if (document.visibilityState === 'visible') recalcRest(); };
+            document.addEventListener('visibilitychange', onVisible);
+            return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onVisible); };
         } else if (isResting && restTimer === 0) {
             SFX.timerFinished();
             setIsResting(false);
+            restStartRef.current = null;
         }
         return () => clearInterval(interval);
     }, [isResting, restTimer]);
@@ -80,6 +160,7 @@ export const WorkoutView = () => {
         setSessionName(`Workout #${workouts.length + 1}`);
         setSessionExercises([]);
         setElapsed(0);
+        sessionStartRef.current = Date.now();
         setIsSessionActive(true);
         SFX.click();
     };
@@ -337,7 +418,7 @@ export const WorkoutView = () => {
                                     </span>
                                 </div>
                                 <button
-                                    onClick={() => setSessionExercises(sessionExercises.filter(e => e.id !== ex.id))}
+                                    onClick={() => handleRemoveExercise(ex.id)}
                                     className="text-gray-500 hover:text-red-400 p-2 transition-colors"
                                 >
                                     <Trash2 size={16} />
@@ -535,7 +616,7 @@ export const WorkoutView = () => {
                                     </p>
                                 </div>
                                 <button
-                                    onClick={() => deleteEntry('workouts', w.id)}
+                                    onClick={() => handleDeleteWorkout(w.id)}
                                     className="text-gray-600 hover:text-red-400 transition-colors"
                                 >
                                     <Trash2 size={16} />
@@ -750,6 +831,21 @@ const IronToolsModal = ({ onClose }) => {
                     </div>
                 )}
             </div>
+
+            {/* Undo Delete Toast */}
+            {undoToast && (
+                <div className="fixed bottom-24 left-4 right-4 z-50 flex items-center justify-between bg-gray-800 border border-white/10 rounded-xl px-4 py-3 shadow-2xl animate-pulse-once">
+                    <span className="text-sm text-white">
+                        {undoToast.type === 'exercise' ? 'Exercise removed' : 'Workout deleted'}
+                    </span>
+                    <button
+                        onClick={handleUndo}
+                        className="text-red-400 font-bold text-sm uppercase tracking-wide ml-4 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                    >
+                        Undo
+                    </button>
+                </div>
+            )}
 
         </div>
     );

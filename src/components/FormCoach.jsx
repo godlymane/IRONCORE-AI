@@ -81,7 +81,7 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
 
     // Determine device profile
     if (!deviceCapability.current) {
-        try { deviceCapability.current = detectDeviceCapability(); } catch { deviceCapability.current = 'midrange'; }
+        try { deviceCapability.current = detectDeviceCapability(); } catch (_err) { /* expected on unsupported devices */ deviceCapability.current = 'midrange'; }
     }
     const profile = DEVICE_PROFILES[deviceCapability.current] || DEVICE_PROFILES.midrange;
     const TARGET_FPS = perfMode === 'low_power' ? 10 : profile.fps;
@@ -160,7 +160,7 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
             disposed = true;
             if (animationRef.current) cancelAnimationFrame(animationRef.current);
             if (detectorRef.current) {
-                try { detectorRef.current.dispose(); } catch (_) {}
+                try { detectorRef.current.dispose(); } catch (_err) { /* expected if already disposed */ }
                 detectorRef.current = null;
             }
             resetBackend();
@@ -223,6 +223,30 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
         canvasRef.current.width = videoRef.current.videoWidth || 640;
         canvasRef.current.height = videoRef.current.videoHeight || 480;
     };
+
+    // ── Orientation / resize handler — re-sync canvas when screen rotates ──
+    useEffect(() => {
+        const handleOrientationChange = () => {
+            // Small delay to let the browser settle new dimensions
+            setTimeout(() => {
+                syncCanvasSize();
+                // Update container aspect ratio for landscape
+                if (containerRef.current) {
+                    const isLandscape = window.innerWidth > window.innerHeight;
+                    containerRef.current.style.aspectRatio = isLandscape ? '4/3' : '3/4';
+                }
+            }, 150);
+        };
+
+        window.addEventListener('resize', handleOrientationChange);
+        // 'orientationchange' for mobile devices
+        window.addEventListener('orientationchange', handleOrientationChange);
+
+        return () => {
+            window.removeEventListener('resize', handleOrientationChange);
+            window.removeEventListener('orientationchange', handleOrientationChange);
+        };
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const stopCamera = () => {
         isStreamingRef.current = false;
@@ -345,7 +369,7 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
                         }
                     }
                 }
-            } catch (_) {}
+            } catch (_err) { /* expected: inference may fail on dropped frames */ }
 
             animationRef.current = requestAnimationFrame(detect);
         };
@@ -520,7 +544,7 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
             </AnimatePresence>
 
             {/* Video Area */}
-            <div ref={containerRef} className="relative rounded-2xl overflow-hidden bg-black/50" style={{ aspectRatio: '3/4' }}>
+            <div ref={containerRef} className="relative rounded-2xl overflow-hidden bg-black/50" style={{ aspectRatio: window.innerWidth > window.innerHeight ? '4/3' : '3/4', maxHeight: '80vh' }}>
                 {isLoading ? (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
                         <div className="w-10 h-10 border-4 border-red-500 border-t-transparent rounded-full animate-spin" />

@@ -9,7 +9,6 @@ const QRScannerModal = ({ onDecoded, onClose }) => {
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState('');
   const scannerRef = useRef(null);
-  const containerRef = useRef(null);
 
   const startCamera = async () => {
     setError('');
@@ -85,7 +84,7 @@ const QRScannerModal = ({ onDecoded, onClose }) => {
 
       {/* Camera view */}
       <div className="flex-1 flex flex-col items-center justify-center p-6">
-        <div id="qr-reader" ref={containerRef} className="w-full max-w-sm rounded-2xl overflow-hidden mb-6" style={{ minHeight: scanning ? '300px' : '0' }} />
+        <div id="qr-reader" className="w-full max-w-sm rounded-2xl overflow-hidden mb-6" style={{ minHeight: scanning ? '300px' : '0' }} />
         <div id="qr-reader-file" style={{ display: 'none' }} />
 
         {error && (
@@ -153,14 +152,12 @@ export const LoginScreen = ({ defaultUsername = '', onLoggedIn, onBack, onRecove
     setError('');
 
     try {
-      const { hashPin } = await import('../utils/playerIdentity');
-      const pinHash = await hashPin(pinValue);
-
       const { getFunctions, httpsCallable } = await import('firebase/functions');
       const { getApp } = await import('firebase/app');
       const functions = getFunctions(getApp());
       const loginWithPin = httpsCallable(functions, 'loginWithPin');
-      const result = await loginWithPin({ username: cleanUser, pinHash });
+      // Send raw PIN — server does PBKDF2 verification (HTTPS encrypted in transit)
+      const result = await loginWithPin({ username: cleanUser, pin: pinValue });
 
       const { token, username: returnedUser } = result.data;
 
@@ -169,11 +166,14 @@ export const LoginScreen = ({ defaultUsername = '', onLoggedIn, onBack, onRecove
       await signInWithCustomToken(auth, token);
 
       // Save to localStorage for returning-user flow
+      const { hashPin } = await import('../utils/playerIdentity');
+      const localPinHash = await hashPin(pinValue);
       localStorage.setItem('ironcore_uid', auth.currentUser.uid);
       localStorage.setItem('ironcore_username', returnedUser);
-      localStorage.setItem(`ironcore_pin_${auth.currentUser.uid}`, pinHash);
+      localStorage.setItem(`ironcore_pin_${auth.currentUser.uid}`, localPinHash);
 
       Haptics.success();
+      setFailCount(0); // Reset fail count on successful login
       onLoggedIn({ username: returnedUser });
     } catch (e) {
       console.error('Login error:', e?.code, e?.message, e);
@@ -290,17 +290,21 @@ export const LoginScreen = ({ defaultUsername = '', onLoggedIn, onBack, onRecove
         {/* PIN label */}
         <p className="text-[10px] text-gray-600 uppercase tracking-widest mb-3">PIN</p>
 
-        {/* PIN Dots */}
-        <div className="flex justify-center gap-3 mb-6">
+        {/* PIN Dots — shake on wrong PIN */}
+        <motion.div
+          className="flex justify-center gap-3 mb-6"
+          animate={error && error.includes('PIN') ? { x: [0, -8, 8, -6, 6, -3, 3, 0] } : {}}
+          transition={{ duration: 0.4 }}
+        >
           {[0, 1, 2, 3, 4, 5].map(i => (
             <motion.div
               key={i}
-              className={`w-4 h-4 rounded-full border-2 ${i < pin.length ? 'bg-red-500 border-red-500' : 'border-gray-700'}`}
+              className={`w-4 h-4 rounded-full border-2 ${error && error.includes('PIN') ? 'bg-red-700 border-red-700' : i < pin.length ? 'bg-red-500 border-red-500' : 'border-gray-700'}`}
               animate={i < pin.length ? { scale: [1, 1.3, 1] } : {}}
               transition={{ duration: 0.15 }}
             />
           ))}
-        </div>
+        </motion.div>
 
         {/* Error */}
         {error && (

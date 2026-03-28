@@ -12,6 +12,9 @@ export const PinEntryView = ({ mode = 'verify', onComplete, onForgot, storedPinH
   const MAX_ATTEMPTS = 3;
 
   const handleDigit = (digit) => {
+    // Enforce lockout after max attempts
+    if (step === 'verify' && attempts >= MAX_ATTEMPTS) return;
+
     Haptics.light();
     const current = step === 'confirm' ? confirmPin : pin;
     if (current.length >= 6) return;
@@ -59,8 +62,9 @@ export const PinEntryView = ({ mode = 'verify', onComplete, onForgot, storedPinH
     }
 
     // Verify mode
-    const hashed = await hashPin(value);
-    if (hashed === storedPinHash) {
+    const { verifyPin } = await import('../utils/playerIdentity');
+    const match = await verifyPin(value, storedPinHash);
+    if (match) {
       onComplete();
     } else {
       const newAttempts = attempts + 1;

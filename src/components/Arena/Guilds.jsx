@@ -343,7 +343,17 @@ const GuildChat = ({ guildId, currentUser }) => {
         return () => unsub();
     }, [guildId]);
 
-    useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+    useEffect(() => {
+        if (bottomRef.current) {
+            const container = bottomRef.current.parentElement;
+            if (container) {
+                const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+                if (isNearBottom) {
+                    bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+                }
+            }
+        }
+    }, [messages]);
 
     const handleSend = async (e) => {
         e.preventDefault();
@@ -602,7 +612,10 @@ const GuildRankings = () => {
                 });
             }
             setLoading(false);
-        }, () => setLoading(false));
+        }, (error) => {
+            console.error('[Guilds] Snapshot error:', error);
+            setLoading(false);
+        });
         return () => unsub();
     }, []);
 

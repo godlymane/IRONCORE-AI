@@ -7,6 +7,7 @@ import {
     setDoc,
     updateDoc,
     addDoc,
+    deleteDoc,
     query,
     where,
     orderBy,
@@ -15,7 +16,8 @@ import {
     increment,
     arrayUnion,
     arrayRemove,
-    onSnapshot
+    onSnapshot,
+    runTransaction
 } from 'firebase/firestore';
 
 /**
@@ -143,32 +145,38 @@ export const joinGuild = async (guildId, user) => {
 export const leaveGuild = async (guildId, userId) => {
     try {
         const guildRef = doc(db, 'guilds', guildId);
-        const guildSnap = await getDoc(guildRef);
-
-        if (!guildSnap.exists()) throw new Error('Guild not found');
-
-        const guildData = guildSnap.data();
-        const member = guildData.members.find(m => m.userId === userId);
-
-        if (!member) throw new Error('Not a member');
-        if (member.role === 'leader' && guildData.memberCount > 1) {
-            throw new Error('Leader must transfer ownership before leaving');
-        }
-
-        await updateDoc(guildRef, {
-            members: arrayRemove(member),
-            memberCount: increment(-1)
-        });
-
-        // Update user profile
         const userRef = doc(db, 'users', userId);
-        await updateDoc(userRef, { guildId: null });
 
-        // If guild is empty, delete it? Or keep it?
-        if (guildData.memberCount <= 1) {
-            // Last member left
-            // await deleteDoc(guildRef);
-        }
+        await runTransaction(db, async (transaction) => {
+            const guildSnap = await transaction.get(guildRef);
+            if (!guildSnap.exists()) throw new Error('Guild not found');
+
+            const guildData = guildSnap.data();
+            const memberIndex = guildData.members.findIndex(m => m.userId === userId);
+
+            if (memberIndex === -1) throw new Error('Not a member');
+            if (guildData.members[memberIndex].role === 'leader' && guildData.memberCount > 1) {
+                throw new Error('Leader must transfer ownership before leaving');
+            }
+
+            // Remove member by filtering — avoids stale-object arrayRemove issue
+            const updatedMembers = guildData.members.filter(m => m.userId !== userId);
+            const newCount = updatedMembers.length;
+
+            if (newCount === 0) {
+                // Last member — delete the guild
+                transaction.delete(guildRef);
+            } else {
+                transaction.update(guildRef, {
+                    members: updatedMembers,
+                    memberCount: newCount,
+                    memberIds: updatedMembers.map(m => m.userId)
+                });
+            }
+
+            // Clear guild from user profile
+            transaction.update(userRef, { guildId: null, guildTag: null });
+        });
 
         return true;
     } catch (error) {

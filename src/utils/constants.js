@@ -1,3 +1,18 @@
+export const BREAKPOINTS = { mobile: 768, tablet: 1024 };
+
+export const STORAGE_KEYS = {
+    PROFILE_PREFIX: 'ironai_profile_',
+    THEME: 'ironai_theme',
+};
+
+export const GAME_BALANCE = {
+    BASE_XP_PER_LEVEL: 100,
+    BOSS_REWARD_XP: 500,
+    DEFAULT_LEADERBOARD_LIMIT: 100,
+    DEFAULT_BATTLE_XP_REWARD: 100,
+    DEFAULT_CALORIE_BURN_GOAL: 500,
+};
+
 export const EXERCISE_DB = [
     // LEGS
     { name: "Barbell Squat", muscle: "quads", secondary: ["glutes", "lower_back"] },
@@ -31,13 +46,66 @@ export const EXERCISE_DB = [
     { name: "Crunches", muscle: "abs", secondary: [] }
 ];
 
-export const LEVELS = [
-    { name: "Iron Novice", min: 0, color: "text-gray-400", border: 'border-gray-500', bg: 'bg-gray-500/10' },
-    { name: "Bronze", min: 1000, color: "text-orange-700", border: 'border-orange-700', bg: 'bg-orange-700/10' },
-    { name: "Silver", min: 2500, color: "text-slate-300", border: 'border-slate-300', bg: 'bg-slate-300/10' },
-    { name: "Gold", min: 5000, color: "text-yellow-400", border: 'border-yellow-400', bg: 'bg-yellow-400/10' },
-    { name: "Platinum", min: 10000, color: "text-cyan-400", border: 'border-cyan-400', bg: 'bg-cyan-400/10' },
-    { name: "Diamond", min: 25000, color: "text-red-400", border: 'border-red-400', bg: 'bg-red-400/10' }
+// ── League / XP thresholds — single source of truth ──
+// Cloud Functions mirrors these values (search "LEAGUES" in functions/index.js)
+export const LEAGUE_THRESHOLDS = [
+    { name: 'Iron',     min: 0 },
+    { name: 'Bronze',   min: 1000 },
+    { name: 'Silver',   min: 2500 },
+    { name: 'Gold',     min: 5000 },
+    { name: 'Platinum', min: 10000 },
+    { name: 'Diamond',  min: 25000 },
 ];
 
+export const LEVELS = LEAGUE_THRESHOLDS.map(l => ({
+    ...l,
+    name: l.name === 'Iron' ? 'Iron Novice' : l.name,
+    color: { Iron: 'text-gray-400', Bronze: 'text-orange-700', Silver: 'text-slate-300', Gold: 'text-yellow-400', Platinum: 'text-cyan-400', Diamond: 'text-red-400' }[l.name],
+    border: { Iron: 'border-gray-500', Bronze: 'border-orange-700', Silver: 'border-slate-300', Gold: 'border-yellow-400', Platinum: 'border-cyan-400', Diamond: 'border-red-400' }[l.name],
+    bg: { Iron: 'bg-gray-500/10', Bronze: 'bg-orange-700/10', Silver: 'bg-slate-300/10', Gold: 'bg-yellow-400/10', Platinum: 'bg-cyan-400/10', Diamond: 'bg-red-400/10' }[l.name],
+}));
 
+export const getLeagueForXp = (xp = 0) =>
+    [...LEAGUE_THRESHOLDS].reverse().find(l => xp >= l.min) || LEAGUE_THRESHOLDS[0];
+
+/**
+ * Default daily nutrition targets — used as fallback when user profile
+ * does not have custom values set. To customize, set dailyCalories,
+ * dailyProtein, dailyCarbs, dailyFats on the user's Firestore profile.
+ *
+ * Units: calories/burnGoal = kcal, protein/carbs/fats = grams, water = glasses (250ml each)
+ */
+export const NUTRITION_DEFAULTS = {
+    calories: 2000,  // kcal
+    protein: 150,    // grams
+    carbs: 200,      // grams
+    fats: 60,        // grams
+    water: 8,        // glasses (250ml each)
+    burnGoal: 500,   // kcal burned target
+};
+
+/**
+ * Build nutrition goals from a user profile, falling back to defaults.
+ */
+export const getNutritionGoals = (profile = {}) => ({
+    calories: profile.dailyCalories || NUTRITION_DEFAULTS.calories,
+    protein: profile.dailyProtein || NUTRITION_DEFAULTS.protein,
+    carbs: profile.dailyCarbs || NUTRITION_DEFAULTS.carbs,
+    fats: profile.dailyFats || NUTRITION_DEFAULTS.fats,
+    water: profile.waterGoal || NUTRITION_DEFAULTS.water,
+    burnGoal: profile.burnGoal || NUTRITION_DEFAULTS.burnGoal,
+});
+
+/**
+ * Default MET value for unknown/general exercise activity.
+ * Used when an exercise type is not found in a MET lookup table.
+ */
+export const DEFAULT_MET = 3.5;
+
+/**
+ * Content length limits for user-generated text fields.
+ */
+export const CONTENT_LIMITS = {
+    MAX_MESSAGE_LENGTH: 500,
+    MAX_CAPTION_LENGTH: 300,
+};

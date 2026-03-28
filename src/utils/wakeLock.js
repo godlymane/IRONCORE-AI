@@ -15,11 +15,10 @@ export async function keepAwake() {
     try {
         if ('wakeLock' in navigator) {
             wakeLockSentinel = await navigator.wakeLock.request('screen');
+            wasHolding = true;
             wakeLockSentinel.addEventListener('release', () => {
                 wakeLockSentinel = null;
-                console.log('[WakeLock] Released');
             });
-            console.log('[WakeLock] ✅ Screen will stay on');
         } else {
             console.warn('[WakeLock] API not supported on this device');
         }
@@ -39,22 +38,36 @@ export async function allowSleep() {
         if (wakeLockSentinel) {
             await wakeLockSentinel.release();
             wakeLockSentinel = null;
-            console.log('[WakeLock] ✅ Screen can sleep');
+            wasHolding = false;
         }
     } catch (err) {
         console.warn('[WakeLock] Release failed:', err.message);
         wakeLockSentinel = null;
+        wasHolding = false;
     }
 }
+
+// Track whether we intentionally held a wake lock (so we know to re-acquire)
+let wasHolding = false;
 
 /**
  * Re-acquire wake lock when app regains visibility.
  * Must be registered as a 'visibilitychange' listener.
  */
 export async function handleVisibilityChange() {
-    if (document.visibilityState === 'visible' && !wakeLockSentinel) {
-        // Only re-acquire if we previously had it
-        // The calling code should manage this state
+    if (document.visibilityState === 'visible' && !wakeLockSentinel && wasHolding) {
+        // Re-acquire the lock that was released when the app went to background
+        try {
+            if ('wakeLock' in navigator) {
+                wakeLockSentinel = await navigator.wakeLock.request('screen');
+                wakeLockSentinel.addEventListener('release', () => {
+                    wakeLockSentinel = null;
+                });
+            }
+        } catch (err) {
+            console.warn('[WakeLock] Re-acquire failed:', err.message);
+            wakeLockSentinel = null;
+        }
     }
 }
 

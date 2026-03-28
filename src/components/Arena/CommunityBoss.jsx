@@ -4,6 +4,7 @@ import { ShieldAlert, Crosshair, Users, Sparkles, Trophy, Skull } from 'lucide-r
 import { GlassCard } from '../UIComponents';
 import { subscribeToBoss, createCommunityBoss } from '../../services/arenaService';
 import { useStore } from '../../hooks/useStore';
+import { GAME_BALANCE } from '../../utils/constants';
 import { doc, runTransaction } from 'firebase/firestore';
 import { db } from '../../firebase';
 
@@ -48,7 +49,7 @@ export const CommunityBoss = () => {
             const bossRef = doc(db, 'community_boss', 'current');
             const profileRef = doc(db, 'users', user.uid, 'data', 'profile');
             const leaderboardRef = doc(db, 'leaderboard', user.uid);
-            const rewardAmount = 500; // Base reward for participation
+            const rewardAmount = GAME_BALANCE.BOSS_REWARD_XP; // Base reward for participation
 
             await runTransaction(db, async (txn) => {
                 const bSnap = await txn.get(bossRef);
@@ -188,7 +189,7 @@ export const CommunityBoss = () => {
                         >
                             <div>
                                 <h4 className="text-green-400 font-black text-sm uppercase">Bounty Available</h4>
-                                <p className="text-xs text-gray-400">Claim your 500 XP reward.</p>
+                                <p className="text-xs text-gray-400">Claim your {GAME_BALANCE.BOSS_REWARD_XP} XP reward.</p>
                             </div>
                             <button
                                 onClick={claimReward}

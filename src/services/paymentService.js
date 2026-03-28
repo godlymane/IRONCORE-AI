@@ -182,7 +182,7 @@ export const openCheckout = async (orderData, userInfo, onSuccess, onFailure) =>
         },
         modal: {
             ondismiss: function () {
-                console.log('Payment modal closed');
+                console.debug('Payment modal closed');
             }
         }
     };

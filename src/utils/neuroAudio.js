@@ -137,8 +137,14 @@ export const NeuroAudio = {
     this.stop();
 
     // Init audio context
-    if (!audioCtx) audioCtx = new AudioContext();
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (!AudioContext) return;
+    try {
+      if (!audioCtx) audioCtx = new AudioContext();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch (err) {
+      console.error('AudioContext creation failed:', err);
+      return;
+    }
 
     const now = audioCtx.currentTime;
 

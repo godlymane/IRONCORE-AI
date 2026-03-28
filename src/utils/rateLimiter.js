@@ -30,7 +30,11 @@ const saveUsageRecord = (record) => {
   }
 };
 
-const getTodayKey = () => new Date().toISOString().split('T')[0];
+// Use local date so daily limit resets at user's local midnight, not UTC
+const getTodayKey = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 /**
  * Check if a request is allowed and record it if so.

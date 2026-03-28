@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getApp } from 'firebase/app';
 import {
@@ -7,26 +8,34 @@ import {
   ChefHat, Utensils, Trophy, Sparkles, X, Scale
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+import { analyzeFood, cleanAIResponse, calculateForgeStreak } from '../utils/helpers';
+import { SFX } from '../utils/audio';
+
 import { Card, MacroBadge, Button, useToast, Skeleton, GlassCard, staggerContainer, slideUp } from '../components/UIComponents';
 import { DashboardSkeleton } from '../components/ViewSkeletons';
 import { PremiumIcon } from '../components/PremiumIcon';
-
-// Import Quick Log Icons
 import { WaterDropIcon, ProteinBoltIcon, EggIcon, ChickenIcon } from '../components/IronCoreIcons';
-
-import { analyzeFood, cleanAIResponse } from '../utils/helpers';
-import { SFX } from '../utils/audio';
 import { NeuroHackSection } from '../components/NeuroHackSection';
 import { NutritionView } from './NutritionView';
-
-// Imported Extracted Components
 import { MotivationCard } from '../components/Dashboard/MotivationCard';
 import { ProfileSettingsModal } from '../components/Dashboard/ProfileSettingsModal';
 import { QuickActionBtn } from '../components/Dashboard/QuickActionBtn';
 import { ShopItem } from '../components/Dashboard/ShopItem';
 import { MacroMini } from '../components/Dashboard/MacroMini';
+
 import { useStore } from '../hooks/useStore';
 import { useFitnessData } from '../hooks/useFitnessData';
+
+// Static data — extracted to module scope to avoid re-creation on every render
+const DAILY_CHALLENGES = [
+  { t: "50 Pushups", xp: 300, emoji: "💪" },
+  { t: "30 Min Run", xp: 400, emoji: "🏃" },
+  { t: "100 Air Squats", xp: 350, emoji: "🦵" },
+  { t: "No Sugar Today", xp: 500, emoji: "🚫" },
+  { t: "2min Plank", xp: 250, emoji: "🧘" }
+];
+const DEFAULT_SUPPLEMENT_STACK = ['Creatine', 'Pre-Workout', 'Whey Protein', 'Multivitamin'];
 
 // Circular Progress Ring
 const ProgressRing = ({ progress, size = 120, strokeWidth = 8, color = "#dc2626" }) => {
@@ -114,8 +123,7 @@ export const DashboardView = () => {
 
   const [waterIntake, setWaterIntake] = useState(0);
   const WATER_GOAL = 3000;
-  const DEFAULT_STACK = ['Creatine', 'Pre-Workout', 'Whey Protein', 'Multivitamin'];
-  const [stackConfig, setStackConfig] = useState(profile?.stackConfig || DEFAULT_STACK);
+  const [stackConfig, setStackConfig] = useState(profile?.stackConfig || DEFAULT_SUPPLEMENT_STACK);
   const [newSupp, setNewSupp] = useState("");
   const [supps, setSupps] = useState({});
 
@@ -133,14 +141,7 @@ export const DashboardView = () => {
   const ironScoreColor = getIronScoreColor(ironScore);
   const hasLoggedWeightToday = progress.some(p => p.date === today && typeof p.weight === 'number');
   const showWeighIn = !hasLoggedWeightToday && !weighInDismissed;
-  const challenges = [
-    { t: "50 Pushups", xp: 300, emoji: "💪" },
-    { t: "30 Min Run", xp: 400, emoji: "🏃" },
-    { t: "100 Air Squats", xp: 350, emoji: "🦵" },
-    { t: "No Sugar Today", xp: 500, emoji: "🚫" },
-    { t: "2min Plank", xp: 250, emoji: "🧘" }
-  ];
-  const dailyDrop = challenges[new Date().getDate() % challenges.length];
+  const dailyDrop = DAILY_CHALLENGES[new Date().getDate() % DAILY_CHALLENGES.length];
 
   const todaysMeals = meals.filter(m => m.date === today);
   const todaysBurned = burned.filter(b => b.date === today);
@@ -168,25 +169,7 @@ export const DashboardView = () => {
   }, [meals, profile, today]);
 
   useEffect(() => {
-    const dates = [...new Set(meals.map(m => m.date))].sort().reverse();
-    let currentForge = 0;
-    const todayDate = new Date(today);
-    // Count consecutive days backwards from today (or yesterday if no meals today yet)
-    let checkDate = new Date(todayDate);
-    if (!dates.includes(today)) {
-      // If no meals today, check if Forge was alive yesterday
-      checkDate.setDate(checkDate.getDate() - 1);
-    }
-    for (let i = 0; i < 365; i++) {
-      const dateStr = checkDate.toISOString().split('T')[0];
-      if (dates.includes(dateStr)) {
-        currentForge++;
-        checkDate.setDate(checkDate.getDate() - 1);
-      } else {
-        break;
-      }
-    }
-    setForge(currentForge);
+    setForge(calculateForgeStreak(meals));
   }, [meals, today]);
 
   // Iron Score delta tracking (compare to last cached score)

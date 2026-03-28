@@ -5,13 +5,22 @@
  */
 
 let backendReady = false;
+let initPromise = null;
 
 /**
  * Initialize the fastest available TF.js backend.
  * WebGL → WASM (with correct wasmPaths) → CPU
+ * Uses promise lock to prevent concurrent initialization.
  */
 export async function initializeTFBackend() {
   if (backendReady) return;
+  if (initPromise) return initPromise;
+
+  initPromise = _doInit();
+  return initPromise;
+}
+
+async function _doInit() {
 
   const tf = await import('@tensorflow/tfjs');
 
@@ -20,7 +29,7 @@ export async function initializeTFBackend() {
     await tf.setBackend('webgl');
     await tf.ready();
     backendReady = true;
-    console.log('[tfBackend] Using WebGL');
+    console.debug('[tfBackend] Using WebGL');
     return;
   } catch (_) {
     console.warn('[tfBackend] WebGL failed, trying WASM...');
@@ -33,7 +42,7 @@ export async function initializeTFBackend() {
     await tf.setBackend('wasm');
     await tf.ready();
     backendReady = true;
-    console.log('[tfBackend] Using WASM');
+    console.debug('[tfBackend] Using WASM');
     return;
   } catch (_) {
     console.warn('[tfBackend] WASM failed, falling back to CPU...');
@@ -43,27 +52,24 @@ export async function initializeTFBackend() {
   await tf.setBackend('cpu');
   await tf.ready();
   backendReady = true;
-  console.log('[tfBackend] Using CPU (slowest)');
+  console.debug('[tfBackend] Using CPU (slowest)');
 }
 
 /**
  * Dispose all TF tensors and reset backend state.
  * Called on component unmount to prevent memory leaks.
  */
-export function resetBackend() {
+export async function resetBackend() {
   try {
-    import('@tensorflow/tfjs').then(tf => {
-      tf.disposeVariables();
-      if (tf.engine()?.registeredVariables) {
-        // Clear any lingering tensors
-        const backend = tf.engine().backend;
-        if (backend?.dispose) backend.dispose();
-      }
-    });
+    const tf = await import('@tensorflow/tfjs');
+    // Only dispose variables/tensors — NEVER dispose the shared backend itself,
+    // as other components may still be using it.
+    tf.disposeVariables();
   } catch (_) {
     // Silently ignore — component may already be torn down
   }
-  backendReady = false;
+  // Don't reset backendReady — the backend is still initialized and usable.
+  // Only set false if we actually need to re-initialize (e.g., backend error).
 }
 
 export function isTfInitialized() {

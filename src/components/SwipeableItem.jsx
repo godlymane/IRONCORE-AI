@@ -7,6 +7,7 @@ import { motion, useMotionValue, useTransform } from 'framer-motion';
 import { hapticLight, hapticWarning } from '../utils/haptics';
 
 const SWIPE_THRESHOLD = 50;
+/** Maximum drag distance in pixels for swipe-to-delete */
 const MAX_DRAG = 120;
 
 export default function SwipeableItem({

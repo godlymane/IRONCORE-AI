@@ -24,10 +24,10 @@ import { updateBossProgress } from '../services/arenaService';
 import { throttleAction } from '../utils/rateLimiter';
 import { enqueueOfflineOp, replayOfflineQueue } from '../utils/offlineQueue';
 import { registerFCMToken } from '../services/pushNotificationService';
+import { CONTENT_LIMITS, STORAGE_KEYS } from '../utils/constants';
 
 // --- Input validation helpers ---
-const MAX_MESSAGE_LENGTH = 500;
-const MAX_CAPTION_LENGTH = 300;
+const { MAX_MESSAGE_LENGTH, MAX_CAPTION_LENGTH } = CONTENT_LIMITS;
 const MAX_USERNAME_LENGTH = 50;
 
 const sanitizeText = (text, maxLength = MAX_MESSAGE_LENGTH) => {
@@ -75,12 +75,12 @@ export function useFitnessData() {
         const unsubscribe = onAuthStateChanged(firebaseAuth, (u) => {
             if (u) {
                 try {
-                    const cached = localStorage.getItem('ironai_profile_' + u.uid);
+                    const cached = localStorage.getItem(STORAGE_KEYS.PROFILE_PREFIX + u.uid);
                     if (cached) {
                         const parsed = JSON.parse(cached);
                         updateState({ profile: { ...parsed } });
                     }
-                } catch (e) { /* ignore */ }
+                } catch (_err) { /* expected: cached profile may not exist */ }
 
                 // Register FCM token for server-side push notifications
                 registerFCMToken(u.uid).catch(() => {});
@@ -181,11 +181,11 @@ export function useFitnessData() {
             await updateData('add', 'profile', { photoURL: url });
 
             try {
-                const cached = localStorage.getItem('ironai_profile_' + user.uid);
+                const cached = localStorage.getItem(STORAGE_KEYS.PROFILE_PREFIX + user.uid);
                 const profile = cached ? JSON.parse(cached) : {};
                 profile.photoURL = url;
-                localStorage.setItem('ironai_profile_' + user.uid, JSON.stringify(profile));
-            } catch (e) { /* ignore */ }
+                localStorage.setItem(STORAGE_KEYS.PROFILE_PREFIX + user.uid, JSON.stringify(profile));
+            } catch (_err) { /* expected: localStorage may be unavailable */ }
             return url;
         } catch (e) { console.error("Upload failed", e); }
     };
@@ -201,7 +201,7 @@ export function useFitnessData() {
             const url = await getDownloadURL(storageRef);
             await addDoc(collection(db, 'users', user.uid, 'photos'), { url, date: new Date().toISOString().split('T')[0], createdAt: new Date(), note });
             return true;
-        } catch (e) { return false; }
+        } catch (e) { console.debug('[fitness] Save failed:', e.message); return false; }
     };
 
     const broadcastEvent = async (type, message, details = "") => {
@@ -348,7 +348,7 @@ export function useFitnessData() {
                         profileExists: snap.exists() && Object.keys(docData).length > 0
                     });
                     if (snap.exists() && Object.keys(docData).length > 0) {
-                        try { localStorage.setItem('ironai_profile_' + uid, JSON.stringify(docData)); } catch (_) { /* ignore */ }
+                        try { localStorage.setItem(STORAGE_KEYS.PROFILE_PREFIX + uid, JSON.stringify(docData)); } catch (_err) { /* expected: localStorage may be full */ }
                     }
                 }
             } else {
@@ -496,10 +496,12 @@ export function useFitnessData() {
             if (col === 'xp_bonus') xpGain = payload.amount;
             if (col === 'burned') xpGain = 15;
 
-            const docData = { ...payload, date: today, createdAt: timestamp, userId: user.uid };
+            // Deep-clone payload to avoid mutating caller's object
+            const safePayload = JSON.parse(JSON.stringify(payload));
+            const docData = { ...safePayload, date: today, createdAt: timestamp, userId: user.uid };
 
-            if (col === 'workouts' && payload.exercises) {
-                payload.exercises.forEach(ex => {
+            if (col === 'workouts' && docData.exercises) {
+                docData.exercises.forEach(ex => {
                     if (ex.sets) {
                         ex.sets.forEach(s => {
                             s.w = Math.max(0, Math.min(2000, parseFloat(s.w) || 0));
@@ -513,11 +515,11 @@ export function useFitnessData() {
                     try {
                         const validateWorkout = httpsCallable(firebaseFunctions, 'validateWorkoutData');
                         await validateWorkout({
-                            exercises: payload.exercises.map(ex => ({
+                            exercises: docData.exercises.map(ex => ({
                                 name: ex.name || ex.exercise || 'Unknown',
                                 sets: ex.sets || []
                             })),
-                            duration: payload.duration || 0
+                            duration: docData.duration || 0
                         });
                     } catch (validationErr) {
                         console.error('Workout rejected by server:', validationErr.message);

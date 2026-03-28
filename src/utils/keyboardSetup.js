@@ -32,7 +32,7 @@ export async function initKeyboardHandling() {
             document.body.classList.remove('keyboard-open');
         });
 
-        console.log('[Keyboard] ✅ Handlers initialized');
+        console.debug('[Keyboard] Handlers initialized');
     } catch (err) {
         console.warn('[Keyboard] Setup failed:', err);
     }

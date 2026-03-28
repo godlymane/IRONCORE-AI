@@ -15,10 +15,10 @@ import { hapticHeavy, hapticMedium, hapticLight, hapticWarning, hapticSuccess } 
 import { PHASE } from './formExerciseConfigs.js';
 
 const DEBOUNCE_MS = {
-  danger: 3000,   // Injury warnings — repeat every 3s
-  warning: 5000,  // Form corrections — repeat every 5s
-  info: 8000,     // Tips — repeat every 8s
-  positive: 10000, // Encouragement — max every 10s
+  danger: 3000,    // Injury risk — urgent, repeat quickly to prevent harm
+  warning: 5000,   // Form issue — give user time to correct before re-cueing
+  info: 8000,      // Minor cue — low urgency, avoid disrupting flow
+  positive: 10000, // Praise — infrequent to keep it meaningful
 };
 
 export class FormFeedbackManager {

@@ -34,7 +34,7 @@ export async function loadCachedModel(onProgress) {
                             modelUrl: `indexeddb://${MODEL_STORE_KEY}`,
                         }
                     );
-                    console.log('[Model] ✅ Loaded from cache');
+                    console.debug('[Model] ✅ Loaded from cache');
                     return detector;
                 }
             } catch (cacheErr) {
@@ -59,7 +59,7 @@ export async function loadCachedModel(onProgress) {
             if (model && typeof model.save === 'function') {
                 await model.save(`indexeddb://${MODEL_STORE_KEY}`);
                 localStorage.setItem(MODEL_VERSION_KEY, CURRENT_MODEL_VERSION);
-                console.log('[Model] ✅ Saved to cache');
+                console.debug('[Model] ✅ Saved to cache');
             }
         } catch (saveErr) {
             console.warn('[Model] Cache save failed (non-critical):', saveErr);
@@ -78,7 +78,7 @@ export async function clearModelCache() {
     try {
         await tf.io.removeModel(`indexeddb://${MODEL_STORE_KEY}`);
         localStorage.removeItem(MODEL_VERSION_KEY);
-        console.log('[Model] Cache cleared');
+        console.debug('[Model] Cache cleared');
     } catch {
         // Ignore if model wasn't cached
     }

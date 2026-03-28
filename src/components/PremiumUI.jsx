@@ -57,6 +57,8 @@ export const ParticleBackground = ({ count = 30, colors = ['#dc2626', '#f59e0b',
 // GOLD CONFETTI EXPLOSION
 // Triggers on achievements, level ups, etc.
 // ========================================
+const CONFETTI_DURATION_MS = 2000;
+
 export const GoldConfetti = ({ trigger, onComplete }) => {
     const [particles, setParticles] = useState([]);
 
@@ -76,7 +78,7 @@ export const GoldConfetti = ({ trigger, onComplete }) => {
             setTimeout(() => {
                 setParticles([]);
                 onComplete?.();
-            }, 2000);
+            }, CONFETTI_DURATION_MS);
         }
     }, [trigger, onComplete]);
 
@@ -379,7 +381,22 @@ export const SplashScreen = ({ onComplete }) => {
                         filter: 'drop-shadow(0 0 40px rgba(220, 38, 38, 0.6))',
                     }}
                 >
-                    <img src="/logo.png" alt="IronCore" className="w-full h-full object-contain" />
+                    <img
+                        src="/logo.png"
+                        alt="IronCore"
+                        className="w-full h-full object-contain"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                    {/* SVG fallback — renders if img fails */}
+                    <svg viewBox="0 0 100 100" className="w-full h-full absolute inset-0" style={{ display: 'none' }}
+                         ref={(el) => {
+                             if (!el) return;
+                             const img = el.previousElementSibling;
+                             img.addEventListener('error', () => { el.style.display = 'block'; }, { once: true });
+                         }}>
+                        <circle cx="50" cy="50" r="45" fill="none" stroke="#dc2626" strokeWidth="3"/>
+                        <text x="50" y="56" textAnchor="middle" fill="#dc2626" fontSize="28" fontWeight="900" fontFamily="sans-serif">IC</text>
+                    </svg>
                 </motion.div>
 
                 {/* Brand text — sharp cut-in */}

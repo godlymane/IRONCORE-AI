@@ -3,6 +3,7 @@ import { X, Check, AlertTriangle, Info, Loader2, Moon, Sun, Image, History, Swor
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { SFX } from '../utils/audio';
 import { useTheme } from '../context/ThemeContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 // --- ANIMATION VARIANTS ---
 export const fadeIn = {
@@ -150,7 +151,7 @@ export const PageTransition = ({ children, className = '', direction = 0 }) => (
 
 // --- EMPTY STATES ---
 export const EmptyState = ({ type = 'default', title, description, action }) => {
-  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+  const isMobile = useIsMobile();
   const configs = {
     gallery: {
       icon: <Image size={48} className="text-red-400/50" />,
@@ -213,7 +214,7 @@ export const EmptyState = ({ type = 'default', title, description, action }) => 
 
 // --- BUTTON COMPONENT ---
 export const Button = ({ children, onClick, className = "", variant = "primary", disabled = false, loading = false }) => {
-  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+  const isMobile = useIsMobile();
   const handleClick = (e) => {
     if (disabled || loading) return;
     if (navigator.vibrate) navigator.vibrate(10);
@@ -302,7 +303,7 @@ export const Button = ({ children, onClick, className = "", variant = "primary",
 
 // --- GLASS CARD ---
 export const Card = ({ children, className = "", onClick }) => {
-  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+  const isMobile = useIsMobile();
   return (
     <motion.div
       onClick={onClick}
@@ -331,7 +332,7 @@ export const Card = ({ children, className = "", onClick }) => {
 // Single source of truth for all glass card styling across the app
 export const GlassCard = ({ children, className = "", onClick, highlight = false, animated = false }) => {
   // Detect mobile once — skip GPU-heavy blur, 3D tilts, and shine layers
-  const isMobile = useMemo(() => typeof window !== 'undefined' && window.innerWidth <= 768, []);
+  const isMobile = useIsMobile();
 
   // 3D Magnetic Tilt Logic — hooks always called (React rules) but values unused on mobile
   const x = useMotionValue(0.5);

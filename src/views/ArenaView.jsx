@@ -38,10 +38,16 @@ export const ArenaView = ({
     const levelData = getLevel(xp, LEVELS);
     const level = levelData.level || Math.floor(xp / 500) + 1;
 
-    // Auto-scroll chat
+    // Auto-scroll chat only if user is near the bottom (within 100px)
     useEffect(() => {
-        if (arenaTab === 'chat') {
-            chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        if (arenaTab === 'chat' && chatEndRef.current) {
+            const container = chatEndRef.current.parentElement;
+            if (container) {
+                const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+                if (isNearBottom) {
+                    chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+                }
+            }
         }
     }, [chat, arenaTab]);
 

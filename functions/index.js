@@ -183,7 +183,8 @@ exports.callGemini = onCall(
     if (systemPrompt && systemPrompt.length > 5000) {
       throw new HttpsError("invalid-argument", "System prompt too long (max 5,000 chars).");
     }
-    if (imageBase64 && imageBase64.length > 5 * 1024 * 1024) {
+    // Base64 encodes 3 bytes as 4 chars; estimate binary size
+    if (imageBase64 && (imageBase64.length * 3) / 4 > 5 * 1024 * 1024) {
       throw new HttpsError("invalid-argument", "Image too large (max 5MB).");
     }
 
@@ -601,12 +602,47 @@ function generateAppleJWT(issuerId, keyId, privateKeyBase64) {
  * In production, you should also verify the x5c certificate chain.
  */
 function decodeAppleJWS(signedTransaction) {
+  const crypto = require("crypto");
   const parts = signedTransaction.split(".");
   if (parts.length !== 3) {
     throw new HttpsError("invalid-argument", "Invalid JWS format.");
   }
-  // Decode payload (middle segment)
+
+  // Decode header to extract x5c certificate chain
+  const header = JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8"));
   const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+
+  // Verify x5c certificate chain exists
+  if (!header.x5c || !Array.isArray(header.x5c) || header.x5c.length === 0) {
+    throw new HttpsError("invalid-argument", "Missing x5c certificate chain in JWS header.");
+  }
+
+  // Extract the leaf (signing) certificate from the x5c chain
+  const leafCertPem = `-----BEGIN CERTIFICATE-----\n${header.x5c[0]}\n-----END CERTIFICATE-----`;
+
+  // Verify the JWS signature using the leaf certificate's public key
+  const signingInput = `${parts[0]}.${parts[1]}`;
+  const signature = Buffer.from(parts[2], "base64url");
+
+  const verify = crypto.createVerify("SHA256");
+  verify.update(signingInput);
+  const isValid = verify.verify(leafCertPem, signature);
+
+  if (!isValid) {
+    throw new HttpsError("invalid-argument", "JWS signature verification failed — receipt is not authentic.");
+  }
+
+  // Verify the leaf certificate was issued by Apple (check issuer CN)
+  const x509 = new crypto.X509Certificate(leafCertPem);
+  if (!x509.issuer.includes("Apple")) {
+    throw new HttpsError("invalid-argument", "JWS certificate not issued by Apple.");
+  }
+
+  // Check certificate hasn't expired
+  if (new Date(x509.validTo) < new Date()) {
+    throw new HttpsError("invalid-argument", "JWS signing certificate has expired.");
+  }
+
   return payload;
 }
 
@@ -1461,6 +1497,7 @@ exports.weeklyGuildChallengeTally = onSchedule(
     const guildResults = [];
 
     // 2. For each guild, calculate member XP earned this week
+    //    Batch member IDs into chunks of 30 (Firestore 'in' limit) to minimize queries
     for (const guildDoc of guildsSnap.docs) {
       const guild = guildDoc.data();
       const members = guild.members || [];
@@ -1470,36 +1507,47 @@ exports.weeklyGuildChallengeTally = onSchedule(
       let totalXp = 0;
       const memberContributions = [];
 
-      // Get each member's XP from completed battles in the past 7 days
-      for (const member of members) {
-        const memberId = typeof member === "string" ? member : member.userId;
-        if (!memberId) continue;
+      // Extract member IDs
+      const memberIds = members
+        .map(m => typeof m === "string" ? m : m.userId)
+        .filter(Boolean);
 
-        // Sum XP from completed battles in the past 7 days
-        const challengerBattles = await db.collection("battles")
-          .where("challenger.userId", "==", memberId)
-          .where("status", "==", "completed")
-          .where("completedAt", ">=", weekAgo)
-          .get();
+      if (memberIds.length === 0) continue;
 
-        const opponentBattles = await db.collection("battles")
-          .where("opponent.userId", "==", memberId)
-          .where("status", "==", "completed")
-          .where("completedAt", ">=", weekAgo)
-          .get();
+      // Query battles in chunks of 30 using 'in' operator (Firestore limit)
+      const CHUNK_SIZE = 30;
+      for (let i = 0; i < memberIds.length; i += CHUNK_SIZE) {
+        const chunk = memberIds.slice(i, i + CHUNK_SIZE);
 
-        let memberXp = 0;
+        const [challengerSnap, opponentSnap] = await Promise.all([
+          db.collection("battles")
+            .where("challenger.userId", "in", chunk)
+            .where("status", "==", "completed")
+            .where("completedAt", ">=", weekAgo)
+            .get(),
+          db.collection("battles")
+            .where("opponent.userId", "in", chunk)
+            .where("status", "==", "completed")
+            .where("completedAt", ">=", weekAgo)
+            .get()
+        ]);
 
-        for (const b of challengerBattles.docs) {
-          memberXp += b.data().challengerXpAwarded || 0;
+        // Aggregate per-member XP from this chunk
+        const memberXpMap = {};
+        for (const b of challengerSnap.docs) {
+          const d = b.data();
+          const uid = d.challenger.userId;
+          memberXpMap[uid] = (memberXpMap[uid] || 0) + (d.challengerXpAwarded || 0);
         }
-        for (const b of opponentBattles.docs) {
-          memberXp += b.data().opponentXpAwarded || 0;
+        for (const b of opponentSnap.docs) {
+          const d = b.data();
+          const uid = d.opponent.userId;
+          memberXpMap[uid] = (memberXpMap[uid] || 0) + (d.opponentXpAwarded || 0);
         }
 
-        totalXp += memberXp;
-        if (memberXp > 0) {
-          memberContributions.push({ userId: memberId, xpEarned: memberXp });
+        for (const [uid, xp] of Object.entries(memberXpMap)) {
+          totalXp += xp;
+          if (xp > 0) memberContributions.push({ userId: uid, xpEarned: xp });
         }
       }
 
@@ -1647,13 +1695,18 @@ exports.recoverAccount = onCall(async (request) => {
 
 // ─── LOGIN WITH USERNAME + PIN ─────────────────────────────────────
 exports.loginWithPin = onCall(async (request) => {
-  const { username, pinHash } = request.data || {};
+  const { username, pin, pinHash: legacyPinHash } = request.data || {};
 
   // Validate inputs
   if (!username || typeof username !== "string" || username.length < 3 || username.length > 20) {
     throw new HttpsError("not-found", "Invalid username or PIN.");
   }
-  if (!pinHash || typeof pinHash !== "string" || pinHash.length !== 64) {
+  // Accept either raw PIN (new) or pre-hashed PIN (legacy clients)
+  const rawPin = pin ? String(pin) : null;
+  if (!rawPin && (!legacyPinHash || typeof legacyPinHash !== "string" || legacyPinHash.length !== 64)) {
+    throw new HttpsError("not-found", "Invalid username or PIN.");
+  }
+  if (rawPin && (rawPin.length < 4 || rawPin.length > 8)) {
     throw new HttpsError("not-found", "Invalid username or PIN.");
   }
 
@@ -1710,15 +1763,31 @@ exports.loginWithPin = onCall(async (request) => {
 
   const storedPinHash = profileDoc.data().pinHash;
 
-  // Timing-safe comparison to prevent side-channel attacks
+  // Verify PIN — supports both v1 (plain SHA-256) and v2 (PBKDF2+salt)
+  let pinValid = false;
   try {
-    const a = Buffer.from(pinHash, "hex");
-    const b = Buffer.from(storedPinHash, "hex");
-    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-      throw new HttpsError("not-found", "Invalid username or PIN.");
+    if (storedPinHash.startsWith("v2:")) {
+      // v2 PBKDF2 verification — requires raw PIN
+      if (!rawPin) throw new HttpsError("not-found", "Invalid username or PIN.");
+      const [, saltHex, expectedHex] = storedPinHash.split(":");
+      const salt = Buffer.from(saltHex, "hex");
+      const derived = crypto.pbkdf2Sync(rawPin, salt, 100000, 32, "sha256");
+      pinValid = crypto.timingSafeEqual(derived, Buffer.from(expectedHex, "hex"));
+    } else {
+      // v1 legacy — plain SHA-256 comparison
+      const inputHash = rawPin
+        ? crypto.createHash("sha256").update(rawPin).digest("hex")
+        : legacyPinHash;
+      const a = Buffer.from(inputHash, "hex");
+      const b = Buffer.from(storedPinHash, "hex");
+      pinValid = a.length === b.length && crypto.timingSafeEqual(a, b);
     }
   } catch (e) {
     if (e instanceof HttpsError) throw e;
+    pinValid = false;
+  }
+
+  if (!pinValid) {
     throw new HttpsError("not-found", "Invalid username or PIN.");
   }
 
@@ -1750,35 +1819,42 @@ exports.checkExpiredSubscriptions = onSchedule(
       return;
     }
 
-    const batch = db.batch();
+    // Process in batches of 150 (3 writes per sub × 150 = 450, under Firestore's 500 limit)
+    const BATCH_SIZE = 150;
+    const docs = activeSnap.docs.filter(d => d.data().userId);
     let count = 0;
 
-    activeSnap.forEach((subDoc) => {
-      const { userId } = subDoc.data();
-      if (!userId) return;
+    for (let i = 0; i < docs.length; i += BATCH_SIZE) {
+      const chunk = docs.slice(i, i + BATCH_SIZE);
+      const batch = db.batch();
 
-      // Mark subscription as expired
-      batch.update(subDoc.ref, { status: "expired" });
+      chunk.forEach((subDoc) => {
+        const { userId } = subDoc.data();
 
-      // Revoke premium on user doc
-      batch.set(
-        db.doc(`users/${userId}`),
-        { isPremium: false, subscription: { status: "expired" } },
-        { merge: true }
-      );
+        // Mark subscription as expired
+        batch.update(subDoc.ref, { status: "expired" });
 
-      // Revoke premium on profile doc (useFitnessData reads this)
-      batch.set(
-        db.doc(`users/${userId}/data/profile`),
-        { isPremium: false, subscription: { status: "expired" } },
-        { merge: true }
-      );
+        // Revoke premium on user doc
+        batch.set(
+          db.doc(`users/${userId}`),
+          { isPremium: false, subscription: { status: "expired" } },
+          { merge: true }
+        );
 
-      count++;
-    });
+        // Revoke premium on profile doc (useFitnessData reads this)
+        batch.set(
+          db.doc(`users/${userId}/data/profile`),
+          { isPremium: false, subscription: { status: "expired" } },
+          { merge: true }
+        );
 
-    await batch.commit();
-    console.log(`[checkExpiredSubscriptions] Expired ${count} subscription(s) (incl. trials).`);
+        count++;
+      });
+
+      await batch.commit();
+    }
+
+    console.log(`[checkExpiredSubscriptions] Expired ${count} subscription(s) in ${Math.ceil(docs.length / BATCH_SIZE)} batch(es).`);
   }
 );
 
@@ -1804,7 +1880,11 @@ exports.razorpayWebhook = onRequest(
       return;
     }
 
-    const rawBody = req.rawBody || Buffer.from(JSON.stringify(req.body));
+    const rawBody = req.rawBody;
+    if (!rawBody) {
+      res.status(500).send("Missing rawBody — cannot verify signature");
+      return;
+    }
     const expectedSig = crypto
       .createHmac("sha256", razorpayWebhookSecret.value())
       .update(rawBody)
@@ -2076,11 +2156,11 @@ exports.logWeightEntry = onCall(
     const db = admin.firestore();
     const now = Date.now();
 
-    // Anti-cheat: timestamp must be within 60 minutes of server time
+    // Anti-cheat: entry date must be within 24 hours of server time
     const entryDate = new Date(date);
     const diffMinutes = Math.abs(now - entryDate.getTime()) / 60000;
     if (diffMinutes > 60 * 24) {
-      // Allow same-day entries, but no backdating beyond 24 hours
+      // No backdating beyond 24 hours
       throw new HttpsError("invalid-argument", "Entry date is too far from current date (no backdating).");
     }
 
@@ -2251,12 +2331,21 @@ exports.weeklyWeightAssessment = onSchedule(
     const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    // Get all users
-    const usersSnap = await db.collection("users").get();
+    // Paginate through users in batches of 100
+    const BATCH_SIZE = 100;
+    let lastDoc = null;
     let processed = 0;
+
+    while (true) {
+      let usersQuery = db.collection("users").limit(BATCH_SIZE);
+      if (lastDoc) usersQuery = usersQuery.startAfter(lastDoc);
+      const usersSnap = await usersQuery.get();
+      if (usersSnap.empty) break;
+      lastDoc = usersSnap.docs[usersSnap.docs.length - 1];
 
     for (const userDoc of usersSnap.docs) {
       const uid = userDoc.id;
+      try {
 
       // Get weight entries from the past 7 days
       const progressSnap = await db.collection(`users/${uid}/progress`)
@@ -2342,7 +2431,11 @@ exports.weeklyWeightAssessment = onSchedule(
       }, { merge: true });
 
       processed++;
+      } catch (err) {
+        console.error(`[weeklyWeightAssessment] Error processing user ${uid}:`, err.message);
+      }
     }
+    } // end while pagination
 
     console.log(`[weeklyWeightAssessment] Assessed ${processed} users.`);
   }
@@ -2369,16 +2462,16 @@ exports.weeklyRankDecay = onSchedule(
     const db = admin.firestore();
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-    const usersSnap = await db.collection("users").get();
+    // Only fetch users with leaguePoints >= 100 (skip Iron league)
+    const usersSnap = await db.collection("users")
+      .where("leaguePoints", ">=", 100)
+      .select("leaguePoints")
+      .get();
     let decayed = 0;
 
     for (const userDoc of usersSnap.docs) {
       const uid = userDoc.id;
-      const userData = userDoc.data();
-      const leaguePoints = userData.leaguePoints || 0;
-
-      // Skip Iron league users
-      if (leaguePoints < 100) continue;
+      const leaguePoints = userDoc.data().leaguePoints || 0;
 
       // Check if user logged any workout in last 7 days
       let hasWorkout = false;
@@ -2398,11 +2491,11 @@ exports.weeklyRankDecay = onSchedule(
 
       // Deduct 30 leaguePoints (min 0)
       const newPoints = Math.max(0, leaguePoints - 30);
-      await db.doc(`users/${uid}`).set({
+      await db.doc(`users/${uid}`).update({
         leaguePoints: newPoints,
         lastDecayApplied: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      }, { merge: true });
+      });
 
       // Recalculate Iron Score
       await calculateIronScore(db, uid);
@@ -2459,12 +2552,14 @@ exports.weeklyGuildWars = onSchedule(
       // Resolve member IDs (could be objects or strings)
       const resolvedIds = memberIds.map(m => typeof m === "string" ? m : m.userId).filter(Boolean);
 
-      // Sum weeklyXpContribution from all members
+      // Sum weeklyXpContribution — batch reads in parallel chunks of 50
       let totalWarXp = 0;
-      for (const memberId of resolvedIds) {
-        const memberSnap = await db.doc(`users/${memberId}`).get();
-        if (memberSnap.exists) {
-          totalWarXp += memberSnap.data().weeklyXpContribution || 0;
+      const MEMBER_CHUNK = 50;
+      for (let ci = 0; ci < resolvedIds.length; ci += MEMBER_CHUNK) {
+        const chunk = resolvedIds.slice(ci, ci + MEMBER_CHUNK);
+        const snaps = await Promise.all(chunk.map(id => db.doc(`users/${id}`).get()));
+        for (const snap of snaps) {
+          if (snap.exists) totalWarXp += snap.data().weeklyXpContribution || 0;
         }
       }
 
@@ -2537,16 +2632,18 @@ exports.weeklyGuildWars = onSchedule(
       }
     }
 
-    // 5. Reset weeklyXpContribution on ALL users
-    const allUsersSnap = await db.collection("users").get();
-    for (let i = 0; i < allUsersSnap.docs.length; i += 500) {
-      const batch = db.batch();
-      const chunk = allUsersSnap.docs.slice(i, i + 500);
+    // 5. Reset weeklyXpContribution — only query users who have a contribution > 0
+    const contributorsSnap = await db.collection("users")
+      .where("weeklyXpContribution", ">", 0)
+      .select("weeklyXpContribution")
+      .get();
 
-      for (const doc of chunk) {
-        if ((doc.data().weeklyXpContribution || 0) > 0) {
-          batch.update(doc.ref, { weeklyXpContribution: 0 });
-        }
+    for (let i = 0; i < contributorsSnap.docs.length; i += 500) {
+      const batch = db.batch();
+      const chunk = contributorsSnap.docs.slice(i, i + 500);
+
+      for (const userDoc of chunk) {
+        batch.update(userDoc.ref, { weeklyXpContribution: 0 });
       }
 
       await batch.commit();
@@ -2743,57 +2840,68 @@ exports.respondFriendRequest = onCall(
 
     const db = admin.firestore();
     const reqRef = db.doc(`users/${uid}/friendRequests/${requestId}`);
-    const reqSnap = await reqRef.get();
 
+    if (response === "accept") {
+      // Use transaction to prevent double-accept race condition
+      const result = await db.runTransaction(async (t) => {
+        const reqSnap = await t.get(reqRef);
+
+        if (!reqSnap.exists) {
+          throw new HttpsError("not-found", "Friend request not found.");
+        }
+
+        const reqData = reqSnap.data();
+        if (reqData.status !== "pending") {
+          throw new HttpsError("failed-precondition", "Friend request already handled.");
+        }
+
+        const fromUid = reqData.fromUid;
+
+        const [myProfileSnap, myUserSnap, theirProfileSnap, theirUserSnap] = await Promise.all([
+          t.get(db.doc(`users/${uid}/data/profile`)),
+          t.get(db.doc(`users/${uid}`)),
+          t.get(db.doc(`users/${fromUid}/data/profile`)),
+          t.get(db.doc(`users/${fromUid}`)),
+        ]);
+
+        const myProfile = myProfileSnap.exists ? myProfileSnap.data() : {};
+        const myUser = myUserSnap.exists ? myUserSnap.data() : {};
+        const theirProfile = theirProfileSnap.exists ? theirProfileSnap.data() : {};
+        const theirUser = theirUserSnap.exists ? theirUserSnap.data() : {};
+
+        const now = admin.firestore.FieldValue.serverTimestamp();
+
+        t.set(db.doc(`users/${uid}/friends/${fromUid}`), {
+          uid: fromUid,
+          username: theirProfile.username || "Unknown",
+          xp: theirProfile.xp || 0,
+          ironScore: theirUser.ironScore || 0,
+          addedAt: now,
+        });
+
+        t.set(db.doc(`users/${fromUid}/friends/${uid}`), {
+          uid,
+          username: myProfile.username || "Unknown",
+          xp: myProfile.xp || 0,
+          ironScore: myUser.ironScore || 0,
+          addedAt: now,
+        });
+
+        t.delete(reqRef);
+        return { success: true, response: "accepted" };
+      });
+
+      return result;
+    }
+
+    // Decline — no race condition risk, simple delete
+    const reqSnap = await reqRef.get();
     if (!reqSnap.exists) {
       throw new HttpsError("not-found", "Friend request not found.");
     }
-
-    const reqData = reqSnap.data();
-    if (reqData.status !== "pending") {
+    if (reqSnap.data().status !== "pending") {
       throw new HttpsError("failed-precondition", "Friend request already handled.");
     }
-
-    const fromUid = reqData.fromUid;
-
-    if (response === "accept") {
-      const [myProfileSnap, myUserSnap, theirProfileSnap, theirUserSnap] = await Promise.all([
-        db.doc(`users/${uid}/data/profile`).get(),
-        db.doc(`users/${uid}`).get(),
-        db.doc(`users/${fromUid}/data/profile`).get(),
-        db.doc(`users/${fromUid}`).get(),
-      ]);
-
-      const myProfile = myProfileSnap.exists ? myProfileSnap.data() : {};
-      const myUser = myUserSnap.exists ? myUserSnap.data() : {};
-      const theirProfile = theirProfileSnap.exists ? theirProfileSnap.data() : {};
-      const theirUser = theirUserSnap.exists ? theirUserSnap.data() : {};
-
-      const now = admin.firestore.FieldValue.serverTimestamp();
-      const batch = db.batch();
-
-      batch.set(db.doc(`users/${uid}/friends/${fromUid}`), {
-        uid: fromUid,
-        username: theirProfile.username || "Unknown",
-        xp: theirProfile.xp || 0,
-        ironScore: theirUser.ironScore || 0,
-        addedAt: now,
-      });
-
-      batch.set(db.doc(`users/${fromUid}/friends/${uid}`), {
-        uid,
-        username: myProfile.username || "Unknown",
-        xp: myProfile.xp || 0,
-        ironScore: myUser.ironScore || 0,
-        addedAt: now,
-      });
-
-      batch.delete(reqRef);
-      await batch.commit();
-      return { success: true, response: "accepted" };
-    }
-
-    // Decline
     await reqRef.delete();
     return { success: true, response: "declined" };
   }
@@ -2925,6 +3033,7 @@ exports.validateWorkoutData = onCall(async (request) => {
   }
 
   // Historical check: compare against user's recent workouts
+  const db = admin.firestore();
   const recentSnap = await db.collection("users").doc(uid).collection("workouts")
     .orderBy("createdAt", "desc").limit(10).get();
 
@@ -2949,7 +3058,7 @@ exports.validateWorkoutData = onCall(async (request) => {
   // Timing: prevent rapid-fire logging (< 2 min between workouts with high volume)
   if (recentSnap.size > 0) {
     const lastCreated = recentSnap.docs[0].data().createdAt;
-    if (lastCreated && lastCreated.toDate) {
+    if (lastCreated && typeof lastCreated.toDate === 'function') {
       const diffMs = Date.now() - lastCreated.toDate().getTime();
       if (diffMs < 120000 && totalVolume > 5000) {
         throw new HttpsError("invalid-argument", "Too soon after last workout for this volume.");
@@ -2969,6 +3078,7 @@ exports.validateWorkoutData = onCall(async (request) => {
  * Called by other Cloud Functions or admin triggers.
  */
 async function sendPushToUser(userId, title, body, data = {}) {
+  const db = admin.firestore();
   try {
     const fcmDoc = await db.doc(`users/${userId}/data/fcm`).get();
     if (!fcmDoc.exists || !fcmDoc.data().token) return { sent: false, reason: "no_token" };
@@ -2995,7 +3105,7 @@ async function sendPushToUser(userId, title, body, data = {}) {
     // Token expired or invalid — clean up
     if (error.code === "messaging/registration-token-not-registered" ||
         error.code === "messaging/invalid-registration-token") {
-      await db.doc(`users/${userId}/data/fcm`).delete().catch(() => {});
+      await admin.firestore().doc(`users/${userId}/data/fcm`).delete().catch(() => {});
     }
     return { sent: false, reason: error.code || error.message };
   }
@@ -3013,6 +3123,15 @@ exports.sendPushNotification = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "targetUserId, title, and body are required.");
   }
 
+  // Authorization: only allow sending to yourself (app-triggered) or by admins
+  const db = admin.firestore();
+  if (targetUserId !== uid) {
+    const callerDoc = await db.doc(`users/${uid}`).get();
+    if (!callerDoc.exists || callerDoc.data().role !== "admin") {
+      throw new HttpsError("permission-denied", "Cannot send push to other users.");
+    }
+  }
+
   return await sendPushToUser(targetUserId, title, body);
 });
 
@@ -3020,42 +3139,53 @@ exports.sendPushNotification = onCall(async (request) => {
  * Scheduled — send daily workout reminder at 6 PM to users who haven't worked out today.
  */
 exports.dailyWorkoutReminder = onSchedule("every day 18:00", async () => {
+  const db = admin.firestore();
   const today = new Date().toISOString().split("T")[0];
 
-  // Get all users with FCM tokens
-  const fcmSnapshots = await db.collectionGroup("fcm").get();
+  // Paginate through users in batches of 100
+  const BATCH_SIZE = 100;
+  let lastDoc = null;
 
-  for (const fcmDoc of fcmSnapshots.docs) {
-    const userId = fcmDoc.ref.parent.parent.parent.id;
-    const token = fcmDoc.data().token;
-    if (!token) continue;
+  while (true) {
+    let usersQuery = db.collection("users").select().limit(BATCH_SIZE);
+    if (lastDoc) usersQuery = usersQuery.startAfter(lastDoc);
+    const usersSnap = await usersQuery.get();
+    if (usersSnap.empty) break;
+    lastDoc = usersSnap.docs[usersSnap.docs.length - 1];
 
-    // Check if user logged a workout today
-    const workoutsToday = await db.collection(`users/${userId}/workouts`)
-      .where("date", "==", today)
-      .limit(1)
-      .get();
-
-    if (workoutsToday.empty) {
+    for (const userDoc of usersSnap.docs) {
+      const userId = userDoc.id;
       try {
-        await admin.messaging().send({
-          token,
-          notification: {
-            title: "No workout yet today",
-            body: "Your streak is waiting. Even 10 minutes counts.",
-          },
-          data: { url: "/" },
-          android: {
-            priority: "high",
+        const fcmDoc = await db.doc(`users/${userId}/data/fcm`).get();
+        const token = fcmDoc.exists ? fcmDoc.data().token : null;
+        if (!token) continue;
+
+        // Check if user logged a workout today
+        const workoutsToday = await db.collection(`users/${userId}/workouts`)
+          .where("date", "==", today)
+          .limit(1)
+          .get();
+
+        if (workoutsToday.empty) {
+          await admin.messaging().send({
+            token,
             notification: {
-              channelId: "ironcore_default",
-              icon: "ic_launcher",
-              color: "#dc2626",
+              title: "No workout yet today",
+              body: "Your streak is waiting. Even 10 minutes counts.",
             },
-          },
-        });
+            data: { url: "/" },
+            android: {
+              priority: "high",
+              notification: {
+                channelId: "ironcore_default",
+                icon: "ic_launcher",
+                color: "#dc2626",
+              },
+            },
+          });
+        }
       } catch {
-        // Token invalid — skip
+        // Token invalid or user error — skip, continue to next
       }
     }
   }

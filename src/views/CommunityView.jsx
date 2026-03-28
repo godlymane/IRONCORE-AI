@@ -20,7 +20,15 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
     const chatEndRef = useRef(null);
 
     useEffect(() => {
-        if (subTab === 'chat') chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        if (subTab === 'chat' && chatEndRef.current) {
+            const container = chatEndRef.current.parentElement;
+            if (container) {
+                const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+                if (isNearBottom) {
+                    chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+                }
+            }
+        }
     }, [chat, subTab]);
 
     const userDamage = useMemo(() => {
@@ -319,7 +327,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                                 >
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-full overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
-                                            {u.photo ? <img src={u.photo} alt={u.username || 'User'} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[11px] text-gray-500 bg-gray-800">{(u.username || '?')[0].toUpperCase()}</div>}
+                                            {u.photo ? <img src={u.photo} alt={u.username || 'User'} className="w-full h-full object-cover" loading="lazy" /> : <div className="w-full h-full flex items-center justify-center text-[11px] text-gray-500 bg-gray-800">{(u.username || '?')[0].toUpperCase()}</div>}
                                         </div>
                                         <p className="text-sm font-bold text-gray-300">{u.username}</p>
                                     </div>

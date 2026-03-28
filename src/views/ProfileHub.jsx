@@ -13,6 +13,7 @@ import { PlayerCard, PlayerCardModal } from '../components/Profile/PlayerCard';
 import { Achievements } from '../components/Gamification/Achievements';
 import { db, auth } from '../firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
+import { calculateForgeStreak } from '../utils/helpers';
 
 // Iron Score color helper
 const getIronScoreColor = (score) => {
@@ -72,20 +73,8 @@ export const ProfileHub = ({
     const ironScoreColor = getIronScoreColor(ironScore);
     const forgeShields = profile?.forgeShields || 0;
 
-    // Forge streak (consecutive days with meals)
-    const forgeCount = useMemo(() => {
-        const today = new Date().toISOString().split('T')[0];
-        const dates = [...new Set(meals.map(m => m.date))].sort().reverse();
-        let count = 0;
-        let checkDate = new Date(today);
-        if (!dates.includes(today)) checkDate.setDate(checkDate.getDate() - 1);
-        for (let i = 0; i < 365; i++) {
-            const dateStr = checkDate.toISOString().split('T')[0];
-            if (dates.includes(dateStr)) { count++; checkDate.setDate(checkDate.getDate() - 1); }
-            else break;
-        }
-        return count;
-    }, [meals]);
+    // Forge streak (consecutive days with meals) — shared utility
+    const forgeCount = useMemo(() => calculateForgeStreak(meals), [meals]);
 
     const pendingRequests = useMemo(
         () => (friendRequests || []).filter(r => r.status === 'pending'),

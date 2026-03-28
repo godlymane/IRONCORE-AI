@@ -10,6 +10,7 @@ import {
     Plus, Clock, Timer, Check, Bell
 } from 'lucide-react';
 import { Button, Card } from './UIComponents';
+import { NUTRITION_DEFAULTS } from '../utils/constants';
 
 /**
  * Macro Pie Chart Component
@@ -314,7 +315,7 @@ export const SupplementTracker = ({ supplements = [], onToggle, onAddReminder })
 /**
  * Calorie Burn Summary Card
  */
-export const CalorieBurnCard = ({ burned = 0, goal = 500, activities = [] }) => {
+export const CalorieBurnCard = ({ burned = 0, goal = NUTRITION_DEFAULTS.burnGoal, activities = [] }) => {
     const progress = Math.min(100, (burned / goal) * 100);
 
     return (

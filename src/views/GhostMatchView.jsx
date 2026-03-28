@@ -91,6 +91,7 @@ export const GhostMatchView = ({ user, profile = {}, workouts = [], onBack }) =>
   const [playerStats, setPlayerStats] = useState({ formScore: 0, totalVolume: 0, totalReps: 0 });
   const timerRef = useRef(null);
   const autoCompleteRef = useRef(null);
+  const matchCompletedRef = useRef(false);
 
   const userLevel = profile?.level || Math.floor((profile?.xp || 0) / 500) + 1;
 
@@ -123,7 +124,10 @@ export const GhostMatchView = ({ user, profile = {}, workouts = [], onBack }) =>
     }, 1000);
 
     // Auto-complete after 8 seconds (simulated match)
+    matchCompletedRef.current = false;
     autoCompleteRef.current = setTimeout(() => {
+      if (matchCompletedRef.current) return;
+      matchCompletedRef.current = true;
       clearInterval(timerRef.current);
       setMatchState('result');
     }, 8000);

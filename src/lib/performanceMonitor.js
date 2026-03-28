@@ -23,10 +23,12 @@ export function createPerformanceMonitor({ onLowFPS }) {
     let lowWindows = 0;
     let triggered = false;
     let currentFPS = 0;
+    let destroyed = false;
 
     return {
         /** Call once per inference frame */
         tick() {
+            if (destroyed) return;
             timestamps.push(performance.now());
 
             if (timestamps.length < SAMPLE_WINDOW) return;
@@ -67,6 +69,7 @@ export function createPerformanceMonitor({ onLowFPS }) {
 
         destroy() {
             timestamps = [];
+            destroyed = true;
         }
     };
 }

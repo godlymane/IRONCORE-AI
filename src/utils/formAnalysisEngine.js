@@ -498,15 +498,24 @@ export class FormAnalysisEngine {
     const { phases, invertedPhase } = this.config;
     const prev = this.currentPhase;
 
-    // For inverted exercises (rows, curls), flip the logic
-    const effectiveAngle = invertedPhase ? (360 - angle) : angle;
-    const eccStart = invertedPhase ? (360 - phases.eccentricStart) : phases.eccentricStart;
-    const bottomTh = invertedPhase ? (360 - phases.bottomThreshold) : phases.bottomThreshold;
-    const concEnd = invertedPhase ? (360 - phases.concentricEnd) : phases.concentricEnd;
+    // Helper: for normal exercises (squat, deadlift, bench, etc.) angle DECREASES
+    // during eccentric (going down) and INCREASES during concentric (going up).
+    // For inverted exercises (rows, curls) angle INCREASES during eccentric
+    // (lowering/extending) and DECREASES during concentric (pulling/curling).
+    //
+    // Normal:   IDLE -> angle drops below eccentricStart -> ECCENTRIC
+    //           ECCENTRIC -> angle drops below bottomThreshold -> BOTTOM
+    //           BOTTOM -> angle rises above bottomThreshold+10 -> CONCENTRIC
+    //           CONCENTRIC -> angle rises above concentricEnd -> LOCKOUT
+    //
+    // Inverted: IDLE -> angle rises above eccentricStart -> ECCENTRIC
+    //           ECCENTRIC -> angle rises above bottomThreshold -> BOTTOM
+    //           BOTTOM -> angle drops below bottomThreshold-10 -> CONCENTRIC
+    //           CONCENTRIC -> angle drops below concentricEnd -> LOCKOUT
 
     switch (this.currentPhase) {
       case PHASE.IDLE:
-        if (angle < phases.eccentricStart) {
+        if (invertedPhase ? (angle > phases.eccentricStart) : (angle < phases.eccentricStart)) {
           this.currentPhase = PHASE.ECCENTRIC;
           this.phaseStartTime = now;
           // Start new rep
@@ -533,8 +542,8 @@ export class FormAnalysisEngine {
           if (this.currentRep) {
             this.currentRep.eccentricEnd = now;
           }
-        } else if (angle > phases.eccentricStart + 5) {
-          // Went back up without reaching bottom — reset
+        } else if (invertedPhase ? (angle < phases.eccentricStart - 5) : (angle > phases.eccentricStart + 5)) {
+          // Went back without reaching bottom — reset
           this.currentPhase = PHASE.IDLE;
           this.currentRep = null;
         }
@@ -558,7 +567,7 @@ export class FormAnalysisEngine {
             this.currentRep.concentricEnd = now;
           }
         } else if (invertedPhase ? (angle > phases.bottomThreshold) : (angle < phases.bottomThreshold)) {
-          // Went back down during concentric
+          // Went back to bottom during concentric
           this.currentPhase = PHASE.BOTTOM;
           this.phaseStartTime = now;
         }
@@ -626,6 +635,7 @@ export class FormAnalysisEngine {
 
       const evaluator = EVALUATORS[checkpoint.evaluate];
       if (!evaluator) {
+        console.warn(`[FormAnalysis] Unknown evaluator "${checkpoint.evaluate}" — skipping checkpoint`);
         results.push({ ...checkpoint, result: null, active: false });
         continue;
       }
@@ -735,7 +745,8 @@ export class FormAnalysisEngine {
     const diff = Math.abs(leftAngle - rightAngle);
 
     this.bilateralDiffs.push(diff);
-    if (this.bilateralDiffs.length > 30) this.bilateralDiffs.shift();
+    // Cap at 30 to prevent memory growth in long sessions
+    while (this.bilateralDiffs.length > 30) this.bilateralDiffs.shift();
 
     const avgDiff = this.bilateralDiffs.reduce((a, b) => a + b, 0) / this.bilateralDiffs.length;
 
@@ -772,7 +783,21 @@ export class FormAnalysisEngine {
   getSessionSummary() {
     const totalReps = this.reps.length;
     if (totalReps === 0) {
-      return { exercise: this.exerciseId, reps: [], totalReps: 0 };
+      return {
+        exercise: this.exerciseId,
+        exerciseName: this.config.name,
+        totalReps: 0,
+        reps: [],
+        avgScore: 0,
+        bestRep: null,
+        worstRep: null,
+        tempo: { avgEccentricMs: 0, avgConcentricMs: 0 },
+        rom: { avgRange: 0 },
+        fatigueIndex: 0,
+        injuryFlags: [],
+        scoreTrend: [],
+        barPathPoints: [],
+      };
     }
 
     const avgScore = this.reps.reduce((a, r) => a + r.score, 0) / totalReps;

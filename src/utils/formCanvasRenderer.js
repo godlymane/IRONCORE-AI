@@ -76,21 +76,35 @@ export class FormCanvasRenderer {
   /**
    * Draw a complete frame overlay
    * @param {CanvasRenderingContext2D} ctx
-   * @param {Array} keypoints - MoveNet keypoints
+   * @param {Array} keypoints - MoveNet keypoints (in video pixel coordinates)
    * @param {Object} analysis - Result from FormAnalysisEngine.processFrame()
-   * @param {Object} options - { showGhost, showBarPath, showScore, showPhase, isElite }
+   * @param {Object} options - { showGhost, showBarPath, showScore, showPhase, isElite, videoWidth, videoHeight }
+   *   videoWidth/videoHeight: original video dimensions so we can compute
+   *   consistent scale factors when canvas size differs from video size.
    */
   drawFrame(ctx, keypoints, analysis, options = {}) {
+    if (!ctx || !ctx.canvas || !ctx.canvas.parentElement) return; // canvas detached from DOM
     const {
       showGhost = true,
       showBarPath = true,
       showScore = true,
       showPhase = true,
       isElite = false,
+      videoWidth,
+      videoHeight,
     } = options;
 
     const w = ctx.canvas.width;
     const h = ctx.canvas.height;
+
+    // Scale factors: skeleton keypoints are in video pixel coords,
+    // bar path points are in normalized 0-1 coords (from formAnalysisEngine).
+    // Both must map to canvas coords consistently.
+    // scaleX/scaleY convert video pixels -> canvas pixels.
+    // If videoWidth/videoHeight not provided, assume canvas matches video (1:1 scale)
+    if (!videoWidth || !videoHeight) console.debug('[FormCanvasRenderer] videoWidth/videoHeight not provided — using 1:1 scale');
+    const scaleX = videoWidth ? w / videoWidth : 1;
+    const scaleY = videoHeight ? h / videoHeight : 1;
 
     ctx.clearRect(0, 0, w, h);
 
@@ -98,21 +112,22 @@ export class FormCanvasRenderer {
 
     // 1. Ghost overlay (elite only) — draw first so it's behind
     if (isElite && showGhost && analysis.bestRepKeypoints) {
-      this._drawGhostSkeleton(ctx, analysis.bestRepKeypoints, w, h);
+      this._drawGhostSkeleton(ctx, analysis.bestRepKeypoints, w, h, scaleX, scaleY);
     }
 
     // 2. Bar path (elite only)
+    // Bar path points are normalized 0-1 coords — multiply by canvas w/h
     if (isElite && showBarPath && analysis.barPathPoints.length > 2) {
       this._drawBarPath(ctx, analysis.barPathPoints, w, h);
     }
 
     // 3. Injury zone highlights — pulsing circles
     if (analysis.injuryFlags.length > 0) {
-      this._drawInjuryHighlights(ctx, keypoints, analysis.injuryFlags, w, h);
+      this._drawInjuryHighlights(ctx, keypoints, analysis.injuryFlags, w, h, scaleX, scaleY);
     }
 
     // 4. Main skeleton — color-coded by checkpoint status
-    this._drawSkeleton(ctx, keypoints, analysis, w, h);
+    this._drawSkeleton(ctx, keypoints, analysis, w, h, scaleX, scaleY);
 
     // 5. Phase indicator
     if (showPhase) {
@@ -139,7 +154,7 @@ export class FormCanvasRenderer {
   /**
    * Draw the main skeleton with phase-aware coloring
    */
-  _drawSkeleton(ctx, keypoints, analysis, w, h) {
+  _drawSkeleton(ctx, keypoints, analysis, w, h, scaleX = 1, scaleY = 1) {
     const phase = analysis.phase;
     const baseColor = PHASE_COLORS[phase] || '#00ff00';
 
@@ -152,7 +167,7 @@ export class FormCanvasRenderer {
       }
     }
 
-    // Draw connections
+    // Draw connections (keypoints are in video pixel coords, scale to canvas)
     for (const [startIdx, endIdx] of SKELETON_CONNECTIONS) {
       const start = keypoints[startIdx];
       const end = keypoints[endIdx];
@@ -160,8 +175,8 @@ export class FormCanvasRenderer {
 
       const isBad = badJoints.has(startIdx) || badJoints.has(endIdx);
       ctx.beginPath();
-      ctx.moveTo(start.x, start.y);
-      ctx.lineTo(end.x, end.y);
+      ctx.moveTo(start.x * scaleX, start.y * scaleY);
+      ctx.lineTo(end.x * scaleX, end.y * scaleY);
       ctx.strokeStyle = isBad ? '#ef4444' : baseColor;
       ctx.lineWidth = isBad ? 4 : 3;
       ctx.stroke();
@@ -176,7 +191,7 @@ export class FormCanvasRenderer {
       const radius = isBad ? 7 : 5;
 
       ctx.beginPath();
-      ctx.arc(kp.x, kp.y, radius, 0, 2 * Math.PI);
+      ctx.arc(kp.x * scaleX, kp.y * scaleY, radius, 0, 2 * Math.PI);
       ctx.fillStyle = isBad ? '#ef4444' : baseColor;
       ctx.fill();
 
@@ -190,19 +205,19 @@ export class FormCanvasRenderer {
   /**
    * Draw ghost skeleton from best rep (semi-transparent cyan)
    */
-  _drawGhostSkeleton(ctx, ghostKps, w, h) {
+  _drawGhostSkeleton(ctx, ghostKps, w, h, scaleX = 1, scaleY = 1) {
     ctx.save();
     ctx.globalAlpha = 0.25;
 
-    // Draw connections
+    // Draw connections (ghost keypoints are in video pixel coords, scale to canvas)
     for (const [startIdx, endIdx] of SKELETON_CONNECTIONS) {
       const start = ghostKps[startIdx];
       const end = ghostKps[endIdx];
       if (!start || !end || start.score < MIN_CONFIDENCE || end.score < MIN_CONFIDENCE) continue;
 
       ctx.beginPath();
-      ctx.moveTo(start.x, start.y);
-      ctx.lineTo(end.x, end.y);
+      ctx.moveTo(start.x * scaleX, start.y * scaleY);
+      ctx.lineTo(end.x * scaleX, end.y * scaleY);
       ctx.strokeStyle = '#06b6d4'; // Cyan
       ctx.lineWidth = 2;
       ctx.setLineDash([6, 4]);
@@ -213,7 +228,7 @@ export class FormCanvasRenderer {
     for (const kp of ghostKps) {
       if (!kp || kp.score < MIN_CONFIDENCE) continue;
       ctx.beginPath();
-      ctx.arc(kp.x, kp.y, 4, 0, 2 * Math.PI);
+      ctx.arc(kp.x * scaleX, kp.y * scaleY, 4, 0, 2 * Math.PI);
       ctx.fillStyle = '#06b6d4';
       ctx.fill();
     }
@@ -255,7 +270,7 @@ export class FormCanvasRenderer {
   /**
    * Draw pulsing red circles around at-risk joints
    */
-  _drawInjuryHighlights(ctx, keypoints, injuryFlags, w, h) {
+  _drawInjuryHighlights(ctx, keypoints, injuryFlags, w, h, scaleX = 1, scaleY = 1) {
     const pulseScale = 1 + Math.sin(this.pulsePhase) * 0.3;
 
     for (const flag of injuryFlags) {
@@ -268,17 +283,19 @@ export class FormCanvasRenderer {
           if (!kp || kp.score < MIN_CONFIDENCE) continue;
 
           const radius = 20 * pulseScale;
+          const cx = kp.x * scaleX;
+          const cy = kp.y * scaleY;
 
           // Outer glow
           ctx.beginPath();
-          ctx.arc(kp.x, kp.y, radius, 0, 2 * Math.PI);
+          ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
           ctx.strokeStyle = `rgba(239, 68, 68, ${0.3 + Math.sin(this.pulsePhase) * 0.2})`;
           ctx.lineWidth = 3;
           ctx.stroke();
 
           // Inner glow
           ctx.beginPath();
-          ctx.arc(kp.x, kp.y, radius * 0.6, 0, 2 * Math.PI);
+          ctx.arc(cx, cy, radius * 0.6, 0, 2 * Math.PI);
           ctx.fillStyle = `rgba(239, 68, 68, ${0.15 + Math.sin(this.pulsePhase) * 0.1})`;
           ctx.fill();
         }

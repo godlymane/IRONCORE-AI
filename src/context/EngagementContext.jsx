@@ -2,7 +2,9 @@
  * Engagement Context - Central state management for engagement features
  */
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+
 import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
+
 import {
     calculateForge,
     activateForgeShield,
@@ -18,6 +20,7 @@ import {
     subscribeToNotifications,
     markNotificationRead,
 } from '../services/engagementService';
+
 import {
     getForgeMultiplier,
     getForgeMilestone,
@@ -76,6 +79,7 @@ export const EngagementProvider = ({ children, user, db, profile, workouts }) =>
     // Calculate Forge when workouts change
     useEffect(() => {
         if (!db || !user?.uid || !workouts) return;
+        let isMounted = true;
 
         const workoutDates = workouts.map(w => {
             const d = w.createdAt?.seconds
@@ -85,6 +89,7 @@ export const EngagementProvider = ({ children, user, db, profile, workouts }) =>
         });
 
         calculateForge(db, user.uid, workoutDates).then(result => {
+            if (!isMounted) return;
             const multiplier = getForgeMultiplier(result.forge ?? result.streak);
             const nextMilestoneDay = [7, 14, 30, 60, 100, 365].find(d => d > (result.forge ?? result.streak));
 
@@ -98,7 +103,12 @@ export const EngagementProvider = ({ children, user, db, profile, workouts }) =>
                 milestone: result.milestone,
             });
             setLoading(prev => ({ ...prev, streak: false }));
+        }).catch(err => {
+            if (!isMounted) return;
+            console.warn('Forge calculation failed:', err.message);
+            setLoading(prev => ({ ...prev, streak: false }));
         });
+        return () => { isMounted = false; };
     }, [db, user?.uid, workouts, profile]);
 
     // Update daily rewards status
@@ -124,23 +134,33 @@ export const EngagementProvider = ({ children, user, db, profile, workouts }) =>
             return;
         }
 
+        let isMounted = true;
         const unsubscribe = subscribeToGuild(db, profile.guildId, (guildData) => {
-            setGuild(guildData);
-            setLoading(prev => ({ ...prev, guild: false }));
+            if (isMounted) {
+                setGuild(guildData);
+                setLoading(prev => ({ ...prev, guild: false }));
+            }
         });
 
-        return () => unsubscribe();
+        return () => {
+            isMounted = false;
+            unsubscribe();
+        };
     }, [db, profile?.guildId]);
 
     // Subscribe to guild leaderboard
     useEffect(() => {
         if (!db) return;
 
+        let isMounted = true;
         const unsubscribe = subscribeToGuildLeaderboard(db, 20, (guilds) => {
-            setGuildLeaderboard(guilds);
+            if (isMounted) setGuildLeaderboard(guilds);
         });
 
-        return () => unsubscribe();
+        return () => {
+            isMounted = false;
+            unsubscribe();
+        };
     }, [db]);
 
     // Subscribe to tournament
@@ -156,7 +176,9 @@ export const EngagementProvider = ({ children, user, db, profile, workouts }) =>
             endTime,
         }));
 
+        let isMounted = true;
         const unsubscribe = subscribeToTournament(db, (data) => {
+            if (!isMounted) return;
             if (data) {
                 const entries = data.entries || [];
                 const sortedEntries = [...entries].sort((a, b) => b.score - a.score);
@@ -173,20 +195,28 @@ export const EngagementProvider = ({ children, user, db, profile, workouts }) =>
             setLoading(prev => ({ ...prev, tournament: false }));
         });
 
-        return () => unsubscribe();
+        return () => {
+            isMounted = false;
+            unsubscribe();
+        };
     }, [db, user?.uid]);
 
     // Subscribe to notifications
     useEffect(() => {
         if (!db || !user?.uid) return;
 
+        let isMounted = true;
         const unsubscribe = subscribeToNotifications(db, user.uid, (notifs) => {
+            if (!isMounted) return;
             setNotifications(notifs);
             setUnreadCount(notifs.filter(n => !n.read).length);
             setLoading(prev => ({ ...prev, notifications: false }));
         });
 
-        return () => unsubscribe();
+        return () => {
+            isMounted = false;
+            unsubscribe();
+        };
     }, [db, user?.uid]);
 
     // Actions

@@ -90,22 +90,26 @@ const UsernameScreen = ({ onNext, onBack, createError }) => {
   const [error, setError] = useState('');
   const [available, setAvailable] = useState(null);
   const debounceRef = useRef(null);
+  const checkSeqRef = useRef(0);
 
   const checkAvailability = useCallback(async (name) => {
     const { valid, clean, error: validErr } = validateUsername(name);
     if (!valid) { setError(validErr); setAvailable(null); return; }
+    const seq = ++checkSeqRef.current;
     setChecking(true);
     setError('');
     try {
       const { doc, getDoc } = await import('firebase/firestore');
       const { db } = await import('../firebase');
       const snap = await getDoc(doc(db, 'usernames', clean));
+      if (seq !== checkSeqRef.current) return; // stale result — discard
       setAvailable(!snap.exists());
       if (snap.exists()) setError('Already taken');
     } catch {
+      if (seq !== checkSeqRef.current) return;
       setError('Connection error');
     } finally {
-      setChecking(false);
+      if (seq === checkSeqRef.current) setChecking(false);
     }
   }, []);
 
@@ -290,10 +294,15 @@ const CardRevealScreen = ({ username, phrase, onSaved }) => {
           </div>
         </div>
 
-        {/* Warning */}
-        <div className="p-3 rounded-xl bg-red-500/5 border border-red-500/10 mb-4">
+        {/* Security Warning */}
+        <div className="p-3 rounded-xl bg-red-500/5 border border-red-500/10 mb-2">
           <p className="text-[11px] text-red-400/80 leading-relaxed">
             This phrase is your <strong>ONLY</strong> way to recover your account. Save it now. IronCore cannot reset it.
+          </p>
+        </div>
+        <div className="p-3 rounded-xl bg-yellow-500/5 border border-yellow-500/10 mb-4">
+          <p className="text-[11px] text-yellow-400/80 leading-relaxed">
+            <strong>Keep these words private.</strong> Anyone with this phrase can access your account. Never share it, screenshot it in public, or enter it on any site other than IronCore.
           </p>
         </div>
 
@@ -401,16 +410,19 @@ export const PlayerCardView = ({ onComplete, onLogin }) => {
       const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
       const { db } = await import('../firebase');
 
-      // Claim username
+      // Claim username atomically via transaction to prevent race conditions
       try {
-        const { getDoc: gd } = await import('firebase/firestore');
-        const unSnap = await gd(doc(db, 'usernames', username));
-        if (unSnap.exists() && unSnap.data().uid !== user.uid) {
-          throw new Error('Username taken. Go back and try a different name.');
-        }
-        await setDoc(doc(db, 'usernames', username), {
-          uid: user.uid,
-          createdAt: serverTimestamp(),
+        const { runTransaction } = await import('firebase/firestore');
+        await runTransaction(db, async (transaction) => {
+          const unRef = doc(db, 'usernames', username);
+          const unSnap = await transaction.get(unRef);
+          if (unSnap.exists() && unSnap.data().uid !== user.uid) {
+            throw new Error('Username taken. Go back and try a different name.');
+          }
+          transaction.set(unRef, {
+            uid: user.uid,
+            createdAt: serverTimestamp(),
+          });
         });
       } catch (unErr) {
         if (unErr.message?.includes('taken')) throw unErr;
@@ -442,12 +454,18 @@ export const PlayerCardView = ({ onComplete, onLogin }) => {
 
   // Step 3: Card saved → biometric prompt → main app
   const handleCardSaved = async () => {
-    const { isBiometricAvailable, authenticateWithBiometrics } = await import('../utils/biometrics');
-    const bioAvail = await isBiometricAvailable();
     let bioEnabled = false;
 
-    if (bioAvail) {
-      bioEnabled = await authenticateWithBiometrics('Enable biometric login for IronCore');
+    try {
+      const { isBiometricAvailable, authenticateWithBiometrics } = await import('../utils/biometrics');
+      const bioAvail = await isBiometricAvailable();
+
+      if (bioAvail) {
+        bioEnabled = await authenticateWithBiometrics('Enable biometric login for IronCore');
+      }
+    } catch (bioErr) {
+      // Biometrics unavailable (web or unsupported device) — skip silently
+      console.warn('Biometrics not available:', bioErr.message);
     }
 
     try {

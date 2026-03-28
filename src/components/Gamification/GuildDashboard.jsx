@@ -100,6 +100,8 @@ export const GuildDashboard = ({ user }) => {
     const unsub = onSnapshot(doc(db, 'guilds', user.guildId), snap => {
       if (snap.exists()) setGuild({ id: snap.id, ...snap.data() });
       else setGuild(null);
+    }, (error) => {
+      console.error('[GuildDashboard] Snapshot error:', error);
     });
     return () => unsub();
   }, [user?.guildId]);
