@@ -1,5 +1,5 @@
 // Arena Context - Real-time state management for Arena tab
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import {
     subscribeToLeaderboard,
     subscribeToBoss,
@@ -265,7 +265,7 @@ export const ArenaProvider = ({ children, user: authUser }) => {
     // Find current user's rank
     const userRank = leaderboard.findIndex(u => u.id === currentUser?.id) + 1 || null;
 
-    const value = {
+    const value = useMemo(() => ({
         // State
         currentUser,
         leaderboard,
@@ -290,7 +290,9 @@ export const ArenaProvider = ({ children, user: authUser }) => {
 
         // Refresh user data
         refreshUser,
-    };
+    }), [currentUser, leaderboard, boss, pendingBattles, userRank, loading, isLoading,
+         errors, hasErrors, dealBossDamage, challengePlayer, handleAcceptBattle,
+         handleDeclineBattle, handleAwardXP, refreshUser]);
 
     return (
         <ArenaContext.Provider value={value}>

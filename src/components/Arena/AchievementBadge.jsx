@@ -1,7 +1,7 @@
 import React from 'react';
 import { Trophy, Star, Sparkles, X } from 'lucide-react';
 
-export const AchievementBadge = ({ achievement, onDismiss }) => {
+export const AchievementBadge = React.memo(({ achievement, onDismiss }) => {
     if (!achievement) return null;
 
     return (
@@ -60,7 +60,4 @@ export const AchievementBadge = ({ achievement, onDismiss }) => {
             </div>
         </div>
     );
-};
-
-
-
+});

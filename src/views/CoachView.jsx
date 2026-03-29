@@ -8,6 +8,8 @@ import { PremiumIcon } from '../components/PremiumIcon';
 import { DumbbellIcon, ProteinBoltIcon, TargetIcon, SmartTimerIconShape, PlateIcon } from '../components/IronCoreIcons';
 import { usePremium } from '../context/PremiumContext';
 import { doc, getDoc, setDoc, increment } from 'firebase/firestore';
+
+const SPLITS = ['Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full Body', 'Arnold', 'Bro Split', 'Custom'];
 import { db } from '../firebase';
 import { useStore } from '../hooks/useStore';
 
@@ -178,8 +180,6 @@ Return ONLY valid JSON: { "title": "string", "exercises": [ { "name": "string", 
             setLoading(false);
         }
     };
-
-    const SPLITS = ['Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full Body', 'Arnold', 'Bro Split', 'Custom'];
 
     return (
         <div className="flex flex-col overflow-hidden" style={{ height: 'calc(100dvh - 230px)' }}>

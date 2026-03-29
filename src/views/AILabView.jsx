@@ -8,6 +8,17 @@ import { Button, Card } from '../components/UIComponents';
 import { PremiumIcon } from '../components/PremiumIcon';
 import { usePremium } from '../context/PremiumContext';
 import { Lock } from 'lucide-react';
+
+const AILAB_COLOR_MAP = {
+    red: 'from-red-500/20 to-red-600/10 border-red-500/30',
+    green: 'from-green-500/20 to-green-600/10 border-green-500/30',
+    purple: 'from-purple-500/20 to-purple-600/10 border-purple-500/30',
+    orange: 'from-orange-500/20 to-orange-600/10 border-orange-500/30',
+    cyan: 'from-cyan-500/20 to-cyan-600/10 border-cyan-500/30',
+    yellow: 'from-yellow-500/20 to-yellow-600/10 border-yellow-500/30',
+    blue: 'from-red-500/20 to-red-600/10 border-red-500/30',
+    pink: 'from-pink-500/20 to-pink-600/10 border-pink-500/30',
+};
 import { useStore } from '../hooks/useStore';
 
 // Import Icons
@@ -206,17 +217,6 @@ export const AILabView = () => {
             return;
         }
         setActiveFeature(feature.id);
-    };
-
-    const colorMap = {
-        red: 'from-red-500/20 to-red-600/10 border-red-500/30',
-        green: 'from-green-500/20 to-green-600/10 border-green-500/30',
-        purple: 'from-purple-500/20 to-purple-600/10 border-purple-500/30',
-        orange: 'from-orange-500/20 to-orange-600/10 border-orange-500/30',
-        cyan: 'from-cyan-500/20 to-cyan-600/10 border-cyan-500/30',
-        yellow: 'from-yellow-500/20 to-yellow-600/10 border-yellow-500/30',
-        blue: 'from-red-500/20 to-red-600/10 border-red-500/30',
-        pink: 'from-pink-500/20 to-pink-600/10 border-pink-500/30',
     };
 
     const renderFeatureContent = () => {
@@ -479,7 +479,7 @@ export const AILabView = () => {
                                         whileHover={{ scale: 1.02 }}
                                         whileTap={{ scale: 0.98 }}
                                         onClick={() => handleFeatureSelect(feature)}
-                                        className={`p-4 rounded-2xl border bg-gradient-to-br ${colorMap[feature.color]} text-left transition-all relative overflow-hidden group`}
+                                        className={`p-4 rounded-2xl border bg-gradient-to-br ${AILAB_COLOR_MAP[feature.color]} text-left transition-all relative overflow-hidden group`}
                                     >
                                         {/* Premium lock badge */}
                                         {feature.premium && !isPremium && (

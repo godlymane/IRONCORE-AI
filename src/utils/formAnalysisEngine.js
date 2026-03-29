@@ -397,6 +397,32 @@ export class FormAnalysisEngine {
     const side = this.activeSide;
     const config = this.config;
 
+    // 1b. Overall pose confidence check — skip analysis if pose barely visible
+    const requiredKps = config.requiredKeypoints || [];
+    let poseConfidence = 0;
+    if (requiredKps.length > 0) {
+      for (const idx of requiredKps) {
+        poseConfidence += (keypoints[idx]?.score || 0);
+      }
+      poseConfidence /= requiredKps.length;
+    } else {
+      // Fallback: average all 17 keypoint scores
+      poseConfidence = keypoints.reduce((sum, kp) => sum + (kp?.score || 0), 0) / keypoints.length;
+    }
+    this.poseConfidence = poseConfidence;
+
+    // If pose confidence is too low, return partial result without running checkpoints
+    if (poseConfidence < 0.35) {
+      return {
+        ...this._emptyResult(),
+        phase: this.currentPhase,
+        repCount: this.repCount,
+        activeSide: this.activeSide,
+        poseConfidence,
+        lowConfidence: true,
+      };
+    }
+
     // 2. Calculate primary joint angle
     let primaryAngle = 180;
     if (config.primaryJoint) {
@@ -488,6 +514,8 @@ export class FormAnalysisEngine {
       fatigueIndex,
       currentRep: this.currentRep,
       isIsometric: !!config.isIsometric,
+      poseConfidence,
+      lowConfidence: false,
     };
   }
 
@@ -573,12 +601,17 @@ export class FormAnalysisEngine {
         }
         break;
 
-      case PHASE.LOCKOUT:
-        // Rep complete! Record and reset
-        this._completeRep(now);
-        this.currentPhase = PHASE.IDLE;
-        this.phaseStartTime = now;
+      case PHASE.LOCKOUT: {
+        // Require 5+ frames in lockout before counting rep — prevents double-count
+        // from angle oscillation near phase boundary
+        const lockoutFrames = (now - this.phaseStartTime) / (dt || 33);
+        if (lockoutFrames >= 5) {
+          this._completeRep(now);
+          this.currentPhase = PHASE.IDLE;
+          this.phaseStartTime = now;
+        }
         break;
+      }
     }
 
     return this.currentPhase !== prev;
@@ -875,6 +908,8 @@ export class FormAnalysisEngine {
       fatigueIndex: 0,
       currentRep: null,
       isIsometric: !!this.config.isIsometric,
+      poseConfidence: 0,
+      lowConfidence: true,
     };
   }
 }

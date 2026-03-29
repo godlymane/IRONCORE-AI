@@ -61,10 +61,12 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
     const [hapticsOn, setHapticsOn] = useState(true);
     const [feedback, setFeedback] = useState([]); // checkpoint results for UI cards
     const [coachedTip, setCoachedTip] = useState('');
+    const [poseVisible, setPoseVisible] = useState(true); // tracks if pose is detected
 
     // Refs
     const animationRef = useRef(null);
     const isStreamingRef = useRef(false);
+    const isMountedRef = useRef(true);
     const lastInferenceRef = useRef(0);
     const detectorRef = useRef(null);
     const perfMonitorRef = useRef(null);
@@ -78,6 +80,12 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
 
     const perfMode = getPerformanceMode();
     const deviceCapability = useRef(null);
+
+    // Track component mount state to prevent updates after unmount
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => { isMountedRef.current = false; };
+    }, []);
 
     // Determine device profile
     if (!deviceCapability.current) {
@@ -279,7 +287,7 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
         const tf = tfRef.current;
 
         const detect = async (timestamp) => {
-            if (!isStreamingRef.current) return;
+            if (!isStreamingRef.current || !isMountedRef.current) return;
 
             const elapsed = timestamp - lastInferenceRef.current;
             if (elapsed < FRAME_INTERVAL) {
@@ -323,30 +331,45 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
                         : null;
 
                     if (analysis) {
-                        // --- RENDERER: Draw overlay ---
-                        rendererRef.current?.drawFrame(ctx, processedKps, analysis, {
-                            showGhost: isEliteTier,
-                            showBarPath: isEliteTier,
-                            showScore: true,
-                            showPhase: true,
-                            isElite: isEliteTier,
-                        });
+                        // Handle low pose confidence — show guidance instead of bad data
+                        if (analysis.lowConfidence) {
+                            if (feedbackCountRef.current % 15 === 0) {
+                                setPoseVisible(false);
+                                setCoachedTip('Make sure your full body is visible to the camera');
+                            }
+                            // Still draw skeleton (dimmed) so user can see what's detected
+                            rendererRef.current?.drawFrame(ctx, processedKps, analysis, {
+                                showGhost: false, showBarPath: false,
+                                showScore: false, showPhase: false, isElite: isEliteTier,
+                            });
+                        } else {
+                            if (!poseVisible) setPoseVisible(true);
 
-                        // --- FEEDBACK: Voice + Haptics ---
-                        feedbackMgrRef.current?.processFrame(analysis);
+                            // --- RENDERER: Draw overlay ---
+                            rendererRef.current?.drawFrame(ctx, processedKps, analysis, {
+                                showGhost: isEliteTier,
+                                showBarPath: isEliteTier,
+                                showScore: true,
+                                showPhase: true,
+                                isElite: isEliteTier,
+                            });
 
-                        // Update React state (throttled)
+                            // --- FEEDBACK: Voice + Haptics ---
+                            feedbackMgrRef.current?.processFrame(analysis);
+                        }
+
+                        // Update React state (throttled every 10 frames ~330ms to prevent flicker)
                         if (analysis.repCount !== repCount) {
                             setRepCount(analysis.repCount);
                         }
-                        if (feedbackCountRef.current % 5 === 0) {
+                        if (feedbackCountRef.current % 10 === 0) {
                             setFormScore(analysis.score);
                             setCurrentPhase(analysis.phase);
                             setActiveSide(analysis.activeSide);
                         }
 
-                        // Update feedback cards (throttled every 10 frames)
-                        if (feedbackCountRef.current % 10 === 0) {
+                        // Update feedback cards (throttled every 15 frames)
+                        if (feedbackCountRef.current % 15 === 0 && !analysis.lowConfidence) {
                             const cards = (analysis.checkpoints || [])
                                 .filter(c => c.active && c.result)
                                 .map(c => ({
@@ -359,7 +382,7 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
                         }
 
                         // Coaching tips (every 90 frames ~3s)
-                        if (feedbackCountRef.current % 90 === 0) {
+                        if (feedbackCountRef.current % 90 === 0 && !analysis.lowConfidence) {
                             const failing = (analysis.checkpoints || []).find(c => c.active && c.result && !c.result.pass);
                             if (failing) {
                                 setCoachedTip(`Focus: ${failing.result.detail || failing.description}`);
@@ -367,6 +390,12 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
                                 setCoachedTip('Great form! Keep it up');
                             }
                         }
+                    }
+                } else {
+                    // No poses detected at all
+                    if (feedbackCountRef.current % 30 === 0) {
+                        setPoseVisible(false);
+                        setCoachedTip('Step back so the camera can see your full body');
                     }
                 }
             } catch (_err) { /* expected: inference may fail on dropped frames */ }
@@ -447,7 +476,19 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
             <div className="p-6 text-center">
                 <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
                 <p className="text-red-400 mb-4 text-sm">{error}</p>
-                <Button onClick={() => { setError(null); setIsLoading(true); }} variant="secondary">Try Again</Button>
+                <div className="flex flex-col gap-2">
+                    <Button onClick={() => {
+                        setError(null);
+                        setIsLoading(true);
+                        // Full re-init: reset backend and reload detector
+                        resetBackend();
+                        detectorRef.current = null;
+                        setDetector(null);
+                    }} variant="primary">Retry</Button>
+                    <Button onClick={() => { savePerfMode('manual'); window.location.reload(); }} variant="secondary">
+                        Use Manual Mode Instead
+                    </Button>
+                </div>
             </div>
         );
     }
@@ -560,8 +601,18 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
                             className="absolute inset-0 w-full h-full object-cover pointer-events-none"
                             style={facingMode === 'user' ? { transform: 'scaleX(-1)' } : {}} />
 
+                        {/* Pose Visibility Warning */}
+                        {isStreaming && !poseVisible && (
+                            <div className="absolute top-3 left-3 right-3 z-20">
+                                <div className="bg-red-900/80 backdrop-blur-sm rounded-xl px-3 py-2.5 flex items-center gap-2 border border-red-500/40">
+                                    <AlertCircle size={16} className="text-red-400 flex-shrink-0" />
+                                    <p className="text-xs text-red-200 font-medium">{coachedTip || 'Position your full body in frame'}</p>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Coaching Tip Overlay */}
-                        {isStreaming && coachedTip && (
+                        {isStreaming && poseVisible && coachedTip && (
                             <div className="absolute top-3 left-3 right-3 z-10">
                                 <div className="bg-black/70 backdrop-blur-sm rounded-xl px-3 py-2 text-xs text-white font-medium text-center">
                                     {coachedTip}

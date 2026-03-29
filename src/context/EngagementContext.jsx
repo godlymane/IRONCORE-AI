@@ -1,7 +1,7 @@
 /**
  * Engagement Context - Central state management for engagement features
  */
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 
 import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
 
@@ -250,7 +250,9 @@ export const EngagementProvider = ({ children, user, db, profile, workouts }) =>
         await markNotificationRead(db, user.uid, notificationId);
     }, [db, user?.uid]);
 
-    const value = {
+    const isLoading = Object.values(loading).some(Boolean);
+
+    const value = useMemo(() => ({
         // State
         forge,
         streak: forge, // backwards-compat alias
@@ -263,7 +265,7 @@ export const EngagementProvider = ({ children, user, db, profile, workouts }) =>
 
         // Loading
         loading,
-        isLoading: Object.values(loading).some(Boolean),
+        isLoading,
 
         // Actions
         claimDailyReward: claimDailyRewardAction,
@@ -272,7 +274,9 @@ export const EngagementProvider = ({ children, user, db, profile, workouts }) =>
         joinGuild: joinGuildAction,
         leaveGuild: leaveGuildAction,
         markNotificationRead: markNotificationReadAction,
-    };
+    }), [forge, dailyRewards, guild, guildLeaderboard, tournament, notifications, unreadCount,
+         loading, isLoading, claimDailyRewardAction, activateShield, createGuildAction,
+         joinGuildAction, leaveGuildAction, markNotificationReadAction]);
 
     return (
         <EngagementContext.Provider value={value}>
