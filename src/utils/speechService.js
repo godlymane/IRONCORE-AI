@@ -5,21 +5,16 @@
  */
 
 let voiceEnabled = true;
-let lastSpokenMessage = '';
-let lastSpokenTime = 0;
-const DEBOUNCE_MS = 4000; // Don't repeat same cue within 4 seconds
 
 /**
  * Speak a form correction cue.
- * Debounces repeated messages to avoid spam during continuous detection.
+ * No debouncing here — FormFeedbackManager handles all timing/debouncing.
+ * This is a pure speech output function.
  * @param {string} message - The correction message to speak
  */
 export function speakFormCue(message) {
     if (!voiceEnabled) return;
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
-
-    const now = Date.now();
-    if (message === lastSpokenMessage && now - lastSpokenTime < DEBOUNCE_MS) return;
 
     // Cancel any currently speaking utterance
     window.speechSynthesis.cancel();
@@ -38,9 +33,6 @@ export function speakFormCue(message) {
         }
 
         window.speechSynthesis.speak(utterance);
-
-        lastSpokenMessage = message;
-        lastSpokenTime = now;
     } catch {
         // TTS unavailable on this device — silently degrade
     }
@@ -70,18 +62,25 @@ export function getVoiceEnabled() {
  * Use these keys when detecting form errors in FormCoach.
  */
 export const FORM_CUES = {
-    BACK_ROUNDING: 'Straighten your back',
-    KNEE_VALGUS: 'Push your knees out',
-    ELBOW_FLARE: 'Tuck your elbows in',
-    DEPTH_SHALLOW: 'Go deeper on the squat',
-    LOCKOUT_MISSING: 'Lock out at the top',
-    LEAN_FORWARD: 'Stay upright, chest up',
-    NECK_STRAIN: 'Keep your neck neutral',
-    HIP_SHIFT: 'Level your hips',
-    BAR_PATH_DRIFT: 'Keep the bar closer',
-    TEMPO_FAST: 'Slow down the movement',
-    ASYMMETRY: 'Even out both sides',
-    FATIGUE_WARNING: 'Form is dropping, stay tight',
-    GREAT_REP: 'Great form, keep it up',
-    WRIST_HYPEREXT: 'Straighten your wrists',
+    // Injury prevention — urgent, clear
+    BACK_ROUNDING: 'Back is rounding. Brace your core.',
+    KNEE_VALGUS: 'Knees caving in. Push them out.',
+    ELBOW_FLARE: 'Elbows flaring. Tuck them in tight.',
+    NECK_STRAIN: 'Head too far forward. Neutral spine.',
+    WRIST_HYPEREXT: 'Wrists bending back. Keep them straight.',
+    HIP_SHIFT: 'Hips shifting. Stay centered.',
+
+    // Form corrections — coaching tone
+    DEPTH_SHALLOW: 'Go deeper. Break parallel.',
+    LOCKOUT_MISSING: 'Full lockout at the top.',
+    LEAN_FORWARD: 'Chest up. Stay upright.',
+    BAR_PATH_DRIFT: 'Bar drifting forward. Pull it close.',
+    TEMPO_FAST: 'Control the movement. Slow it down.',
+
+    // Awareness cues
+    ASYMMETRY: 'One side is working harder. Even it out.',
+    FATIGUE_WARNING: 'Form is breaking down. Focus or rack it.',
+
+    // Positive reinforcement
+    GREAT_REP: 'Textbook. Keep that energy.',
 };

@@ -136,6 +136,8 @@ export class FormFeedbackManager {
     if (this.hapticsEnabled) {
       if (score >= 85) {
         hapticSuccess();
+      } else if (score >= 60) {
+        hapticMedium();
       } else {
         hapticHeavy();
       }
@@ -143,11 +145,14 @@ export class FormFeedbackManager {
 
     if (this.voiceEnabled) {
       if (score >= 90) {
-        speakFormCue(`Rep ${repCount}, great form!`);
-      } else if (score >= 70) {
-        speakFormCue(`Rep ${repCount}`);
+        const praise = ['Perfect rep.', 'Textbook.', 'Clean.', 'Money rep.'][repCount % 4];
+        speakFormCue(`${repCount}. ${praise}`);
+      } else if (score >= 75) {
+        speakFormCue(`${repCount}. Solid.`);
+      } else if (score >= 60) {
+        speakFormCue(`${repCount}. Tighten up.`);
       } else {
-        speakFormCue(`Rep ${repCount}, fix your form`);
+        speakFormCue(`${repCount}. Fix your form.`);
       }
     }
   }

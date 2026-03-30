@@ -228,9 +228,21 @@ export const DashboardView = () => {
       setWeighInValue('');
     } catch (e) {
       const msg = (e?.message || '').toLowerCase();
+      const code = e?.code || '';
       if (msg.includes('rate') || msg.includes('already')) addToast('Already logged today', 'error');
       else if (msg.includes('invalid')) addToast('Invalid weight value', 'error');
-      else addToast('Failed to log weight. Try again.', 'error');
+      else if (code === 'functions/unavailable' || code === 'functions/deadline-exceeded' || msg.includes('internal')) {
+        // Cloud Function not deployed or server cold start — save locally
+        addToast('Server busy — weight saved locally, will sync later', 'warning');
+        try {
+          const existing = JSON.parse(localStorage.getItem('ironcore_pending_weights') || '[]');
+          existing.push({ weight: w, date: new Date().toISOString().split('T')[0], timestamp: Date.now() });
+          localStorage.setItem('ironcore_pending_weights', JSON.stringify(existing));
+          setWeighInDismissed(true);
+          localStorage.setItem(`ironcore_weigh_dismissed_${new Date().toISOString().split('T')[0]}`, '1');
+        } catch { /* localStorage full */ }
+      }
+      else addToast('Failed to log weight — check your connection', 'error');
     } finally {
       setWeighInLoading(false);
     }
@@ -627,15 +639,15 @@ export const DashboardView = () => {
       </GlassCard>
 
       {/* Quick Log Card */}
-      <GlassCard className="space-y-4">
-        <div className="flex justify-between items-center">
+      <GlassCard className="p-5">
+        <div className="flex justify-between items-center mb-6">
           <h3 className="text-sm font-bold text-gray-300 flex items-center gap-2">
             <Search size={14} className="text-red-400" />
             Quick Log
           </h3>
           <button
             onClick={() => setShowManual(!showManual)}
-            className="px-3 py-1.5 rounded-lg text-xs font-bold text-red-400 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 transition-all active:scale-95 touch-target flex items-center justify-center"
+            className="px-4 py-2 rounded-xl text-xs font-bold text-red-400 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 transition-all active:scale-95 touch-target flex items-center justify-center"
           >
             {showManual ? "Close" : "Manual Entry"}
           </button>
@@ -687,7 +699,7 @@ export const DashboardView = () => {
             </Button>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-5">
             {/* Premium AI Vision Button */}
             <motion.button
               whileHover={{ scale: 1.02 }}

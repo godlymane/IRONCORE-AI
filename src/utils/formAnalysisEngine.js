@@ -726,7 +726,9 @@ export class FormAnalysisEngine {
    */
   _calculateScore(checkpointResults, keypoints) {
     const activeChecks = checkpointResults.filter(r => r.active && r.result);
-    if (activeChecks.length === 0) return 85; // Default good score when no checks active
+    // No active checkpoints = no data to score. Return last known score or 0.
+    // Never inflate with a fake 85 — that hides bad form.
+    if (activeChecks.length === 0) return this.smoothedScore ?? 0;
 
     let totalWeight = 0;
     let weightedScore = 0;

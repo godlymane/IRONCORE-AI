@@ -147,8 +147,8 @@ export class FormCanvasRenderer {
     // 8. Side indicator
     this._drawSideIndicator(ctx, analysis.activeSide, w, h);
 
-    // Advance pulse animation
-    this.pulsePhase = (this.pulsePhase + 0.08) % (Math.PI * 2);
+    // Advance pulse animation — fast pulse (0.2 rad/frame ≈ 1Hz at 30fps)
+    this.pulsePhase = (this.pulsePhase + 0.2) % (Math.PI * 2);
   }
 
   /**
@@ -271,7 +271,8 @@ export class FormCanvasRenderer {
    * Draw pulsing red circles around at-risk joints
    */
   _drawInjuryHighlights(ctx, keypoints, injuryFlags, w, h, scaleX = 1, scaleY = 1) {
-    const pulseScale = 1 + Math.sin(this.pulsePhase) * 0.3;
+    const pulse = Math.sin(this.pulsePhase);
+    const pulseScale = 1 + pulse * 0.4;
 
     for (const flag of injuryFlags) {
       for (const jointName of (flag.joints || [])) {
@@ -282,22 +283,39 @@ export class FormCanvasRenderer {
           const kp = keypoints[idx];
           if (!kp || kp.score < MIN_CONFIDENCE) continue;
 
-          const radius = 20 * pulseScale;
+          const radius = 28 * pulseScale;
           const cx = kp.x * scaleX;
           const cy = kp.y * scaleY;
 
-          // Outer glow
+          // Outer danger ring — thick, urgent
           ctx.beginPath();
           ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
-          ctx.strokeStyle = `rgba(239, 68, 68, ${0.3 + Math.sin(this.pulsePhase) * 0.2})`;
-          ctx.lineWidth = 3;
+          ctx.strokeStyle = `rgba(239, 68, 68, ${0.5 + pulse * 0.3})`;
+          ctx.lineWidth = 4;
           ctx.stroke();
 
-          // Inner glow
+          // Middle ring
           ctx.beginPath();
-          ctx.arc(cx, cy, radius * 0.6, 0, 2 * Math.PI);
-          ctx.fillStyle = `rgba(239, 68, 68, ${0.15 + Math.sin(this.pulsePhase) * 0.1})`;
+          ctx.arc(cx, cy, radius * 0.7, 0, 2 * Math.PI);
+          ctx.strokeStyle = `rgba(239, 68, 68, ${0.3 + pulse * 0.2})`;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          // Inner fill glow
+          ctx.beginPath();
+          ctx.arc(cx, cy, radius * 0.5, 0, 2 * Math.PI);
+          ctx.fillStyle = `rgba(239, 68, 68, ${0.2 + pulse * 0.15})`;
           ctx.fill();
+
+          // Warning text label above the joint
+          if (flag.name) {
+            ctx.save();
+            ctx.font = 'bold 10px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = `rgba(239, 68, 68, ${0.7 + pulse * 0.3})`;
+            ctx.fillText(flag.name.toUpperCase(), cx, cy - radius - 6);
+            ctx.restore();
+          }
         }
       }
     }

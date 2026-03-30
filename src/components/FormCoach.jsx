@@ -68,6 +68,8 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
     const isStreamingRef = useRef(false);
     const isMountedRef = useRef(true);
     const lastInferenceRef = useRef(0);
+    const inferringRef = useRef(false); // mutex: prevents parallel MoveNet calls
+    const lastFrameTimeRef = useRef(0); // tracks actual frame timestamps for frozen detection
     const detectorRef = useRef(null);
     const perfMonitorRef = useRef(null);
     const tfRef = useRef(null);
@@ -294,8 +296,28 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
                 animationRef.current = requestAnimationFrame(detect);
                 return;
             }
+
+            // Mutex: skip if previous inference still running (prevents parallel WebGL calls)
+            if (inferringRef.current) {
+                animationRef.current = requestAnimationFrame(detect);
+                return;
+            }
+
             lastInferenceRef.current = timestamp;
 
+            // Detect frozen camera stream (no new frames for 3+ seconds)
+            const videoTime = video.currentTime;
+            if (videoTime === lastFrameTimeRef.current && feedbackCountRef.current > 30) {
+                if (feedbackCountRef.current % 30 === 0) {
+                    setPoseVisible(false);
+                    setCoachedTip('Camera seems frozen — try switching apps back');
+                }
+                animationRef.current = requestAnimationFrame(detect);
+                return;
+            }
+            lastFrameTimeRef.current = videoTime;
+
+            inferringRef.current = true;
             try {
                 if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
                     canvas.width = video.videoWidth || 640;
@@ -399,6 +421,7 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
                     }
                 }
             } catch (_err) { /* expected: inference may fail on dropped frames */ }
+            finally { inferringRef.current = false; }
 
             animationRef.current = requestAnimationFrame(detect);
         };

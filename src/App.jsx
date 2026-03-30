@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import {
-  Flame, Plus, Utensils, Dumbbell, Heart
-} from 'lucide-react';
+import { Flame } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 
 // Static imports — needed before auth resolves
@@ -21,7 +19,7 @@ const AILabView = React.lazy(() => import('./views/AILabView').then(m => ({ defa
 const AchievementsView = React.lazy(() => import('./views/AchievementsView').then(m => ({ default: m.AchievementsView })));
 const GhostMatchView = React.lazy(() => import('./views/GhostMatchView').then(m => ({ default: m.GhostMatchView })));
 
-import { NavBtn, ToastProvider, useToast, SkeletonCard, FloatingActionButton } from './components/UIComponents';
+import { NavBtn, ToastProvider, useToast, SkeletonCard } from './components/UIComponents';
 import { OfflineIndicator } from './components/StatusComponents';
 import { SplashScreen, PullToRefresh } from './components/PremiumUI';
 import AmbientFX from './components/AmbientFX';
@@ -51,7 +49,7 @@ const MainContent = () => {
   // direction state removed — instant tab switching, no animation
   const prevTabRef = useRef('dashboard');
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(false); // Disabled — straight to app
   const [authGate, setAuthGate] = useState('checking'); // checking | card | login | recovery | biometric | pin | pin_setup | passed
   const authGateResolved = useRef(false);
   const { addToast } = useToast();
@@ -439,20 +437,8 @@ const MainContent = () => {
 
 
 
-          {/* FLOATING ACTION BUTTON */}
-          {['dashboard', 'train'].includes(activeTab) && (
-            <FloatingActionButton
-              mainIcon={<Plus size={24} className="text-white" />}
-              actions={[
-                { label: 'Quick Meal', icon: <Utensils size={18} className="text-red-400" />, onClick: () => handleTabChange('dashboard') },
-                { label: 'Quick Workout', icon: <Dumbbell size={18} className="text-red-400" />, onClick: () => { handleTabChange('train'); window.dispatchEvent(new CustomEvent('ironcore:train-subtab', { detail: 'lift' })); } },
-                { label: 'Quick Cardio', icon: <Heart size={18} className="text-red-400" />, onClick: () => { handleTabChange('train'); window.dispatchEvent(new CustomEvent('ironcore:train-subtab', { detail: 'cardio' })); } },
-              ]}
-            />
-          )}
-
-          {/* VOICE COACH — Floating Mic Button */}
-          <VoiceCoach updateData={updateData} />
+          {/* Voice Coach — only on dashboard, positioned above nav */}
+          {activeTab === 'dashboard' && <VoiceCoach updateData={updateData} />}
           {/* BOTTOM NAV - LIQUID GLASS FLOATING DOCK */}
           <motion.div
             data-nav="bottom"

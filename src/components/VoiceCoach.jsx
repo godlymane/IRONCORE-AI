@@ -470,9 +470,9 @@ const VoiceCoach = ({ updateData, analyzeFood, cleanAIResponse }) => {
                 onClick={toggleListening}
                 whileTap={{ scale: 0.9 }}
                 aria-label={state === 'listening' ? 'Stop listening' : state === 'processing' ? 'Processing voice input' : state === 'speaking' ? 'Coach is speaking' : 'Start voice coach'}
-                className="fixed left-4 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl"
+                className="fixed left-4 z-50 w-11 h-11 rounded-full flex items-center justify-center shadow-lg"
                 style={{
-                    bottom: 'calc(env(safe-area-inset-bottom, 0px) + 7rem)',
+                    bottom: 'calc(env(safe-area-inset-bottom, 0px) + 5.5rem)',
                     background: state === 'listening'
                         ? 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)'
                         : 'linear-gradient(135deg, rgba(30, 30, 30, 0.95) 0%, rgba(20, 20, 20, 0.95) 100%)',
@@ -498,9 +498,9 @@ const VoiceCoach = ({ updateData, analyzeFood, cleanAIResponse }) => {
                     </>
                 )}
                 {state === 'listening' ? (
-                    <MicOff size={22} className="text-white relative z-10" />
+                    <MicOff size={16} className="text-white relative z-10" />
                 ) : (
-                    <Mic size={22} className={`relative z-10 ${state !== 'idle' ? 'text-red-400' : 'text-gray-300'}`} />
+                    <Mic size={16} className={`relative z-10 ${state !== 'idle' ? 'text-red-400' : 'text-gray-400'}`} />
                 )}
             </motion.button>
         </>

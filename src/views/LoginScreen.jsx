@@ -176,7 +176,7 @@ export const LoginScreen = ({ defaultUsername = '', onLoggedIn, onBack, onRecove
       setFailCount(0); // Reset fail count on successful login
       onLoggedIn({ username: returnedUser });
     } catch (e) {
-      console.error('Login error:', e?.code, e?.message, e);
+      console.error('Login error:', e?.code, e?.message, e?.details, JSON.stringify(e));
       const newFails = failCount + 1;
       setFailCount(newFails);
 

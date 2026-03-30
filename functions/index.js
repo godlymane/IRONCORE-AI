@@ -1750,29 +1750,42 @@ exports.loginWithPin = onCall(async (request) => {
   // Look up username → uid
   const usernameDoc = await db.collection("usernames").doc(normalizedUsername).get();
   if (!usernameDoc.exists) {
+    console.warn(`[loginWithPin] Username not found: "${normalizedUsername}"`);
     throw new HttpsError("not-found", "Invalid username or PIN.");
   }
 
   const uid = usernameDoc.data().uid;
+  console.log(`[loginWithPin] Found uid=${uid} for username="${normalizedUsername}"`);
 
   // Fetch profile and compare pinHash
   const profileDoc = await db.doc(`users/${uid}/data/profile`).get();
   if (!profileDoc.exists || !profileDoc.data().pinHash) {
+    console.warn(`[loginWithPin] Profile missing or no pinHash for uid=${uid}, exists=${profileDoc.exists}, hasPinHash=${!!profileDoc.data()?.pinHash}`);
     throw new HttpsError("not-found", "Invalid username or PIN.");
   }
 
   const storedPinHash = profileDoc.data().pinHash;
+  console.log(`[loginWithPin] Stored hash type: ${storedPinHash.startsWith("v2:") ? "v2-PBKDF2" : "v1-SHA256"}, length=${storedPinHash.length}`);
 
   // Verify PIN — supports both v1 (plain SHA-256) and v2 (PBKDF2+salt)
   let pinValid = false;
   try {
     if (storedPinHash.startsWith("v2:")) {
       // v2 PBKDF2 verification — requires raw PIN
-      if (!rawPin) throw new HttpsError("not-found", "Invalid username or PIN.");
-      const [, saltHex, expectedHex] = storedPinHash.split(":");
+      if (!rawPin) {
+        console.warn(`[loginWithPin] v2 hash but no rawPin provided`);
+        throw new HttpsError("not-found", "Invalid username or PIN.");
+      }
+      const parts = storedPinHash.split(":");
+      if (parts.length < 3) {
+        console.warn(`[loginWithPin] Malformed v2 hash: ${parts.length} parts`);
+        throw new HttpsError("not-found", "Invalid username or PIN.");
+      }
+      const [, saltHex, expectedHex] = parts;
       const salt = Buffer.from(saltHex, "hex");
       const derived = crypto.pbkdf2Sync(rawPin, salt, 100000, 32, "sha256");
       pinValid = crypto.timingSafeEqual(derived, Buffer.from(expectedHex, "hex"));
+      console.log(`[loginWithPin] v2 verification result: ${pinValid}`);
     } else {
       // v1 legacy — plain SHA-256 comparison
       const inputHash = rawPin
@@ -1781,13 +1794,16 @@ exports.loginWithPin = onCall(async (request) => {
       const a = Buffer.from(inputHash, "hex");
       const b = Buffer.from(storedPinHash, "hex");
       pinValid = a.length === b.length && crypto.timingSafeEqual(a, b);
+      console.log(`[loginWithPin] v1 verification result: ${pinValid}, inputLen=${a.length}, storedLen=${b.length}`);
     }
   } catch (e) {
     if (e instanceof HttpsError) throw e;
+    console.error(`[loginWithPin] PIN verify error:`, e.message);
     pinValid = false;
   }
 
   if (!pinValid) {
+    console.warn(`[loginWithPin] PIN mismatch for uid=${uid}`);
     throw new HttpsError("not-found", "Invalid username or PIN.");
   }
 

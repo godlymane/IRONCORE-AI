@@ -7,135 +7,8 @@ import { generatePhrase, hashPhrase, validateUsername } from '../utils/playerIde
 import { PinEntryView } from './PinEntryView';
 import { SFX, Haptics } from '../utils/audio';
 
-// ─── Cinematic Splash Intro ──────────────────────────────────────
-const SplashIntro = ({ onComplete }) => {
-  const [phase, setPhase] = useState(0); // 0=black, 1=lines, 2=logo, 3=text, 4=exit
-
-  useEffect(() => {
-    const timers = [
-      setTimeout(() => setPhase(1), 200),   // Start line animation
-      setTimeout(() => setPhase(2), 1200),   // Logo reveal
-      setTimeout(() => setPhase(3), 2200),   // Text
-      setTimeout(() => setPhase(4), 3400),   // Begin exit
-      setTimeout(() => onComplete(), 4200),  // Done — show landing
-    ];
-    return () => timers.forEach(clearTimeout);
-  }, [onComplete]);
-
-  return (
-    <motion.div
-      className="fixed inset-0 z-[9999] bg-black flex items-center justify-center overflow-hidden"
-      animate={phase >= 4 ? { opacity: 0 } : { opacity: 1 }}
-      transition={{ duration: 0.8, ease: 'easeInOut' }}
-    >
-      {/* Grid of converging lines — like a targeting system locking on */}
-      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-        {/* Horizontal lines converge to center */}
-        {[-35, -20, -8, 8, 20, 35].map((offset, i) => (
-          <motion.line
-            key={`h${i}`}
-            x1="0" y1={50 + offset} x2="100" y2={50 + offset}
-            stroke="#dc2626"
-            strokeWidth="0.08"
-            initial={{ pathLength: 0, opacity: 0 }}
-            animate={phase >= 1 ? {
-              pathLength: 1,
-              opacity: [0, 0.4, phase >= 3 ? 0.06 : 0.25],
-              y1: [50 + offset, 50 + offset, 50 + offset * 0.15],
-              y2: [50 + offset, 50 + offset, 50 + offset * 0.15],
-            } : {}}
-            transition={{ duration: 1.8, delay: i * 0.08, ease: [0.16, 1, 0.3, 1] }}
-          />
-        ))}
-        {/* Vertical lines converge to center */}
-        {[-30, -15, 15, 30].map((offset, i) => (
-          <motion.line
-            key={`v${i}`}
-            x1={50 + offset} y1="0" x2={50 + offset} y2="100"
-            stroke="#dc2626"
-            strokeWidth="0.08"
-            initial={{ pathLength: 0, opacity: 0 }}
-            animate={phase >= 1 ? {
-              pathLength: 1,
-              opacity: [0, 0.3, phase >= 3 ? 0.04 : 0.2],
-              x1: [50 + offset, 50 + offset, 50 + offset * 0.2],
-              x2: [50 + offset, 50 + offset, 50 + offset * 0.2],
-            } : {}}
-            transition={{ duration: 1.8, delay: 0.3 + i * 0.1, ease: [0.16, 1, 0.3, 1] }}
-          />
-        ))}
-        {/* Center crosshair that appears at convergence */}
-        <motion.circle
-          cx="50" cy="50" r="8"
-          fill="none" stroke="#dc2626" strokeWidth="0.12"
-          initial={{ scale: 0, opacity: 0 }}
-          animate={phase >= 2 ? { scale: [0, 1.5, 1], opacity: [0, 0.5, 0.15] } : {}}
-          transition={{ duration: 1, ease: 'easeOut' }}
-        />
-        <motion.circle
-          cx="50" cy="50" r="3"
-          fill="none" stroke="#dc2626" strokeWidth="0.15"
-          initial={{ scale: 0, opacity: 0 }}
-          animate={phase >= 2 ? { scale: [0, 2, 1], opacity: [0, 0.6, 0.2] } : {}}
-          transition={{ duration: 0.8, delay: 0.15, ease: 'easeOut' }}
-        />
-      </svg>
-
-      {/* Red glow ignites at center */}
-      <motion.div
-        className="absolute w-[300px] h-[300px] rounded-full blur-[100px]"
-        style={{ background: 'radial-gradient(circle, #dc2626, transparent 70%)' }}
-        initial={{ opacity: 0, scale: 0.2 }}
-        animate={phase >= 2 ? { opacity: [0, 0.5, 0.2], scale: [0.2, 1.3, 1] } : {}}
-        transition={{ duration: 1.5, ease: 'easeOut' }}
-      />
-
-      {/* Logo + text — completely hidden until their phase, no flash possible */}
-      {phase >= 2 && (
-        <motion.div
-          className="relative z-10 flex flex-col items-center"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.01 }}
-        >
-          <motion.img
-            src="/logo.png"
-            alt=""
-            className="w-28 h-28 object-contain"
-            style={{
-              WebkitMaskImage: 'radial-gradient(circle at center, black 40%, transparent 68%)',
-              maskImage: 'radial-gradient(circle at center, black 40%, transparent 68%)',
-            }}
-            initial={{ scale: 1.6, filter: 'blur(30px) brightness(3)' }}
-            animate={{ scale: 1, filter: 'blur(0px) brightness(1)' }}
-            transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
-          />
-
-          {phase >= 3 && (
-            <motion.div
-              className="mt-5 text-center"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.6 }}
-            >
-              <motion.p
-                className="text-[10px] text-red-500/60 uppercase font-medium"
-                initial={{ letterSpacing: '1em' }}
-                animate={{ letterSpacing: '0.5em' }}
-                transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-              >
-                Discipline is freedom
-              </motion.p>
-            </motion.div>
-          )}
-        </motion.div>
-      )}
-    </motion.div>
-  );
-};
-
-// ─── Warrior's Shadow — Cinematic Silhouette Animation ───────────
-const WarriorScene = () => {
+// eslint-disable-next-line no-unused-vars
+const _removedWarriorScene = () => {
   const LOOP = 14;
   const [time, setTime] = useState(0);
 
@@ -383,60 +256,143 @@ const WarriorScene = () => {
   );
 };
 
-// ─── Landing Screen ──────────────────────────────────────────────
+// Stoic quotes
+const QUOTES = [
+  { text: "The impediment to action advances action.", author: "Marcus Aurelius" },
+  { text: "We suffer more in imagination than in reality.", author: "Seneca" },
+  { text: "No man is free who is not master of himself.", author: "Epictetus" },
+  { text: "You could leave life right now. Let that determine what you do.", author: "Marcus Aurelius" },
+  { text: "He who has a why can bear almost any how.", author: "Nietzsche" },
+  { text: "The only way out is through.", author: "Robert Frost" },
+];
+const TAGLINES = ["Your discipline.", "Your strength.", "Your legacy.", "Your phone. Your trainer."];
+
+const RotatingQuote = () => {
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setIdx(i => (i + 1) % QUOTES.length), 6000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div key={idx} className="text-center px-4"
+        initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+        transition={{ duration: 0.5 }}>
+        <p className="text-[11px] text-white/30 italic leading-relaxed">"{QUOTES[idx].text}"</p>
+        <p className="text-[9px] text-red-500/40 mt-1 uppercase tracking-[0.2em] font-medium">— {QUOTES[idx].author}</p>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
+
+const TypewriterTagline = () => {
+  const [lineIdx, setLineIdx] = useState(0);
+  const [charIdx, setCharIdx] = useState(0);
+  const [deleting, setDeleting] = useState(false);
+  const current = TAGLINES[lineIdx];
+  useEffect(() => {
+    if (!deleting && charIdx < current.length) {
+      const t = setTimeout(() => setCharIdx(c => c + 1), 60 + Math.random() * 40);
+      return () => clearTimeout(t);
+    }
+    if (!deleting && charIdx === current.length) {
+      const t = setTimeout(() => setDeleting(true), 2000);
+      return () => clearTimeout(t);
+    }
+    if (deleting && charIdx > 0) {
+      const t = setTimeout(() => setCharIdx(c => c - 1), 30);
+      return () => clearTimeout(t);
+    }
+    if (deleting && charIdx === 0) { setDeleting(false); setLineIdx(i => (i + 1) % TAGLINES.length); }
+  }, [charIdx, deleting, current.length]);
+  return (
+    <div className="h-5 flex items-center justify-center">
+      <span className="text-xs text-gray-400 tracking-[0.25em] uppercase font-medium">{current.slice(0, charIdx)}</span>
+      <motion.span className="inline-block w-[2px] h-3.5 bg-red-500 ml-0.5" animate={{ opacity: [1, 0] }} transition={{ duration: 0.6, repeat: Infinity }} />
+    </div>
+  );
+};
+
+// ─── Landing Screen ─────────────────────────────────────────────
 const LandingScreen = ({ onCreateAccount, onLogin }) => (
   <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 overflow-hidden relative">
 
-    {/* The Warrior's Shadow — continuous cinematic animation */}
-    <WarriorScene />
-
-    {/* Ambient glow behind content */}
+    {/* Breathing glow */}
     <motion.div
-      className="absolute top-[35%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] rounded-full blur-[130px]"
-      style={{ background: 'radial-gradient(circle, #dc2626, transparent 65%)' }}
-      animate={{ opacity: [0.08, 0.18, 0.08] }}
-      transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+      className="absolute top-[30%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] h-[420px] rounded-full blur-[150px]"
+      style={{ background: 'radial-gradient(circle, #dc2626 0%, #991b1b 30%, transparent 70%)' }}
+      animate={{ opacity: [0.1, 0.22, 0.1], scale: [0.92, 1.05, 0.92] }}
+      transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
     />
 
-    {/* ═══ CONTENT — sits on top of animation ═══ */}
-    <div className="w-full max-w-sm relative z-10 mt-auto pb-12">
-      {/* Title */}
-      <h1 className="text-4xl font-black text-white uppercase tracking-tight mb-2 text-center"
-        style={{ textShadow: '0 0 40px rgba(220,38,38,0.2)' }}>
-        IronCore
-      </h1>
-
-      {/* Accent line */}
-      <motion.div
-        className="mx-auto mb-2 h-[2px] rounded-full bg-red-600"
-        animate={{ width: [36, 48, 36], opacity: [0.5, 0.9, 0.5] }}
-        transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+    {/* Ember particles */}
+    {[...Array(6)].map((_, i) => (
+      <motion.div key={i} className="absolute rounded-full pointer-events-none"
+        style={{ width: 1.5 + (i % 3), height: 1.5 + (i % 3), left: `${15 + i * 13}%`, background: '#dc2626', boxShadow: '0 0 4px rgba(220,38,38,0.4)' }}
+        animate={{ y: ['100vh', '-10vh'], opacity: [0, 0.35, 0.35, 0] }}
+        transition={{ duration: 9 + i * 2, delay: i * 1.5, repeat: Infinity, ease: 'linear' }}
       />
+    ))}
 
-      <p className="text-[11px] text-gray-500 mb-10 tracking-[0.3em] uppercase font-medium text-center">
-        Your Phone. Your Trainer.
-      </p>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}
+      className="w-full max-w-sm text-center relative z-10 flex flex-col items-center">
+
+      {/* Logo with breathing glow */}
+      <motion.div className="flex justify-center mb-6"
+        initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.5, type: 'spring', bounce: 0.3 }}>
+        <div className="relative">
+          <motion.div className="absolute inset-0 blur-3xl"
+            style={{ background: 'radial-gradient(circle, rgba(220,38,38,0.7), transparent 55%)', transform: 'scale(2.5)' }}
+            animate={{ opacity: [0.2, 0.38, 0.2] }}
+            transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }} />
+          <motion.img src="/logo.png" alt="IronCore"
+            className="relative w-32 h-32 object-contain"
+            style={{
+              WebkitMaskImage: 'radial-gradient(circle at center, black 40%, transparent 68%)',
+              maskImage: 'radial-gradient(circle at center, black 40%, transparent 68%)',
+              filter: 'drop-shadow(0 0 25px rgba(220,38,38,0.4))',
+            }}
+            animate={{ scale: [1, 1.03, 1] }}
+            transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }} />
+        </div>
+      </motion.div>
+
+      <motion.h1 className="text-4xl font-black text-white uppercase tracking-tight mb-2"
+        initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15, duration: 0.3 }}>
+        IronCore
+      </motion.h1>
+
+      {/* Breathing accent line */}
+      <motion.div className="h-[2px] rounded-full bg-red-600 mb-4"
+        animate={{ width: [36, 48, 36], opacity: [0.5, 1, 0.5] }}
+        transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }} />
+
+      {/* Typewriter tagline */}
+      <div className="mb-10"><TypewriterTagline /></div>
 
       {/* Buttons */}
-      <motion.button
-        onClick={onCreateAccount}
+      <motion.button onClick={onCreateAccount}
         className="w-full py-4 rounded-2xl font-black uppercase tracking-widest text-sm text-white mb-3 flex items-center justify-center gap-2"
-        style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)', boxShadow: '0 10px 40px rgba(220,38,38,0.25)' }}
-        whileTap={{ scale: 0.97 }}
-      >
+        style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)', boxShadow: '0 15px 50px rgba(220,38,38,0.3)' }}
+        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3, duration: 0.3 }} whileTap={{ scale: 0.97 }}>
         <UserPlus size={18} />
         Create Account
       </motion.button>
 
-      <motion.button
-        onClick={onLogin}
-        className="w-full py-4 rounded-2xl font-bold uppercase tracking-wider text-sm text-white/70 border border-white/8 bg-white/[0.03] active:bg-white/10 transition-all flex items-center justify-center gap-2"
-        whileTap={{ scale: 0.97 }}
-      >
-        <LogIn size={18} className="text-red-500/70" />
+      <motion.button onClick={onLogin}
+        className="w-full py-4 rounded-2xl font-bold uppercase tracking-wider text-sm text-white border border-white/10 bg-white/5 active:bg-white/10 transition-all flex items-center justify-center gap-2"
+        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.35, duration: 0.3 }} whileTap={{ scale: 0.97 }}>
+        <LogIn size={18} className="text-red-400" />
         Log In
       </motion.button>
-    </div>
+
+      {/* Rotating quote */}
+      <div className="mt-10 min-h-[40px]"><RotatingQuote /></div>
+    </motion.div>
   </div>
 );
 
@@ -727,7 +683,7 @@ const CardRevealScreen = ({ username, phrase, onSaved }) => {
 
 // ─── Main Orchestrator ──────────────────────────────────────────
 export const PlayerCardView = ({ onComplete, onLogin }) => {
-  const [step, setStep] = useState('splash'); // splash | landing | username | pin | creating | reveal
+  const [step, setStep] = useState('landing'); // landing | username | pin | creating | reveal
   const [username, setUsername] = useState('');
   const [phrase, setPhrase] = useState('');
   const [uid, setUid] = useState('');
@@ -839,7 +795,6 @@ export const PlayerCardView = ({ onComplete, onLogin }) => {
   };
 
   // ── Render by step ──
-  if (step === 'splash') return <SplashIntro onComplete={() => setStep('landing')} />;
   if (step === 'landing') return <LandingScreen onCreateAccount={() => setStep('username')} onLogin={onLogin} />;
   if (step === 'username') return <UsernameScreen onNext={handleUsernameChosen} onBack={() => setStep('landing')} createError={createError} />;
   if (step === 'pin') return <PinEntryView mode="setup" skipConfirm onComplete={handlePinSet} />;
