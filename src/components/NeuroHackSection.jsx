@@ -60,7 +60,7 @@ const SessionTimer = ({ startTime }) => {
 export const NeuroHackSection = () => {
   const [active, setActive] = useState(null);
   const [sessionStart, setSessionStart] = useState(null);
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const headphoneWarning = useRef(false);
 
   // Subscribe to NeuroAudio state

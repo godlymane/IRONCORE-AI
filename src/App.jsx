@@ -135,13 +135,18 @@ const MainContent = () => {
   // Nav auto-hide on scroll
   const [navVisible, setNavVisible] = useState(true);
   const lastScrollY = useRef(0);
+  const rafRef = useRef(null);
 
   const handleScroll = useCallback((e) => {
-    const currentY = e.target.scrollTop;
-    if (currentY < 50) { setNavVisible(true); }
-    else if (currentY > lastScrollY.current + 10) { setNavVisible(false); }
-    else if (currentY < lastScrollY.current - 10) { setNavVisible(true); }
-    lastScrollY.current = currentY;
+    if (rafRef.current) return;
+    rafRef.current = requestAnimationFrame(() => {
+        const currentY = e.target.scrollTop;
+        if (currentY < 50) { setNavVisible(true); }
+        else if (currentY > lastScrollY.current + 10) { setNavVisible(false); }
+        else if (currentY < lastScrollY.current - 10) { setNavVisible(true); }
+        lastScrollY.current = currentY;
+        rafRef.current = null;
+    });
   }, []);
 
   // Instant tab switching — no animation delay
@@ -399,37 +404,37 @@ const MainContent = () => {
             >
               {activeTab === 'dashboard' && (
                   <ViewErrorBoundary viewName="Dashboard">
-                    <React.Suspense fallback={<DashboardSkeleton />}>
+                    <SuspenseWithTimeout fallback={<DashboardSkeleton />}>
                       <DashboardView meals={meals} burned={burned} workouts={workouts} updateData={updateData} deleteEntry={deleteEntry} profile={profile} uploadProfilePic={uploadProfilePic} user={user} completeDailyDrop={completeDailyDrop} buyItem={buyItem} isStorageReady={isStorageReady} dataLoaded={dataLoaded} />
-                    </React.Suspense>
+                    </SuspenseWithTimeout>
                   </ViewErrorBoundary>
               )}
               {activeTab === 'train' && (
                   <ViewErrorBoundary viewName="Train">
-                    <React.Suspense fallback={<WorkoutSkeleton />}>
+                    <SuspenseWithTimeout fallback={<WorkoutSkeleton />}>
                       <TrainView />
-                    </React.Suspense>
+                    </SuspenseWithTimeout>
                   </ViewErrorBoundary>
               )}
               {activeTab === 'arena' && (
                   <ViewErrorBoundary viewName="Arena">
-                    <React.Suspense fallback={<ArenaSkeleton />}>
+                    <SuspenseWithTimeout fallback={<ArenaSkeleton />}>
                       <ArenaView user={user} workouts={workouts} meals={meals} burned={burned} leaderboard={leaderboard} profile={profile} chat={chat} sendMessage={sendMessage} battles={battles} createBattle={createBattle} />
-                    </React.Suspense>
+                    </SuspenseWithTimeout>
                   </ViewErrorBoundary>
               )}
               {activeTab === 'profile' && (
                   <ViewErrorBoundary viewName="Profile">
-                    <React.Suspense fallback={<ProfileSkeleton />}>
+                    <SuspenseWithTimeout fallback={<ProfileSkeleton />}>
                       <ProfileHub deleteEntry={deleteEntry} onLogout={logout} />
-                    </React.Suspense>
+                    </SuspenseWithTimeout>
                   </ViewErrorBoundary>
               )}
               {activeTab === 'ailab' && (
                   <ViewErrorBoundary viewName="AI Lab">
-                    <React.Suspense fallback={<AILabSkeleton />}>
+                    <SuspenseWithTimeout fallback={<AILabSkeleton />}>
                       <AILabView workouts={workouts} meals={meals} profile={profile} updateData={updateData} weight={latestWeight} />
-                    </React.Suspense>
+                    </SuspenseWithTimeout>
                   </ViewErrorBoundary>
               )}
             </div>
@@ -479,6 +484,52 @@ const MainContent = () => {
       </div>
     </PremiumProvider>
   );
+};
+
+// Suspense wrapper with timeout — shows error UI only if the JS chunk fails to load
+// Uses a longer timeout (30s) to avoid false positives during slow data fetches
+const SuspenseWithTimeout = ({ fallback, children, timeoutMs = 30000 }) => {
+  const [timedOut, setTimedOut] = React.useState(false);
+  const [loaded, setLoaded] = React.useState(false);
+
+  React.useEffect(() => {
+    if (loaded) return; // Don't timeout after chunk has loaded
+    setTimedOut(false);
+    const timer = setTimeout(() => { if (!loaded) setTimedOut(true); }, timeoutMs);
+    return () => clearTimeout(timer);
+  }, [timeoutMs, loaded]);
+
+  if (timedOut && !loaded) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+        <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center">
+          <span className="text-2xl">!</span>
+        </div>
+        <h3 className="text-lg font-black text-white uppercase">Load Timeout</h3>
+        <p className="text-xs text-gray-500 max-w-xs">This view took too long to load. Check your connection.</p>
+        <button
+          onClick={() => { setTimedOut(false); setLoaded(false); }}
+          className="px-6 py-2 rounded-xl text-xs font-bold text-white"
+          style={{ background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)', boxShadow: '0 4px 15px rgba(220, 38, 38, 0.4)' }}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <React.Suspense fallback={fallback}>
+      <SuspenseLoadedMarker onLoaded={() => setLoaded(true)} />
+      {children}
+    </React.Suspense>
+  );
+};
+
+// Tiny component that fires onLoaded when mounted (meaning Suspense resolved)
+const SuspenseLoadedMarker = ({ onLoaded }) => {
+  React.useEffect(() => { onLoaded(); }, [onLoaded]);
+  return null;
 };
 
 // Per-view error boundary — isolates crashes to individual views

@@ -31,9 +31,11 @@ export const ForgeHUD = ({ currentForge = 0, longestForge = 0, forgeShieldCount 
   const multiplier = getMultiplier(currentForge);
   const fire = getFireIntensity(currentForge);
 
+  const toastTimerRef = React.useRef(null);
   const showToast = useCallback((msg, type = 'success') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast({ msg, type });
-    setTimeout(() => setToast(null), 2500);
+    toastTimerRef.current = setTimeout(() => setToast(null), 2500);
   }, []);
 
   const handleUseShield = useCallback(async () => {

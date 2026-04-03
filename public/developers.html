@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IronCore Open API — Developer Portal</title>
+<meta name="description" content="The fitness data layer for the AI agent era. Build AI coaches, wearable integrations, and health dashboards with the IronCore Open API.">
+<meta property="og:title" content="IronCore Open API — Developer Portal">
+<meta property="og:description" content="First fitness app with a developer API for AI agents. Build with real fitness data.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#000000">
+<style>
+/* ============================================
+   RESET & BASE
+   ============================================ */
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  background:#000;
+  color:#fff;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  line-height:1.6;
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+
+/* ============================================
+   GLOW EFFECTS
+   ============================================ */
+.glow-top{
+  position:fixed;top:-200px;left:50%;transform:translateX(-50%);
+  width:900px;height:900px;
+  background:radial-gradient(circle,rgba(220,38,38,0.08) 0%,rgba(220,38,38,0.03) 30%,transparent 65%);
+  pointer-events:none;z-index:0;
+}
+.glow-mid{
+  position:absolute;top:1800px;right:-300px;
+  width:700px;height:700px;
+  background:radial-gradient(circle,rgba(220,38,38,0.06) 0%,transparent 60%);
+  pointer-events:none;z-index:0;
+}
+
+/* ============================================
+   LAYOUT
+   ============================================ */
+.wrapper{position:relative;z-index:1}
+.container{max-width:1100px;margin:0 auto;padding:0 24px}
+section{padding:100px 0}
+
+/* ============================================
+   NAVIGATION
+   ============================================ */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  background:rgba(0,0,0,0.85);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+nav .container{
+  display:flex;align-items:center;justify-content:space-between;
+  height:64px;
+}
+.nav-logo{
+  font-size:18px;font-weight:900;letter-spacing:-0.5px;
+  text-transform:uppercase;color:#fff;text-decoration:none;
+}
+.nav-logo span{color:#dc2626}
+.nav-links{display:flex;gap:32px;align-items:center}
+.nav-links a{
+  font-size:13px;font-weight:500;color:#9ca3af;
+  text-decoration:none;transition:color 0.2s;
+  letter-spacing:0.2px;
+}
+.nav-links a:hover{color:#fff}
+.nav-links .nav-cta{
+  background:#dc2626;color:#fff;padding:8px 18px;
+  border-radius:8px;font-weight:700;font-size:12px;
+  text-transform:uppercase;letter-spacing:0.5px;
+  transition:background 0.2s;
+}
+.nav-links .nav-cta:hover{background:#ef4444}
+
+/* ============================================
+   HERO
+   ============================================ */
+.hero{
+  padding:160px 0 100px;text-align:center;
+  position:relative;
+}
+.hero-badge{
+  display:inline-block;
+  padding:6px 16px;border-radius:100px;
+  background:rgba(220,38,38,0.1);
+  border:1px solid rgba(220,38,38,0.3);
+  font-size:11px;font-weight:700;
+  text-transform:uppercase;letter-spacing:2px;
+  color:#dc2626;margin-bottom:32px;
+}
+.hero h1{
+  font-size:clamp(48px,8vw,84px);
+  font-weight:900;letter-spacing:-3px;
+  line-height:0.95;
+  text-transform:uppercase;
+  margin-bottom:24px;
+}
+.hero h1 .accent{
+  background:linear-gradient(135deg,#dc2626 0%,#f87171 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;
+}
+.hero-sub{
+  font-size:20px;color:#9ca3af;
+  max-width:560px;margin:0 auto 16px;
+  line-height:1.5;font-weight:400;
+}
+.hero-sub-sm{
+  font-size:14px;color:#6b7280;
+  max-width:480px;margin:0 auto 40px;
+}
+.hero-buttons{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+.btn-primary{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:14px 32px;border-radius:12px;
+  background:linear-gradient(135deg,#dc2626 0%,#b91c1c 100%);
+  color:#fff;font-size:14px;font-weight:800;
+  text-transform:uppercase;letter-spacing:0.5px;
+  text-decoration:none;
+  box-shadow:0 8px 30px rgba(220,38,38,0.35);
+  transition:transform 0.2s,box-shadow 0.2s;
+}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(220,38,38,0.5)}
+.btn-secondary{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:14px 32px;border-radius:12px;
+  background:rgba(255,255,255,0.05);
+  border:1px solid rgba(255,255,255,0.1);
+  color:#fff;font-size:14px;font-weight:700;
+  text-transform:uppercase;letter-spacing:0.5px;
+  text-decoration:none;
+  transition:background 0.2s,border-color 0.2s;
+}
+.btn-secondary:hover{background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.2)}
+
+/* ============================================
+   SECTION HEADERS
+   ============================================ */
+.section-label{
+  font-size:11px;font-weight:700;
+  text-transform:uppercase;letter-spacing:3px;
+  color:#dc2626;margin-bottom:12px;
+}
+.section-title{
+  font-size:clamp(32px,5vw,48px);
+  font-weight:900;letter-spacing:-2px;
+  text-transform:uppercase;
+  margin-bottom:16px;line-height:1;
+}
+.section-desc{
+  font-size:16px;color:#9ca3af;
+  max-width:600px;line-height:1.6;
+}
+.section-header{margin-bottom:64px}
+
+/* ============================================
+   USE CASE CARDS
+   ============================================ */
+.use-cases-grid{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:20px;
+}
+.use-case-card{
+  padding:36px 32px;
+  border-radius:16px;
+  background:rgba(255,255,255,0.02);
+  border:1px solid rgba(255,255,255,0.06);
+  transition:border-color 0.3s,background 0.3s;
+  position:relative;overflow:hidden;
+}
+.use-case-card:hover{
+  border-color:rgba(220,38,38,0.3);
+  background:rgba(220,38,38,0.03);
+}
+.use-case-icon{
+  width:48px;height:48px;
+  border-radius:12px;
+  background:rgba(220,38,38,0.1);
+  border:1px solid rgba(220,38,38,0.2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;margin-bottom:20px;
+}
+.use-case-card h3{
+  font-size:18px;font-weight:800;
+  text-transform:uppercase;letter-spacing:-0.3px;
+  margin-bottom:8px;
+}
+.use-case-card p{
+  font-size:14px;color:#9ca3af;line-height:1.6;
+}
+
+/* ============================================
+   QUICK START
+   ============================================ */
+.quickstart{background:rgba(255,255,255,0.01)}
+.steps{display:flex;flex-direction:column;gap:48px}
+.step{display:grid;grid-template-columns:64px 1fr;gap:24px;align-items:start}
+.step-num{
+  width:52px;height:52px;
+  border-radius:14px;
+  background:linear-gradient(135deg,rgba(220,38,38,0.15) 0%,rgba(220,38,38,0.05) 100%);
+  border:1px solid rgba(220,38,38,0.3);
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;font-weight:900;color:#dc2626;
+  flex-shrink:0;
+}
+.step-content h3{
+  font-size:18px;font-weight:800;
+  text-transform:uppercase;letter-spacing:-0.3px;
+  margin-bottom:8px;
+}
+.step-content p{
+  font-size:14px;color:#9ca3af;line-height:1.6;
+  margin-bottom:16px;
+}
+
+/* ============================================
+   CODE BLOCKS
+   ============================================ */
+.code-block{
+  position:relative;
+  background:#0a0a0a;
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:12px;
+  overflow:hidden;
+}
+.code-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;
+  background:rgba(255,255,255,0.03);
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+.code-lang{
+  font-size:11px;font-weight:700;
+  text-transform:uppercase;letter-spacing:1.5px;
+  color:#6b7280;
+}
+.copy-btn{
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.1);
+  color:#9ca3af;padding:4px 12px;
+  border-radius:6px;font-size:11px;
+  font-weight:600;cursor:pointer;
+  transition:all 0.2s;font-family:inherit;
+}
+.copy-btn:hover{background:rgba(255,255,255,0.1);color:#fff}
+.copy-btn.copied{background:rgba(34,197,94,0.15);border-color:rgba(34,197,94,0.3);color:#22c55e}
+pre{
+  padding:20px;margin:0;overflow-x:auto;
+  font-family:'SF Mono','Fira Code','Cascadia Code',Consolas,monospace;
+  font-size:13px;line-height:1.7;
+  color:#e5e7eb;
+  tab-size:2;
+}
+pre .comment{color:#4b5563}
+pre .string{color:#f87171}
+pre .key{color:#93c5fd}
+pre .number{color:#fbbf24}
+pre .method-get{color:#22c55e;font-weight:700}
+pre .method-post{color:#f97316;font-weight:700}
+pre .url{color:#9ca3af}
+pre .punctuation{color:#6b7280}
+
+/* ============================================
+   ENDPOINTS
+   ============================================ */
+.endpoints-list{display:flex;flex-direction:column;gap:16px}
+.endpoint-card{
+  border:1px solid rgba(255,255,255,0.06);
+  border-radius:14px;
+  overflow:hidden;
+  background:rgba(255,255,255,0.01);
+  transition:border-color 0.3s;
+}
+.endpoint-card:hover{border-color:rgba(255,255,255,0.12)}
+.endpoint-header{
+  display:flex;align-items:center;gap:16px;
+  padding:20px 24px;cursor:pointer;
+  user-select:none;
+}
+.method-badge{
+  padding:4px 10px;border-radius:6px;
+  font-size:11px;font-weight:800;
+  text-transform:uppercase;letter-spacing:0.5px;
+  font-family:'SF Mono','Fira Code',Consolas,monospace;
+  flex-shrink:0;min-width:52px;text-align:center;
+}
+.method-badge.get{background:rgba(34,197,94,0.12);color:#22c55e;border:1px solid rgba(34,197,94,0.25)}
+.method-badge.post{background:rgba(249,115,22,0.12);color:#f97316;border:1px solid rgba(249,115,22,0.25)}
+.endpoint-path{
+  font-family:'SF Mono','Fira Code',Consolas,monospace;
+  font-size:14px;font-weight:600;color:#fff;
+}
+.endpoint-desc{
+  font-size:13px;color:#6b7280;margin-left:auto;
+  text-align:right;
+}
+.endpoint-scope{
+  font-size:10px;font-weight:700;
+  text-transform:uppercase;letter-spacing:1px;
+  color:#dc2626;padding:3px 8px;
+  border-radius:4px;
+  background:rgba(220,38,38,0.1);
+  white-space:nowrap;
+}
+.endpoint-body{
+  padding:0 24px 24px;
+  display:none;
+  border-top:1px solid rgba(255,255,255,0.04);
+}
+.endpoint-body.open{display:block;padding-top:20px}
+.endpoint-detail-label{
+  font-size:10px;font-weight:700;
+  text-transform:uppercase;letter-spacing:1.5px;
+  color:#6b7280;margin-bottom:8px;
+}
+.endpoint-detail-section{margin-bottom:20px}
+.endpoint-detail-section:last-child{margin-bottom:0}
+
+/* ============================================
+   AUTH & SCOPES
+   ============================================ */
+.auth-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start}
+.auth-info{display:flex;flex-direction:column;gap:24px}
+.auth-item{
+  padding:24px;border-radius:12px;
+  background:rgba(255,255,255,0.02);
+  border:1px solid rgba(255,255,255,0.06);
+}
+.auth-item h4{
+  font-size:14px;font-weight:800;
+  text-transform:uppercase;letter-spacing:-0.2px;
+  margin-bottom:6px;
+}
+.auth-item p{font-size:13px;color:#9ca3af;line-height:1.6}
+
+.scopes-table{width:100%;border-collapse:collapse}
+.scopes-table th{
+  text-align:left;
+  font-size:10px;font-weight:700;
+  text-transform:uppercase;letter-spacing:1.5px;
+  color:#6b7280;padding:12px 16px;
+  border-bottom:1px solid rgba(255,255,255,0.08);
+}
+.scopes-table td{
+  padding:14px 16px;
+  border-bottom:1px solid rgba(255,255,255,0.04);
+  font-size:13px;
+}
+.scopes-table td:first-child{
+  font-family:'SF Mono','Fira Code',Consolas,monospace;
+  font-weight:600;color:#f87171;
+  font-size:12px;white-space:nowrap;
+}
+.scopes-table td:last-child{color:#9ca3af}
+.scopes-table tr:last-child td{border-bottom:none}
+.scopes-table-wrap{
+  border:1px solid rgba(255,255,255,0.06);
+  border-radius:14px;overflow:hidden;
+  background:rgba(255,255,255,0.01);
+}
+
+/* ============================================
+   RATE LIMIT VISUAL
+   ============================================ */
+.rate-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:8px 16px;border-radius:8px;
+  background:rgba(250,204,21,0.08);
+  border:1px solid rgba(250,204,21,0.2);
+  font-size:13px;font-weight:700;color:#facc15;
+  margin-top:8px;
+}
+.rate-dot{
+  width:8px;height:8px;border-radius:50%;
+  background:#facc15;
+  animation:pulse 2s infinite;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+
+/* ============================================
+   FOOTER
+   ============================================ */
+footer{
+  border-top:1px solid rgba(255,255,255,0.06);
+  padding:48px 0;
+}
+.footer-inner{
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:16px;
+}
+.footer-brand{
+  font-size:14px;font-weight:800;
+  text-transform:uppercase;letter-spacing:-0.3px;
+}
+.footer-brand span{color:#dc2626}
+.footer-links{display:flex;gap:24px}
+.footer-links a{
+  font-size:12px;color:#6b7280;
+  text-decoration:none;transition:color 0.2s;
+}
+.footer-links a:hover{color:#9ca3af}
+.footer-powered{
+  font-size:10px;color:#374151;
+  text-transform:uppercase;letter-spacing:2px;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media(max-width:768px){
+  section{padding:72px 0}
+  .hero{padding:120px 0 72px}
+  .hero h1{letter-spacing:-1.5px}
+  .use-cases-grid{grid-template-columns:1fr}
+  .auth-grid{grid-template-columns:1fr}
+  .step{grid-template-columns:1fr}
+  .step-num{margin-bottom:-12px}
+  .endpoint-header{flex-wrap:wrap;gap:8px}
+  .endpoint-desc{margin-left:0;text-align:left;margin-top:4px;width:100%}
+  .endpoint-scope{margin-left:0}
+  .nav-links .nav-link-text{display:none}
+  .nav-links{gap:16px}
+  .footer-inner{flex-direction:column;text-align:center}
+  pre{font-size:11px;padding:14px}
+}
+@media(max-width:480px){
+  .container{padding:0 16px}
+  .hero-buttons{flex-direction:column;align-items:center}
+  .btn-primary,.btn-secondary{width:100%;justify-content:center}
+}
+</style>
+</head>
+<body>
+
+<div class="glow-top"></div>
+<div class="glow-mid"></div>
+
+<!-- ==================== NAV ==================== -->
+<nav>
+  <div class="container">
+    <a href="/" class="nav-logo">Iron<span>Core</span> AI</a>
+    <div class="nav-links">
+      <a href="#quickstart" class="nav-link-text">Quick Start</a>
+      <a href="#endpoints" class="nav-link-text">Endpoints</a>
+      <a href="#auth" class="nav-link-text">Auth</a>
+      <a href="#scopes" class="nav-link-text">Scopes</a>
+      <a href="https://play.google.com/store/apps/details?id=com.ironcore.ai" class="nav-cta">Get App</a>
+    </div>
+  </div>
+</nav>
+
+<div class="wrapper">
+
+<!-- ==================== HERO ==================== -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-badge">Open API Beta</div>
+    <h1>IronCore<br><span class="accent">Open API</span></h1>
+    <p class="hero-sub">The fitness data layer for the AI agent era.</p>
+    <p class="hero-sub-sm">First fitness app with a developer API for AI agents. Read workout history, log sessions, query leaderboards, and trigger PvP battles &mdash; all from your code.</p>
+    <div class="hero-buttons">
+      <a href="#quickstart" class="btn-primary">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 1v14l11-7z"/></svg>
+        Get Started
+      </a>
+      <a href="https://play.google.com/store/apps/details?id=com.ironcore.ai" class="btn-secondary">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 12 12 4"/><polyline points="6 4 12 4 12 10"/></svg>
+        Download App
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== WHAT YOU CAN BUILD ==================== -->
+<section id="usecases">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">Use Cases</div>
+      <div class="section-title">What You Can Build</div>
+      <p class="section-desc">The IronCore API gives your code access to real workout data, progression systems, and competitive features.</p>
+    </div>
+    <div class="use-cases-grid">
+      <div class="use-case-card">
+        <div class="use-case-icon">&#x1F916;</div>
+        <h3>Personal AI Coach</h3>
+        <p>Your agent reads workout history, analyzes patterns, and gives truly personalized training advice based on real performance data.</p>
+      </div>
+      <div class="use-case-card">
+        <div class="use-case-icon">&#x231A;</div>
+        <h3>Smart Watch Integration</h3>
+        <p>Sync workouts from any wearable device. Push heart rate, reps, and session data directly into the user's IronCore profile.</p>
+      </div>
+      <div class="use-case-card">
+        <div class="use-case-icon">&#x1F3CB;</div>
+        <h3>Gym Kiosk Software</h3>
+        <p>Build check-in terminals that log workouts from gym hardware. Members scan in, train, and everything syncs to their phone.</p>
+      </div>
+      <div class="use-case-card">
+        <div class="use-case-icon">&#x1F4CA;</div>
+        <h3>Health Analytics</h3>
+        <p>Build dashboards with real fitness data. Track trends, generate reports, and visualize progression across every metric.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== QUICK START ==================== -->
+<section id="quickstart" class="quickstart">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">Quick Start</div>
+      <div class="section-title">Three Steps to Your First Call</div>
+      <p class="section-desc">Get up and running in under two minutes. No SDK required &mdash; it's just REST.</p>
+    </div>
+
+    <div class="steps">
+      <!-- Step 1 -->
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h3>Get Your API Key</h3>
+          <p>Download IronCore AI from the Play Store. Open your <strong>Profile</strong>, tap <strong>Connected Agents</strong>, and generate your API key. Keys start with <code style="color:#f87171;background:rgba(248,113,113,0.1);padding:2px 6px;border-radius:4px;font-size:12px">ic_</code>.</p>
+        </div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h3>Make Your First Call</h3>
+          <p>Fetch your profile with a single curl command:</p>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">bash</span>
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
+<pre>curl -H <span class="string">"Authorization: Bearer ic_YOUR_KEY"</span> \
+  <span class="url">https://us-central1-ironcore-f68c2.cloudfunctions.net/apiGetProfile</span></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h3>Parse the Response</h3>
+          <p>You'll get back your full fitness profile as JSON:</p>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">json</span>
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
+<pre><span class="punctuation">{</span>
+  <span class="key">"username"</span><span class="punctuation">:</span> <span class="string">"trex_"</span><span class="punctuation">,</span>
+  <span class="key">"level"</span><span class="punctuation">:</span> <span class="number">12</span><span class="punctuation">,</span>
+  <span class="key">"xp"</span><span class="punctuation">:</span> <span class="number">5840</span><span class="punctuation">,</span>
+  <span class="key">"league"</span><span class="punctuation">:</span> <span class="string">"Gold"</span><span class="punctuation">,</span>
+  <span class="key">"currentForge"</span><span class="punctuation">:</span> <span class="number">14</span><span class="punctuation">,</span>
+  <span class="key">"wins"</span><span class="punctuation">:</span> <span class="number">23</span><span class="punctuation">,</span>
+  <span class="key">"losses"</span><span class="punctuation">:</span> <span class="number">8</span><span class="punctuation">,</span>
+  <span class="key">"eloRating"</span><span class="punctuation">:</span> <span class="number">1456</span>
+<span class="punctuation">}</span></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== ENDPOINTS ==================== -->
+<section id="endpoints">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">Reference</div>
+      <div class="section-title">API Endpoints</div>
+      <p class="section-desc">All endpoints use the base URL <code style="color:#6b7280;font-size:13px">https://us-central1-ironcore-f68c2.cloudfunctions.net</code></p>
+    </div>
+
+    <div class="endpoints-list">
+
+      <!-- GET /apiGetProfile -->
+      <div class="endpoint-card">
+        <div class="endpoint-header" onclick="toggleEndpoint(this)">
+          <span class="method-badge get">GET</span>
+          <span class="endpoint-path">/apiGetProfile</span>
+          <span class="endpoint-desc">Your fitness profile, level, league, and ELO</span>
+          <span class="endpoint-scope">profile:read</span>
+        </div>
+        <div class="endpoint-body">
+          <div class="endpoint-detail-section">
+            <div class="endpoint-detail-label">Example Request</div>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre>curl -H <span class="string">"Authorization: Bearer ic_YOUR_KEY"</span> \
+  <span class="url">https://us-central1-ironcore-f68c2.cloudfunctions.net/apiGetProfile</span></pre>
+            </div>
+          </div>
+          <div class="endpoint-detail-section">
+            <div class="endpoint-detail-label">Response</div>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">json</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre><span class="punctuation">{</span>
+  <span class="key">"username"</span><span class="punctuation">:</span> <span class="string">"trex_"</span><span class="punctuation">,</span>
+  <span class="key">"level"</span><span class="punctuation">:</span> <span class="number">12</span><span class="punctuation">,</span>  <span class="key">"xp"</span><span class="punctuation">:</span> <span class="number">5840</span><span class="punctuation">,</span>
+  <span class="key">"league"</span><span class="punctuation">:</span> <span class="string">"Gold"</span><span class="punctuation">,</span>
+  <span class="key">"currentForge"</span><span class="punctuation">:</span> <span class="number">14</span><span class="punctuation">,</span>
+  <span class="key">"wins"</span><span class="punctuation">:</span> <span class="number">23</span><span class="punctuation">,</span>  <span class="key">"losses"</span><span class="punctuation">:</span> <span class="number">8</span><span class="punctuation">,</span>
+  <span class="key">"eloRating"</span><span class="punctuation">:</span> <span class="number">1456</span>
+<span class="punctuation">}</span></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GET /apiGetWorkouts -->
+      <div class="endpoint-card">
+        <div class="endpoint-header" onclick="toggleEndpoint(this)">
+          <span class="method-badge get">GET</span>
+          <span class="endpoint-path">/apiGetWorkouts</span>
+          <span class="endpoint-desc">Workout history, paginated</span>
+          <span class="endpoint-scope">workouts:read</span>
+        </div>
+        <div class="endpoint-body">
+          <div class="endpoint-detail-section">
+            <div class="endpoint-detail-label">Query Parameters</div>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">params</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre><span class="key">limit</span>    <span class="comment">// Number of workouts (default: 20, max: 100)</span>
+<span class="key">offset</span>   <span class="comment">// Pagination offset (default: 0)</span>
+<span class="key">from</span>     <span class="comment">// Start date — ISO 8601 (e.g. 2026-01-01)</span>
+<span class="key">to</span>       <span class="comment">// End date — ISO 8601</span></pre>
+            </div>
+          </div>
+          <div class="endpoint-detail-section">
+            <div class="endpoint-detail-label">Example Request</div>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre>curl -H <span class="string">"Authorization: Bearer ic_YOUR_KEY"</span> \
+  <span class="url">"https://us-central1-ironcore-f68c2.cloudfunctions.net/apiGetWorkouts?limit=5"</span></pre>
+            </div>
+          </div>
+          <div class="endpoint-detail-section">
+            <div class="endpoint-detail-label">Response</div>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">json</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre><span class="punctuation">{</span>
+  <span class="key">"workouts"</span><span class="punctuation">:</span> <span class="punctuation">[</span>
+    <span class="punctuation">{</span>
+      <span class="key">"id"</span><span class="punctuation">:</span> <span class="string">"w_8f3k2m"</span><span class="punctuation">,</span>
+      <span class="key">"type"</span><span class="punctuation">:</span> <span class="string">"Push"</span><span class="punctuation">,</span>
+      <span class="key">"date"</span><span class="punctuation">:</span> <span class="string">"2026-03-28T10:30:00Z"</span><span class="punctuation">,</span>
+      <span class="key">"duration"</span><span class="punctuation">:</span> <span class="number">3420</span><span class="punctuation">,</span>
+      <span class="key">"exercises"</span><span class="punctuation">:</span> <span class="number">6</span><span class="punctuation">,</span>
+      <span class="key">"totalVolume"</span><span class="punctuation">:</span> <span class="number">12450</span><span class="punctuation">,</span>
+      <span class="key">"xpEarned"</span><span class="punctuation">:</span> <span class="number">85</span>
+    <span class="punctuation">}</span>
+  <span class="punctuation">]</span><span class="punctuation">,</span>
+  <span class="key">"total"</span><span class="punctuation">:</span> <span class="number">142</span><span class="punctuation">,</span>
+  <span class="key">"hasMore"</span><span class="punctuation">:</span> <span class="number">true</span>
+<span class="punctuation">}</span></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- POST /apiCreateWorkout -->
+      <div class="endpoint-card">
+        <div class="endpoint-header" onclick="toggleEndpoint(this)">
+          <span class="method-badge post">POST</span>
+          <span class="endpoint-path">/apiCreateWorkout</span>
+          <span class="endpoint-desc">Log a new workout session</span>
+          <span class="endpoint-scope">workouts:write</span>
+        </div>
+        <div class="endpoint-body">
+          <div class="endpoint-detail-section">
+            <div class="endpoint-detail-label">Request Body</div>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">json</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre><span class="punctuation">{</span>
+  <span class="key">"type"</span><span class="punctuation">:</span> <span class="string">"Push"</span><span class="punctuation">,</span>
+  <span class="key">"exercises"</span><span class="punctuation">:</span> <span class="punctuation">[</span>
+    <span class="punctuation">{</span>
+      <span class="key">"name"</span><span class="punctuation">:</span> <span class="string">"Bench Press"</span><span class="punctuation">,</span>
+      <span class="key">"sets"</span><span class="punctuation">:</span> <span class="punctuation">[</span>
+        <span class="punctuation">{</span> <span class="key">"weight"</span><span class="punctuation">:</span> <span class="number">80</span><span class="punctuation">,</span> <span class="key">"reps"</span><span class="punctuation">:</span> <span class="number">10</span> <span class="punctuation">}</span><span class="punctuation">,</span>
+        <span class="punctuation">{</span> <span class="key">"weight"</span><span class="punctuation">:</span> <span class="number">85</span><span class="punctuation">,</span> <span class="key">"reps"</span><span class="punctuation">:</span> <span class="number">8</span> <span class="punctuation">}</span>
+      <span class="punctuation">]</span>
+    <span class="punctuation">}</span>
+  <span class="punctuation">]</span><span class="punctuation">,</span>
+  <span class="key">"duration"</span><span class="punctuation">:</span> <span class="number">3420</span>
+<span class="punctuation">}</span></pre>
+            </div>
+          </div>
+          <div class="endpoint-detail-section">
+            <div class="endpoint-detail-label">Example Request</div>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre>curl -X POST \
+  -H <span class="string">"Authorization: Bearer ic_YOUR_KEY"</span> \
+  -H <span class="string">"Content-Type: application/json"</span> \
+  -d <span class="string">'{"type":"Push","exercises":[...],"duration":3420}'</span> \
+  <span class="url">https://us-central1-ironcore-f68c2.cloudfunctions.net/apiCreateWorkout</span></pre>
+            </div>
+          </div>
+          <div class="endpoint-detail-section">
+            <div class="endpoint-detail-label">Response</div>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">json</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre><span class="punctuation">{</span>
+  <span class="key">"id"</span><span class="punctuation">:</span> <span class="string">"w_9x2kf8"</span><span class="punctuation">,</span>
+  <span class="key">"xpEarned"</span><span class="punctuation">:</span> <span class="number">95</span><span class="punctuation">,</span>
+  <span class="key">"forgeProgress"</span><span class="punctuation">:</span> <span class="number">67</span><span class="punctuation">,</span>
+  <span class="key">"streakDay"</span><span class="punctuation">:</span> <span class="number">14</span>
+<span class="punctuation">}</span></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GET /apiGetNutrition -->
+      <div class="endpoint-card">
+        <div class="endpoint-header" onclick="toggleEndpoint(this)">
+          <span class="method-badge get">GET</span>
+          <span class="endpoint-path">/apiGetNutrition</span>
+          <span class="endpoint-desc">Meal history and macro totals</span>
+          <span class="endpoint-scope">nutrition:read</span>
+        </div>
+        <div class="endpoint-body">
+          <div class="endpoint-detail-section">
+            <div class="endpoint-detail-label">Example Request</div>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre>curl -H <span class="string">"Authorization: Bearer ic_YOUR_KEY"</span> \
+  <span class="url">"https://us-central1-ironcore-f68c2.cloudfunctions.net/apiGetNutrition?date=2026-03-28"</span></pre>
+            </div>
+          </div>
+          <div class="endpoint-detail-section">
+            <div class="endpoint-detail-label">Response</div>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">json</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre><span class="punctuation">{</span>
+  <span class="key">"date"</span><span class="punctuation">:</span> <span class="string">"2026-03-28"</span><span class="punctuation">,</span>
+  <span class="key">"calories"</span><span class="punctuation">:</span> <span class="number">2340</span><span class="punctuation">,</span>
+  <span class="key">"protein"</span><span class="punctuation">:</span> <span class="number">185</span><span class="punctuation">,</span>
+  <span class="key">"carbs"</span><span class="punctuation">:</span> <span class="number">220</span><span class="punctuation">,</span>
+  <span class="key">"fat"</span><span class="punctuation">:</span> <span class="number">78</span><span class="punctuation">,</span>
+  <span class="key">"meals"</span><span class="punctuation">:</span> <span class="number">4</span>
+<span class="punctuation">}</span></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GET /apiGetLeaderboard -->
+      <div class="endpoint-card">
+        <div class="endpoint-header" onclick="toggleEndpoint(this)">
+          <span class="method-badge get">GET</span>
+          <span class="endpoint-path">/apiGetLeaderboard</span>
+          <span class="endpoint-desc">Global and league-specific rankings</span>
+          <span class="endpoint-scope">leaderboard:read</span>
+        </div>
+        <div class="endpoint-body">
+          <div class="endpoint-detail-section">
+            <div class="endpoint-detail-label">Query Parameters</div>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">params</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre><span class="key">league</span>   <span class="comment">// Filter by league: Iron, Bronze, Silver, Gold, Diamond</span>
+<span class="key">limit</span>    <span class="comment">// Number of results (default: 25, max: 100)</span></pre>
+            </div>
+          </div>
+          <div class="endpoint-detail-section">
+            <div class="endpoint-detail-label">Response</div>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">json</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre><span class="punctuation">{</span>
+  <span class="key">"league"</span><span class="punctuation">:</span> <span class="string">"Gold"</span><span class="punctuation">,</span>
+  <span class="key">"rankings"</span><span class="punctuation">:</span> <span class="punctuation">[</span>
+    <span class="punctuation">{</span> <span class="key">"rank"</span><span class="punctuation">:</span> <span class="number">1</span><span class="punctuation">,</span> <span class="key">"username"</span><span class="punctuation">:</span> <span class="string">"beast_mode"</span><span class="punctuation">,</span> <span class="key">"elo"</span><span class="punctuation">:</span> <span class="number">1820</span> <span class="punctuation">}</span><span class="punctuation">,</span>
+    <span class="punctuation">{</span> <span class="key">"rank"</span><span class="punctuation">:</span> <span class="number">2</span><span class="punctuation">,</span> <span class="key">"username"</span><span class="punctuation">:</span> <span class="string">"iron_will"</span><span class="punctuation">,</span> <span class="key">"elo"</span><span class="punctuation">:</span> <span class="number">1755</span> <span class="punctuation">}</span><span class="punctuation">,</span>
+    <span class="punctuation">{</span> <span class="key">"rank"</span><span class="punctuation">:</span> <span class="number">3</span><span class="punctuation">,</span> <span class="key">"username"</span><span class="punctuation">:</span> <span class="string">"trex_"</span><span class="punctuation">,</span> <span class="key">"elo"</span><span class="punctuation">:</span> <span class="number">1456</span> <span class="punctuation">}</span>
+  <span class="punctuation">]</span>
+<span class="punctuation">}</span></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- POST /apiCreateBattle -->
+      <div class="endpoint-card">
+        <div class="endpoint-header" onclick="toggleEndpoint(this)">
+          <span class="method-badge post">POST</span>
+          <span class="endpoint-path">/apiCreateBattle</span>
+          <span class="endpoint-desc">Challenge another user to a PvP battle</span>
+          <span class="endpoint-scope">battles:create</span>
+        </div>
+        <div class="endpoint-body">
+          <div class="endpoint-detail-section">
+            <div class="endpoint-detail-label">Request Body</div>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">json</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre><span class="punctuation">{</span>
+  <span class="key">"opponent"</span><span class="punctuation">:</span> <span class="string">"iron_will"</span><span class="punctuation">,</span>
+  <span class="key">"type"</span><span class="punctuation">:</span> <span class="string">"volume"</span><span class="punctuation">,</span>
+  <span class="key">"duration"</span><span class="punctuation">:</span> <span class="number">86400</span>
+<span class="punctuation">}</span></pre>
+            </div>
+          </div>
+          <div class="endpoint-detail-section">
+            <div class="endpoint-detail-label">Response</div>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">json</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre><span class="punctuation">{</span>
+  <span class="key">"battleId"</span><span class="punctuation">:</span> <span class="string">"b_4kf82x"</span><span class="punctuation">,</span>
+  <span class="key">"status"</span><span class="punctuation">:</span> <span class="string">"pending"</span><span class="punctuation">,</span>
+  <span class="key">"expiresAt"</span><span class="punctuation">:</span> <span class="string">"2026-03-29T10:30:00Z"</span>
+<span class="punctuation">}</span></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ==================== AUTHENTICATION ==================== -->
+<section id="auth">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">Security</div>
+      <div class="section-title">Authentication</div>
+      <p class="section-desc">All requests require a Bearer token. Keys are scoped to the permissions the user explicitly approved.</p>
+    </div>
+
+    <div class="auth-grid">
+      <div class="auth-info">
+        <div class="auth-item">
+          <h4>Bearer Token Required</h4>
+          <p>All requests must include a valid API key in the <code style="color:#f87171;font-size:12px">Authorization</code> header. Keys are generated per-user in the IronCore app.</p>
+        </div>
+        <div class="auth-item">
+          <h4>Scoped Access</h4>
+          <p>Keys are scoped &mdash; your app only gets access to the data the user explicitly approved. Request the minimum scopes you need.</p>
+        </div>
+        <div class="auth-item">
+          <h4>Rate Limiting</h4>
+          <p>API calls are rate limited per key to ensure fair usage.</p>
+          <div class="rate-badge">
+            <span class="rate-dot"></span>
+            100 requests / minute
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="endpoint-detail-label" style="margin-bottom:12px">Auth Header Example</div>
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre><span class="comment"># Every request needs this header</span>
+curl -H <span class="string">"Authorization: Bearer ic_YOUR_KEY"</span> \
+  <span class="url">https://us-central1-ironcore-f68c2.cloudfunctions.net/apiGetProfile</span></pre>
+        </div>
+        <div style="height:20px"></div>
+        <div class="endpoint-detail-label" style="margin-bottom:12px">Python Example</div>
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre><span class="comment">import</span> requests
+
+BASE <span class="punctuation">=</span> <span class="string">"https://us-central1-ironcore-f68c2.cloudfunctions.net"</span>
+KEY  <span class="punctuation">=</span> <span class="string">"ic_YOUR_KEY"</span>
+
+headers <span class="punctuation">=</span> <span class="punctuation">{</span><span class="string">"Authorization"</span><span class="punctuation">:</span> <span class="string">f"Bearer <span class="punctuation">{</span>KEY<span class="punctuation">}</span>"</span><span class="punctuation">}</span>
+
+profile <span class="punctuation">=</span> requests.get(
+    <span class="string">f"<span class="punctuation">{</span>BASE<span class="punctuation">}</span>/apiGetProfile"</span><span class="punctuation">,</span>
+    headers<span class="punctuation">=</span>headers
+).json()
+
+print(profile<span class="punctuation">[</span><span class="string">"username"</span><span class="punctuation">]</span><span class="punctuation">,</span> <span class="string">"—"</span><span class="punctuation">,</span> profile<span class="punctuation">[</span><span class="string">"league"</span><span class="punctuation">]</span>)</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SCOPES ==================== -->
+<section id="scopes">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">Permissions</div>
+      <div class="section-title">API Scopes</div>
+      <p class="section-desc">Request only the scopes your integration needs. Users see exactly what they're granting access to.</p>
+    </div>
+
+    <div class="scopes-table-wrap">
+      <table class="scopes-table">
+        <thead>
+          <tr>
+            <th>Scope</th>
+            <th>Access</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>profile:read</td><td>Read</td><td>Username, level, XP, league, ELO rating</td></tr>
+          <tr><td>workouts:read</td><td>Read</td><td>Full workout history with exercises, sets, and volume</td></tr>
+          <tr><td>workouts:write</td><td>Write</td><td>Log new workouts and exercises on behalf of the user</td></tr>
+          <tr><td>nutrition:read</td><td>Read</td><td>Daily meals, calorie and macro breakdowns</td></tr>
+          <tr><td>nutrition:write</td><td>Write</td><td>Log meals and nutrition data</td></tr>
+          <tr><td>progress:read</td><td>Read</td><td>Streaks, heatmaps, PR history, and progress charts</td></tr>
+          <tr><td>battles:read</td><td>Read</td><td>Active and past PvP battle data</td></tr>
+          <tr><td>battles:create</td><td>Write</td><td>Challenge other users to PvP battles</td></tr>
+          <tr><td>leaderboard:read</td><td>Read</td><td>Global and league-specific rankings</td></tr>
+          <tr><td>guild:read</td><td>Read</td><td>Guild membership, stats, and challenges</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== FOOTER ==================== -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-brand">Built by Iron<span>Core</span> AI</div>
+      <div class="footer-links">
+        <a href="https://play.google.com/store/apps/details?id=com.ironcore.ai">App</a>
+        <a href="/privacy">Privacy Policy</a>
+        <a href="mailto:dev@ironcore.ai">Contact</a>
+      </div>
+      <div class="footer-powered">Powered by Firebase</div>
+    </div>
+  </div>
+</footer>
+
+</div>
+
+<!-- ==================== MINIMAL JS ==================== -->
+<script>
+function copyCode(btn) {
+  var pre = btn.closest('.code-block').querySelector('pre');
+  var text = pre.textContent || pre.innerText;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(function() {
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(function() {
+        btn.textContent = 'Copy';
+        btn.classList.remove('copied');
+      }, 2000);
+    });
+  } else {
+    // Fallback for older browsers
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(function() {
+      btn.textContent = 'Copy';
+      btn.classList.remove('copied');
+    }, 2000);
+  }
+}
+
+function toggleEndpoint(header) {
+  var body = header.nextElementSibling;
+  var wasOpen = body.classList.contains('open');
+  // Close all
+  var allBodies = document.querySelectorAll('.endpoint-body');
+  for (var i = 0; i < allBodies.length; i++) {
+    allBodies[i].classList.remove('open');
+  }
+  // Toggle clicked
+  if (!wasOpen) {
+    body.classList.add('open');
+  }
+}
+</script>
+
+</body>
+</html>

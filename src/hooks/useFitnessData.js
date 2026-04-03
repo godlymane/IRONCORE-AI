@@ -22,7 +22,7 @@ import imageCompression from 'browser-image-compression';
 import { useStore } from './useStore';
 import { updateBossProgress } from '../services/arenaService';
 import { throttleAction } from '../utils/rateLimiter';
-import { enqueueOfflineOp, replayOfflineQueue } from '../utils/offlineQueue';
+import { enqueueOfflineOp, replayOfflineQueue, registerQueueNotifier } from '../utils/offlineQueue';
 import { registerFCMToken } from '../services/pushNotificationService';
 import { CONTENT_LIMITS, STORAGE_KEYS } from '../utils/constants';
 
@@ -56,6 +56,14 @@ export function useFitnessData() {
 
     // Data references (not reactive here, just needed for functions)
     const storeState = useStore();
+
+    // Register offline queue notifier to surface dropped/errored ops as errors
+    useEffect(() => {
+        registerQueueNotifier({
+            onDrop: (_type, msg) => setError(msg),
+            onError: (_type, msg) => setError(msg),
+        });
+    }, [setError]);
 
     const listenersRef = useRef([]);
     const socialUnsubs = useRef([]);
@@ -97,28 +105,16 @@ export function useFitnessData() {
             if (!user) return;
             try {
                 const count = await replayOfflineQueue({
-                    xp_update: async ({ userId, xpGain }) => {
-                        const profileRef = doc(db, 'users', userId, 'data', 'profile');
-                        await runTransaction(db, async (txn) => {
-                            const snap = await txn.get(profileRef);
-                            const current = snap.exists() ? snap.data() : {};
-                            txn.set(profileRef, { xp: (current.xp || 0) + xpGain }, { merge: true });
-                        });
-                    },
-                    leaderboard_sync: async ({ userId, username, photo, workoutVolume, col }) => {
-                        const profileRef = doc(db, 'users', userId, 'data', 'profile');
-                        const profileSnap = await getDoc(profileRef);
-                        const xp = profileSnap.exists() ? (profileSnap.data().xp || 0) : 0;
-                        await setDoc(doc(db, 'leaderboard', userId), {
-                            username, xp, userId, photo,
-                            todayVolume: col === 'workouts' ? workoutVolume : 0
-                        }, { merge: true });
+                    xp_update: async ({ activityType, workoutVolume }, idempotencyKey) => {
+                        const awardXP = httpsCallable(firebaseFunctions, 'awardActivityXP');
+                        await awardXP({ activityType, workoutVolume, idempotencyKey });
                     },
                     boss_damage: async ({ userId, username, workoutVolume }) => {
                         await updateBossProgress(userId, username, workoutVolume);
                     }
                 });
-                if (count > 0) console.log(`Replayed ${count} offline operations.`);
+                if (count.replayed > 0) console.log(`Replayed ${count.replayed} offline operations.`);
+                if (count.dropped > 0) setError(`${count.dropped} queued operation(s) expired and were discarded.`);
             } catch (err) {
                 console.error('Offline queue replay error:', err);
             }
@@ -425,7 +421,12 @@ export function useFitnessData() {
 
     const refreshData = useCallback(() => {
         if (!user || !db) return;
+        // Unsubscribe ALL existing listeners before re-creating (prevents listener leak)
         listenersRef.current.forEach(u => u());
+        listenersRef.current = [];
+        socialUnsubs.current.forEach(u => u());
+        socialUnsubs.current = [];
+        if (photosUnsub.current) { photosUnsub.current(); photosUnsub.current = null; }
         const unsubUserDoc = onSnapshot(doc(db, 'users', user.uid), (snap) => {
             useStore.getState().updateState({ userDoc: snap.exists() ? snap.data() : {} });
         }, onListenerError('userDoc'));
@@ -544,15 +545,8 @@ export function useFitnessData() {
                     // Offline: queue server-dependent ops for replay on reconnect
                     if (!navigator.onLine) {
                         if (xpGain > 0) {
-                            enqueueOfflineOp('xp_update', { userId: user.uid, xpGain });
+                            enqueueOfflineOp('xp_update', { activityType: col, workoutVolume: col === 'workouts' ? workoutVolume : undefined });
                         }
-                        enqueueOfflineOp('leaderboard_sync', {
-                            userId: user.uid,
-                            username: sanitizeText(user.displayName || "Anonymous", MAX_USERNAME_LENGTH),
-                            photo: profile.photoURL || user.photoURL,
-                            workoutVolume: col === 'workouts' ? workoutVolume : 0,
-                            col
-                        });
                         if (col === 'workouts' && workoutVolume > 0) {
                             enqueueOfflineOp('boss_damage', {
                                 userId: user.uid,
@@ -561,44 +555,30 @@ export function useFitnessData() {
                             });
                         }
                     } else {
-                        // Online: execute immediately
-                        const profileRef = doc(db, 'users', user.uid, 'data', 'profile');
-                        let newXp = 0;
-                        let oldXp = 0;
-
+                        // Online: award XP via server-authoritative Cloud Function
                         if (xpGain > 0) {
-                            await runTransaction(db, async (txn) => {
-                                const snap = await txn.get(profileRef);
-                                const current = snap.exists() ? snap.data() : {};
-                                oldXp = current.xp || 0;
-                                newXp = oldXp + xpGain;
-                                txn.set(profileRef, { xp: newXp }, { merge: true });
-                            });
-                        } else {
-                            newXp = profile.xp || 0;
-                            oldXp = newXp;
+                            try {
+                                const awardXP = httpsCallable(firebaseFunctions, 'awardActivityXP');
+                                const result = await awardXP({
+                                    activityType: col === 'xp_bonus' ? 'workout' : col,
+                                    workoutVolume: col === 'workouts' ? workoutVolume : undefined
+                                });
+                                const { newXp, xpAwarded } = result.data;
+                                if (xpAwarded > 0) {
+                                    const oldXp = newXp - xpAwarded;
+                                    if (Math.floor(oldXp / 500) < Math.floor(newXp / 500)) {
+                                        broadcastEvent('level', 'leveled up!', 'Reached ' + newXp + ' XP');
+                                    }
+                                }
+                            } catch (err) {
+                                console.error('Server XP award failed:', err.message);
+                            }
                         }
 
-                        const currentEntry = leaderboard.find(u => u.userId === user.uid);
-                        const currentVolume = currentEntry?.todayVolume || 0;
-
-                        const leaderboardData = {
-                            username: sanitizeText(user.displayName || "Anonymous", MAX_USERNAME_LENGTH),
-                            xp: newXp,
-                            userId: user.uid,
-                            photo: profile.photoURL || user.photoURL,
-                            todayVolume: col === 'workouts' ? currentVolume + workoutVolume : currentVolume
-                        };
-                        await setDoc(doc(db, 'leaderboard', user.uid), leaderboardData, { merge: true });
-
-                        if (xpGain > 0 && Math.floor(oldXp / 500) < Math.floor(newXp / 500)) {
-                            broadcastEvent('level', 'leveled up!', 'Reached ' + newXp + ' XP');
-                        }
-
-                        // Apply Boss Damage based on Workout Volume
+                        // Apply Boss Damage based on Workout Volume (server-side)
                         if (col === 'workouts' && workoutVolume > 0 && throttleAction('workout_boss_damage', 10000).allowed) {
                             try {
-                                const bossResult = await updateBossProgress(user.uid, leaderboardData.username, workoutVolume);
+                                const bossResult = await updateBossProgress(user.uid, user.displayName || "Anonymous", workoutVolume);
                                 if (bossResult && !bossResult.defeated) {
                                     broadcastEvent('boss_hit', 'Critical Hit!', `Dealt ${workoutVolume} damage to the Boss!`);
                                 } else if (bossResult && bossResult.defeated) {

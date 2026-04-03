@@ -380,7 +380,7 @@ export const DashboardView = () => {
             <p className="text-[11px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-1">
               {profile?.goal ? (
                 <>
-                  <span className="text-red-400">{profile.goal}</span> Protocol
+                  <span className="text-red-400">{profile.goal === 'lose' ? 'Fat Loss' : profile.goal === 'gain' ? 'Muscle Gain' : profile.goal === 'maintain' ? 'Maintain' : profile.goal}</span> Protocol
                 </>
               ) : (
                 <Skeleton className="w-20 h-3" />
@@ -512,7 +512,7 @@ export const DashboardView = () => {
               color={ironScoreColor}
             />
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-xl font-black text-white">{ironScore || '—'}</span>
+              <span className="text-xl font-black text-white">{ironScore != null ? ironScore : '—'}</span>
             </div>
           </div>
           {/* Score Info */}

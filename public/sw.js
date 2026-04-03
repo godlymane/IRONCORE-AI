@@ -1,12 +1,21 @@
 // IronCore AI Service Worker — versioned cache with security hardening
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 const CACHE_NAME = `ironcore-v${CACHE_VERSION}`;
+const CACHE_STATIC = `ironcore-static-v${CACHE_VERSION}`;
 const MAX_CACHE_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const STATIC_ASSETS = [
     '/',
     '/index.html',
     '/manifest.json',
     '/favicon.png',
+];
+
+// Cache-first patterns: hashed bundles, WASM, images — immutable once deployed
+const CACHE_FIRST_PATTERNS = [
+    /\/assets\/.*\.[a-f0-9]{8,}\.(js|css)$/,  // Vite hashed bundles
+    /\/wasm\/.*\.wasm$/,                         // TensorFlow WASM binaries
+    /\.(png|jpg|jpeg|webp|svg|gif|ico)$/,        // Images
+    /\/fonts?\//,                                  // Fonts
 ];
 
 // Install - cache static assets
@@ -19,17 +28,25 @@ self.addEventListener('install', (event) => {
 
 // Activate - clean up ALL old caches (version-based invalidation)
 self.addEventListener('activate', (event) => {
+    const validCaches = [CACHE_NAME, CACHE_STATIC];
     event.waitUntil(
         caches.keys().then((keys) => {
             return Promise.all(
-                keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+                keys.filter((key) => !validCaches.includes(key)).map((key) => caches.delete(key))
             );
         })
     );
     self.clients.claim();
 });
 
-// Fetch - network first, fallback to cache. Only cache same-origin assets.
+// Check if a request URL matches cache-first patterns (immutable hashed assets)
+function isCacheFirstAsset(url) {
+    return CACHE_FIRST_PATTERNS.some((pattern) => pattern.test(url.pathname));
+}
+
+// Fetch handler — two strategies:
+//   1. Cache-first for immutable hashed assets (JS bundles, WASM, images)
+//   2. Network-first for everything else (HTML, API, dynamic content)
 self.addEventListener('fetch', (event) => {
     if (event.request.method !== 'GET') return;
 
@@ -44,6 +61,24 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
+    // Strategy 1: Cache-first for immutable hashed assets
+    if (isCacheFirstAsset(url)) {
+        event.respondWith(
+            caches.match(event.request).then((cached) => {
+                if (cached) return cached;
+                return fetch(event.request).then((response) => {
+                    if (response.ok) {
+                        const clone = response.clone();
+                        caches.open(CACHE_STATIC).then((cache) => cache.put(event.request, clone));
+                    }
+                    return response;
+                });
+            })
+        );
+        return;
+    }
+
+    // Strategy 2: Network-first for HTML and dynamic content
     event.respondWith(
         fetch(event.request)
             .then((response) => {

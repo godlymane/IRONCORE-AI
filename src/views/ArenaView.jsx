@@ -15,6 +15,7 @@ import { GuildDashboard } from '../components/Gamification/GuildDashboard';
 const BattlePassView = React.lazy(() => import('./BattlePassView').then(m => ({ default: m.BattlePassView })));
 const GhostMatchView = React.lazy(() => import('./GhostMatchView').then(m => ({ default: m.GhostMatchView })));
 const AchievementsView = React.lazy(() => import('./AchievementsView').then(m => ({ default: m.AchievementsView })));
+const PvPBattleView = React.lazy(() => import('./PvPBattleView').then(m => ({ default: m.PvPBattleView })));
 
 // Season config — single source of truth (move to Firestore config when dynamic seasons launch)
 export const CURRENT_SEASON = 'Season 1';
@@ -30,6 +31,7 @@ export const ArenaView = ({
     const [showBattlePass, setShowBattlePass] = useState(false);
     const [showGhostMatch, setShowGhostMatch] = useState(false);
     const [showAchievements, setShowAchievements] = useState(false);
+    const [activeBattle, setActiveBattle] = useState(null); // Battle object for PvP view
     const { isPremium, tier, requirePremium } = usePremium();
     const [chatText, setChatText] = useState('');
     const chatEndRef = useRef(null);
@@ -366,7 +368,8 @@ export const ArenaView = ({
                                 const opponentPhoto = opponent?.photo;
 
                                 return (
-                                    <GlassCard key={battle.id || i} className="!p-4">
+                                    <GlassCard key={battle.id || i} className="!p-4 cursor-pointer hover:bg-white/[0.04] transition-colors"
+                                        onClick={() => setActiveBattle(battle)}>
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-10 h-10 rounded-full bg-gray-800 overflow-hidden border border-white/20 flex flex-shrink-0 items-center justify-center">
@@ -379,15 +382,24 @@ export const ArenaView = ({
                                                 <div>
                                                     <p className="font-bold text-white">vs {opponentName}</p>
                                                     <p className="text-[11px] text-gray-500">
-                                                        {battle.status === 'active' ? 'Battle Active' : battle.status}
+                                                        {battle.status === 'pending' && !isChallenger ? 'Tap to accept!' :
+                                                         battle.status === 'active' || battle.status === 'accepted' ? 'Tap to fight!' :
+                                                         battle.status === 'completed' ? 'View result' : battle.status}
                                                     </p>
                                                 </div>
                                             </div>
-                                            <div className={`px-3 py-1 rounded-lg text-xs font-bold ${battle.status === 'active'
+                                            <div className={`px-3 py-1 rounded-lg text-xs font-bold ${
+                                                battle.status === 'active' || battle.status === 'accepted'
                                                 ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                                : battle.status === 'pending'
+                                                ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                                                : battle.status === 'completed'
+                                                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                                                 : 'bg-gray-500/20 text-gray-400 border border-gray-500/30'
                                                 }`}>
-                                                {battle.status === 'active' ? 'LIVE' : battle.status?.toUpperCase()}
+                                                {battle.status === 'active' || battle.status === 'accepted' ? 'FIGHT' :
+                                                 battle.status === 'pending' && !isChallenger ? 'ACCEPT' :
+                                                 battle.status?.toUpperCase()}
                                             </div>
                                         </div>
                                     </GlassCard>
@@ -425,6 +437,25 @@ export const ArenaView = ({
                             profile={profile}
                             workouts={workouts}
                             onBack={() => setShowGhostMatch(false)}
+                        />
+                    </Suspense>
+                </div>
+            )}
+
+            {/* PvP Battle Overlay */}
+            {activeBattle && (
+                <div className="fixed inset-0 z-[80] bg-black overflow-y-auto p-5">
+                    <Suspense fallback={
+                        <div className="flex items-center justify-center h-screen">
+                            <div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
+                        </div>
+                    }>
+                        <PvPBattleView
+                            battle={activeBattle}
+                            user={user}
+                            profile={profile}
+                            onBack={() => setActiveBattle(null)}
+                            onComplete={() => setActiveBattle(null)}
                         />
                     </Suspense>
                 </div>

@@ -87,14 +87,28 @@ async function pbkdf2Hash(input, iterations = PBKDF2_ITERATIONS) {
 }
 
 /**
+ * Constant-time hex string comparison to prevent timing attacks.
+ * Always compares all characters regardless of mismatch position.
+ */
+function constantTimeEqual(a, b) {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+}
+
+/**
  * Verify an input against a stored hash (supports both v1 plain SHA-256 and v2 PBKDF2).
+ * Uses constant-time comparison to prevent timing attacks.
  */
 async function pbkdf2Verify(input, storedHash) {
   if (!storedHash.startsWith('v2:')) {
     // Legacy v1 — plain SHA-256
     const data = new TextEncoder().encode(input);
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    return toHex(hashBuffer) === storedHash;
+    return constantTimeEqual(toHex(hashBuffer), storedHash);
   }
   // v2 — PBKDF2
   const parts = storedHash.split(':');
@@ -108,7 +122,7 @@ async function pbkdf2Verify(input, storedHash) {
     keyMaterial,
     256,
   );
-  return toHex(derived) === expectedHex;
+  return constantTimeEqual(toHex(derived), expectedHex);
 }
 
 /**

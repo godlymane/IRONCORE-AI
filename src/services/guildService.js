@@ -102,33 +102,38 @@ export const createGuild = async (name, description, owner, options = {}) => {
 export const joinGuild = async (guildId, user) => {
     try {
         const guildRef = doc(db, 'guilds', guildId);
-        const guildSnap = await getDoc(guildRef);
+        const userRef = doc(db, 'users', user.userId);
 
-        if (!guildSnap.exists()) throw new Error('Guild not found');
+        await runTransaction(db, async (transaction) => {
+            const guildSnap = await transaction.get(guildRef);
+            if (!guildSnap.exists()) throw new Error('Guild not found');
 
-        const guildData = guildSnap.data();
-        if (guildData.memberCount >= guildData.maxMembers) {
-            throw new Error('Guild is full');
-        }
+            const guildData = guildSnap.data();
+            if (guildData.memberCount >= guildData.maxMembers) {
+                throw new Error('Guild is full');
+            }
+            if (guildData.members.some(m => m.userId === user.userId)) {
+                throw new Error('Already a member');
+            }
 
-        if (guildData.members.some(m => m.userId === user.userId)) {
-            throw new Error('Already a member');
-        }
-
-        await updateDoc(guildRef, {
-            members: arrayUnion({
+            const newMember = {
                 userId: user.userId,
                 username: user.username,
                 avatarUrl: user.avatarUrl || '',
                 role: 'member',
                 joinedAt: new Date().toISOString()
-            }),
-            memberCount: increment(1)
-        });
+            };
 
-        // Update user profile
-        const userRef = doc(db, 'users', user.userId);
-        await updateDoc(userRef, { guildId });
+            const updatedMembers = [...guildData.members, newMember];
+
+            transaction.update(guildRef, {
+                members: updatedMembers,
+                memberIds: updatedMembers.map(m => m.userId),
+                memberCount: updatedMembers.length
+            });
+
+            transaction.update(userRef, { guildId });
+        });
 
         return true;
     } catch (error) {
@@ -241,13 +246,26 @@ export const getGuilds = async (limitCount = 20) => {
 
 /**
  * Send guild chat message
- * @param {string} guildId 
- * @param {Object} messageData 
+ * @param {string} guildId
+ * @param {Object} messageData
  */
 export const sendGuildMessage = async (guildId, messageData) => {
     try {
+        // Validate message content
+        const msg = messageData.message || messageData.text || '';
+        if (typeof msg !== 'string' || msg.trim().length === 0) {
+            throw new Error('Message cannot be empty');
+        }
+        if (msg.length > 2000) {
+            throw new Error('Message too long (max 2000 characters)');
+        }
+
+        // Sanitize: strip control characters (keep newlines/tabs)
+        const sanitized = msg.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+
         await addDoc(collection(db, `guilds/${guildId}/chat`), {
             ...messageData,
+            message: sanitized,
             timestamp: serverTimestamp()
         });
     } catch (error) {

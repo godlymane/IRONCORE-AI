@@ -26,9 +26,9 @@ android {
     }
     signingConfigs {
         release {
-            storeFile file('ironcore-release.jks')
+            storeFile file('ironcore-release-v2.jks')
             storePassword localProps['IRONCORE_KEYSTORE_PASSWORD'] ?: System.getenv('IRONCORE_KEYSTORE_PASSWORD') ?: ''
-            keyAlias 'ironcore_release'
+            keyAlias 'ironcore_release_v2'
             keyPassword localProps['IRONCORE_KEY_PASSWORD'] ?: System.getenv('IRONCORE_KEY_PASSWORD') ?: ''
         }
     }

@@ -1,3 +1,16 @@
+// Polyfill for CanvasRenderingContext2D.roundRect (Safari <16, older Chrome)
+if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
+    CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, radii) {
+        const r = typeof radii === 'number' ? radii : (Array.isArray(radii) ? radii[0] : 0);
+        this.moveTo(x + r, y);
+        this.arcTo(x + w, y, x + w, y + h, r);
+        this.arcTo(x + w, y + h, x, y + h, r);
+        this.arcTo(x, y + h, x, y, r);
+        this.arcTo(x, y, x + w, y, r);
+        this.closePath();
+    };
+}
+
 /**
  * Form Canvas Renderer — Visual overlay for Elite Form Coach
  *

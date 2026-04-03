@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Join IronCore AI - Your AI-Powered Fitness Companion</title>
+<meta name="description" content="Join IronCore AI and get 7 days of Premium free! AI-powered workouts, PvP battles, leagues, and community challenges.">
+<meta property="og:title" content="Join IronCore AI - Battle Me!">
+<meta property="og:description" content="Your friend invited you to IronCore AI. Get 7 days Premium free when you sign up!">
+<meta property="og:image" content="https://ironcore.ai/og-image.png">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#000000">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;overflow-x:hidden}
+.glow{position:fixed;top:-30%;left:50%;transform:translateX(-50%);width:600px;height:600px;background:radial-gradient(circle,rgba(220,38,38,0.15) 0%,transparent 70%);pointer-events:none;z-index:0}
+.container{max-width:420px;width:100%;padding:40px 24px;position:relative;z-index:1;text-align:center}
+.logo{font-size:32px;font-weight:900;letter-spacing:-1px;text-transform:uppercase;background:linear-gradient(135deg,#fff 0%,#dc2626 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:3px;color:#6b7280;margin-top:4px}
+.hero{margin-top:40px}
+.hero h1{font-size:28px;font-weight:900;text-transform:uppercase;letter-spacing:-0.5px;line-height:1.1}
+.hero h1 span{color:#dc2626}
+.hero p{font-size:14px;color:#9ca3af;margin-top:12px;line-height:1.5}
+.code-box{margin-top:32px;padding:20px;border-radius:16px;background:rgba(220,38,38,0.08);border:1px solid rgba(220,38,38,0.3)}
+.code-box .label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#6b7280}
+.code-box .code{font-size:28px;font-weight:900;letter-spacing:6px;color:#dc2626;margin-top:8px;font-family:monospace}
+.code-box .reward{font-size:12px;color:#22c55e;font-weight:700;margin-top:8px}
+.features{margin-top:32px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.feature{padding:16px 12px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);text-align:center}
+.feature .icon{font-size:24px}
+.feature .name{font-size:11px;font-weight:800;text-transform:uppercase;color:#fff;margin-top:6px}
+.feature .desc{font-size:10px;color:#6b7280;margin-top:2px}
+.cta{margin-top:32px}
+.cta a{display:block;padding:16px;border-radius:16px;background:linear-gradient(135deg,#dc2626 0%,#f97316 100%);color:#fff;font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:1px;text-decoration:none;box-shadow:0 8px 30px rgba(220,38,38,0.4);transition:transform 0.2s}
+.cta a:active{transform:scale(0.97)}
+.cta .alt{display:block;margin-top:12px;font-size:11px;color:#6b7280;text-decoration:none}
+.cta .alt:hover{color:#9ca3af}
+.footer{margin-top:40px;font-size:10px;color:#374151;text-transform:uppercase;letter-spacing:2px}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+.pulse{animation:pulse 2s infinite}
+</style>
+</head>
+<body>
+<div class="glow"></div>
+<div class="container">
+    <div class="logo">IronCore AI</div>
+    <div class="subtitle">Your Phone. Your Trainer.</div>
+
+    <div class="hero">
+        <h1>Your Friend Wants to <span>Battle You</span></h1>
+        <p>Join IronCore AI — the fitness app with PvP battles, leagues, guilds, and AI coaching. Get <strong>7 days Premium free</strong> with this invite.</p>
+    </div>
+
+    <div class="code-box">
+        <div class="label">Referral Code</div>
+        <div class="code" id="refCode">--------</div>
+        <div class="reward">Both you and your friend get 7 days Premium!</div>
+    </div>
+
+    <div class="features">
+        <div class="feature">
+            <div class="icon">⚔️</div>
+            <div class="name">PvP Battles</div>
+            <div class="desc">Challenge friends head-to-head</div>
+        </div>
+        <div class="feature">
+            <div class="icon">🏆</div>
+            <div class="name">Leagues</div>
+            <div class="desc">Iron to Diamond ranking</div>
+        </div>
+        <div class="feature">
+            <div class="icon">🛡️</div>
+            <div class="name">Guilds</div>
+            <div class="desc">Team up with friends</div>
+        </div>
+        <div class="feature">
+            <div class="icon">🤖</div>
+            <div class="name">AI Coach</div>
+            <div class="desc">Personalized guidance</div>
+        </div>
+    </div>
+
+    <div class="cta">
+        <a href="https://play.google.com/store/apps/details?id=com.ironcore.ai" id="downloadBtn">
+            Download IronCore AI
+        </a>
+        <a href="#" class="alt" id="copyCode" onclick="copyReferralCode(); return false;">
+            Copy referral code to clipboard
+        </a>
+    </div>
+
+    <div class="footer">IronCore AI &mdash; Discipline Equals Freedom</div>
+</div>
+
+<script>
+// Extract referral code from URL path: /invite/ABCD1234
+const path = window.location.pathname;
+const parts = path.split('/');
+const code = parts[parts.length - 1];
+if (code && code.length === 8) {
+    document.getElementById('refCode').textContent = code;
+}
+
+// Try to open the app first (Android intent), fallback to Play Store
+const appLink = 'intent://invite/' + code + '#Intent;scheme=ironcore;package=com.ironcore.ai;end';
+const playStoreLink = 'https://play.google.com/store/apps/details?id=com.ironcore.ai&referrer=' + encodeURIComponent(code);
+
+document.getElementById('downloadBtn').href = playStoreLink;
+
+// On mobile, try app intent first
+if (/Android/i.test(navigator.userAgent)) {
+    document.getElementById('downloadBtn').href = appLink;
+    setTimeout(() => { window.location.href = playStoreLink; }, 2000);
+}
+
+function copyReferralCode() {
+    const c = document.getElementById('refCode').textContent;
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(c).then(() => {
+            document.getElementById('copyCode').textContent = 'Copied!';
+            setTimeout(() => { document.getElementById('copyCode').textContent = 'Copy referral code to clipboard'; }, 2000);
+        });
+    }
+}
+</script>
+</body>
+</html>

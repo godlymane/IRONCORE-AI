@@ -28,12 +28,24 @@ const RATE_LIMITS = {
   chat: { maxRequests: 30, windowMs: 60_000 },      // 30 req/min for chat
   workout: { maxRequests: 10, windowMs: 60_000 },    // 10 req/min for workout gen
   nutrition: { maxRequests: 15, windowMs: 60_000 },  // 15 req/min for macro analysis
+  activity: { maxRequests: 60, windowMs: 60_000 },   // 60 req/min for activity XP
   default: { maxRequests: 30, windowMs: 60_000 },
 };
 
 // In-memory cache to reduce Firestore reads (per Cloud Function instance)
 const rateLimitCache = new Map();
 const CACHE_TTL = 5_000; // 5s cache before re-reading Firestore
+const CACHE_MAX_SIZE = 10_000; // Evict oldest entries when cache grows too large
+
+// Evict stale entries periodically to prevent unbounded memory growth
+function evictStaleCache() {
+  if (rateLimitCache.size <= CACHE_MAX_SIZE) return;
+  const now = Date.now();
+  for (const [key, val] of rateLimitCache) {
+    if (now - val._cachedAt > CACHE_TTL) rateLimitCache.delete(key);
+    if (rateLimitCache.size <= CACHE_MAX_SIZE / 2) break;
+  }
+}
 
 function getRateLimitConfig(feature) {
   return RATE_LIMITS[feature] || RATE_LIMITS.default;
@@ -82,9 +94,36 @@ async function checkRateLimit(uid, feature, db) {
     }
   });
 
-  // Update cache after successful transaction
+  // Update cache after successful transaction, evict stale if oversized
   rateLimitCache.set(docId, { ...result._cache, _cachedAt: now });
+  evictStaleCache();
   return { remaining: result.remaining, retryAfter: result.retryAfter };
+}
+
+// --- AI Input Sanitization ---
+// Strips common prompt injection patterns from user-supplied text.
+// Not a perfect defense (nothing is against a determined attacker), but catches
+// the obvious "ignore all previous instructions" class of attacks.
+function sanitizeAiInput(text) {
+  if (typeof text !== "string") return "";
+  return text
+    // Strip attempts to override system instructions
+    .replace(/ignore\s+(all\s+)?previous\s+instructions?/gi, "[filtered]")
+    .replace(/disregard\s+(all\s+)?(previous|above|prior)\s+/gi, "[filtered]")
+    .replace(/you\s+are\s+now\s+(a|an)\s+/gi, "[filtered]")
+    .replace(/new\s+instructions?:\s*/gi, "[filtered]")
+    .replace(/system\s*prompt\s*:/gi, "[filtered]")
+    .replace(/act\s+as\s+(a|an|if)\s+/gi, "[filtered]")
+    .replace(/roleplay\s+as\s+/gi, "[filtered]")
+    .replace(/pretend\s+(to\s+be|you\s*are)\s+/gi, "[filtered]")
+    .replace(/forget\s+(about\s+)?(everything|all|your)\s+/gi, "[filtered]")
+    .replace(/override\s+(all\s+)?(safety|rules|guidelines)\s*/gi, "[filtered]")
+    .replace(/bypass\s+(all\s+)?(safety|rules|filters)\s*/gi, "[filtered]")
+    .replace(/break\s+character/gi, "[filtered]")
+    // Strip control characters (keep printable + whitespace)
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
+    // Limit consecutive newlines (common padding attack)
+    .replace(/\n{5,}/g, "\n\n\n\n");
 }
 
 // --- Daily AI Call Limit Config ---
@@ -197,10 +236,14 @@ exports.callGemini = onCall(
     const rateLimitFeature = feature === "workout" ? "workout" : "chat";
     const rateInfo = await checkRateLimit(uid, rateLimitFeature, db);
 
-    // 4. Build Gemini request
-    let finalPrompt = `${systemPrompt || ""}\n\nUser Request: ${prompt}`;
+    // 4. Sanitize user input — strip injection attempts
+    const sanitizedPrompt = sanitizeAiInput(prompt);
+    const sanitizedSystem = systemPrompt ? sanitizeAiInput(systemPrompt) : "";
+
+    // 5. Build Gemini request
+    let finalPrompt = `${sanitizedSystem}\n\nUser Request: ${sanitizedPrompt}`;
     if (expectJson) {
-      finalPrompt = `${systemPrompt || ""}\n\nCRITICAL INSTRUCTION: Return ONLY valid JSON. Do not use Markdown code blocks. Do not add introductory text.\n\nUser Request: ${prompt}`;
+      finalPrompt = `${sanitizedSystem}\n\nCRITICAL INSTRUCTION: Return ONLY valid JSON. Do not use Markdown code blocks. Do not add introductory text.\n\nUser Request: ${sanitizedPrompt}`;
     }
 
     const parts = [{ text: finalPrompt }];
@@ -256,6 +299,13 @@ exports.analyzeFood = onCall(
     if (!mealText && !imageBase64) {
       throw new HttpsError("invalid-argument", "Either mealText or imageBase64 must be provided.");
     }
+    // Input size limits
+    if (mealText && mealText.length > 1000) {
+      throw new HttpsError("invalid-argument", "Meal text too long (max 1,000 chars).");
+    }
+    if (imageBase64 && (imageBase64.length * 3) / 4 > 5 * 1024 * 1024) {
+      throw new HttpsError("invalid-argument", "Image too large (max 5MB).");
+    }
 
     const uid = request.auth.uid;
     const db = admin.firestore();
@@ -263,12 +313,14 @@ exports.analyzeFood = onCall(
     const rateInfo = await checkRateLimit(uid, "nutrition", db);
 
     const systemPrompt = "Nutrition API. JSON Only.";
+    // Sanitize user-supplied meal text
+    const safeMealText = mealText ? sanitizeAiInput(mealText) : "";
     let prompt;
 
     if (imageBase64) {
       prompt = `Act as an expert nutritionist AI. Analyze this image with EXTREME precision. Identify all visible ingredients, estimate exact portion sizes (in grams or ml), account for likely cooking oils or hidden sauces, and calculate the exact macronutrients. Return JSON: { "mealName": "string (detailed description)", "calories": number, "protein": number, "carbs": number, "fat": number }. Make educated but highly precise estimations down to the gram.`;
     } else {
-      prompt = `Act as an expert nutritionist AI. For the meal "${mealText}", estimate exact portion sizes, account for likely cooking oils or hidden sauces, and calculate the exact macronutrients. Return JSON: { "mealName": "string", "calories": number, "protein": number, "carbs": number, "fat": number }. Make educated but highly precise estimations down to the gram.`;
+      prompt = `Act as an expert nutritionist AI. For the meal "${safeMealText}", estimate exact portion sizes, account for likely cooking oils or hidden sauces, and calculate the exact macronutrients. Return JSON: { "mealName": "string", "calories": number, "protein": number, "carbs": number, "fat": number }. Make educated but highly precise estimations down to the gram.`;
     }
 
     const finalPrompt = `${systemPrompt}\n\nCRITICAL INSTRUCTION: Return ONLY valid JSON. Do not use Markdown code blocks. Do not add introductory text.\n\nUser Request: ${prompt}`;
@@ -776,7 +828,7 @@ exports.verifyAppleReceipt = onCall(
       );
     }
 
-    // --- STEP 4: Activate subscription (same Firestore structure as Razorpay) ---
+    // --- STEP 4: Activate subscription in a TRANSACTION (prevents replay race) ---
     const subscriptionData = {
       planId,
       status: "active",
@@ -789,31 +841,38 @@ exports.verifyAppleReceipt = onCall(
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
-    const batch = db.batch();
+    const subDocRef = db.doc(`subscriptions/${uid}_apple_${transactionId}`);
 
-    // Same 3 writes as verifyPayment — unified data model
-    batch.set(
-      db.doc(`users/${uid}`),
-      { subscription: subscriptionData, isPremium: true },
-      { merge: true }
-    );
+    await db.runTransaction(async (transaction) => {
+      // Re-check replay inside transaction to prevent concurrent activation
+      const replayCheck = await transaction.get(subDocRef);
+      if (replayCheck.exists && replayCheck.data().status === "active") {
+        throw new HttpsError("already-exists", "This transaction has already been processed.");
+      }
 
-    batch.set(
-      db.doc(`users/${uid}/data/profile`),
-      { subscription: subscriptionData, isPremium: true },
-      { merge: true }
-    );
+      // Same 3 writes as verifyPayment — unified data model
+      transaction.set(
+        db.doc(`users/${uid}`),
+        { subscription: subscriptionData, isPremium: true },
+        { merge: true }
+      );
 
-    batch.set(db.doc(`subscriptions/${uid}_apple_${transactionId}`), {
-      userId: uid,
-      ...subscriptionData,
-      appleTransactionId: String(appleTransaction.transactionId),
-      appleOriginalTransactionId: String(appleTransaction.originalTransactionId),
-      appleEnvironment: appleTransaction.environment || "unknown",
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      transaction.set(
+        db.doc(`users/${uid}/data/profile`),
+        { subscription: subscriptionData, isPremium: true },
+        { merge: true }
+      );
+
+      transaction.set(subDocRef, {
+        userId: uid,
+        ...subscriptionData,
+        appleTransactionId: String(appleTransaction.transactionId),
+        appleOriginalTransactionId: String(appleTransaction.originalTransactionId),
+        appleEnvironment: appleTransaction.environment || "unknown",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
     });
 
-    await batch.commit();
     return { success: true, subscription: subscriptionData };
   }
 );
@@ -3204,5 +3263,960 @@ exports.dailyWorkoutReminder = onSchedule("every day 18:00", async () => {
         // Token invalid or user error — skip, continue to next
       }
     }
+  }
+});
+
+// --- Award Activity XP ---
+exports.awardActivityXP = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be logged in.");
+  }
+
+  const uid = request.auth.uid;
+  const { activityType, idempotencyKey } = request.data;
+
+  // Validate activityType
+  const XP_MAP = {
+    meal: 10,
+    workout: 50,
+    progress: 20,
+    burned: 15,
+  };
+
+  if (!activityType || !XP_MAP[activityType]) {
+    throw new HttpsError(
+      "invalid-argument",
+      "activityType must be one of: meal, workout, progress, burned."
+    );
+  }
+
+  const db = admin.firestore();
+
+  // Rate limit: max 60 ops/min per user
+  await checkRateLimit(uid, "activity", db);
+
+  const xpAwarded = XP_MAP[activityType];
+
+  // Idempotency check — if key provided, ensure we don't double-award
+  if (idempotencyKey) {
+    if (typeof idempotencyKey !== "string" || idempotencyKey.length > 128) {
+      throw new HttpsError("invalid-argument", "idempotencyKey must be a string (max 128 chars).");
+    }
+    const opDocId = `${uid}_${idempotencyKey}`;
+    const opRef = db.collection("processedOps").doc(opDocId);
+    const opSnap = await opRef.get();
+    if (opSnap.exists) {
+      // Already processed — return success without awarding again
+      return { success: true, newXp: null, xpAwarded: 0 };
+    }
+  }
+
+  // Atomically increment XP on profile and update leaderboard
+  const profileRef = db.doc(`users/${uid}/data/profile`);
+  const leaderboardRef = db.doc(`leaderboard/${uid}`);
+
+  const newXp = await db.runTransaction(async (t) => {
+    const profileSnap = await t.get(profileRef);
+    const currentXp = profileSnap.exists ? (profileSnap.data().xp || 0) : 0;
+    const updatedXp = currentXp + xpAwarded;
+
+    if (profileSnap.exists) {
+      t.update(profileRef, { xp: updatedXp });
+    } else {
+      t.set(profileRef, { xp: updatedXp });
+    }
+
+    // Update leaderboard with server-authoritative XP
+    t.set(leaderboardRef, { xp: updatedXp, uid }, { merge: true });
+
+    return updatedXp;
+  });
+
+  // Write idempotency record after successful transaction
+  if (idempotencyKey) {
+    const opDocId = `${uid}_${idempotencyKey}`;
+    await db.collection("processedOps").doc(opDocId).set({
+      uid,
+      activityType,
+      xpAwarded,
+      processedAt: Date.now(),
+    });
+  }
+
+  return { success: true, newXp, xpAwarded };
+});
+
+// --- Referral System ---
+
+exports.generateReferralCode = onCall({ cors: true }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be logged in.");
+  }
+
+  const uid = request.auth.uid;
+  const db = admin.firestore();
+
+  // Check if user already has a referral code
+  const profileDoc = await db.doc(`users/${uid}/data/profile`).get();
+  const profileData = profileDoc.exists ? profileDoc.data() : {};
+
+  if (profileData.referralCode) {
+    return { code: profileData.referralCode };
+  }
+
+  // Characters excluding confusing ones: 0/O/1/I/l
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+  let code = "";
+  let isUnique = false;
+
+  // Generate unique code with retry
+  for (let attempt = 0; attempt < 10; attempt++) {
+    code = "";
+    for (let i = 0; i < 8; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+
+    const existingCode = await db.doc(`referralCodes/${code}`).get();
+    if (!existingCode.exists) {
+      isUnique = true;
+      break;
+    }
+  }
+
+  if (!isUnique) {
+    throw new HttpsError("internal", "Failed to generate unique referral code. Please try again.");
+  }
+
+  const batch = db.batch();
+
+  batch.set(
+    db.doc(`users/${uid}/data/profile`),
+    { referralCode: code },
+    { merge: true }
+  );
+
+  batch.set(db.doc(`referralCodes/${code}`), {
+    uid,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    claimCount: 0,
+    claims: [],
+  });
+
+  await batch.commit();
+
+  return { code };
+});
+
+exports.claimReferralReward = onCall({ cors: true }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be logged in.");
+  }
+
+  const callerUid = request.auth.uid;
+  const { referralCode } = request.data || {};
+
+  // Validate input
+  if (!referralCode || typeof referralCode !== "string" || referralCode.length !== 8) {
+    throw new HttpsError("invalid-argument", "Invalid referral code. Must be 8 characters.");
+  }
+
+  const db = admin.firestore();
+  const codeRef = db.doc(`referralCodes/${referralCode}`);
+  const callerProfileRef = db.doc(`users/${callerUid}/data/profile`);
+
+  // Look up the referral code
+  const codeDoc = await codeRef.get();
+  if (!codeDoc.exists) {
+    throw new HttpsError("not-found", "Referral code not found.");
+  }
+
+  const codeData = codeDoc.data();
+  const referrerUid = codeData.uid;
+
+  // Prevent self-referral
+  if (referrerUid === callerUid) {
+    throw new HttpsError("failed-precondition", "You cannot use your own referral code.");
+  }
+
+  // Check if caller already claimed a referral
+  const callerProfileDoc = await callerProfileRef.get();
+  const callerProfileData = callerProfileDoc.exists ? callerProfileDoc.data() : {};
+
+  if (callerProfileData.referredBy) {
+    throw new HttpsError("already-exists", "You have already claimed a referral reward.");
+  }
+
+  // Check referrer hasn't exceeded 10 referral rewards
+  if (codeData.claimCount >= 10) {
+    throw new HttpsError("resource-exhausted", "This referral code has reached its maximum claims.");
+  }
+
+  // Build premium subscription data (7 days, same pattern as startFreeTrial)
+  const now = new Date();
+  const expiryDate = new Date(now);
+  expiryDate.setDate(expiryDate.getDate() + 7);
+
+  const subscriptionData = {
+    planId: "elite_monthly",
+    tier: "elite",
+    status: "referral_reward",
+    startDate: now.toISOString(),
+    expiryDate: expiryDate.toISOString(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  const referrerProfileRef = db.doc(`users/${referrerUid}/data/profile`);
+
+  // Use a transaction to atomically update all documents
+  await db.runTransaction(async (t) => {
+    const freshCodeDoc = await t.get(codeRef);
+    const freshCodeData = freshCodeDoc.data();
+
+    // Re-check claim count inside transaction
+    if (freshCodeData.claimCount >= 10) {
+      throw new HttpsError("resource-exhausted", "This referral code has reached its maximum claims.");
+    }
+
+    // 1. Increment claimCount and add to claims array
+    t.update(codeRef, {
+      claimCount: admin.firestore.FieldValue.increment(1),
+      claims: admin.firestore.FieldValue.arrayUnion({
+        uid: callerUid,
+        claimedAt: now.toISOString(),
+      }),
+    });
+
+    // 2. Set caller's referredBy
+    t.set(callerProfileRef, { referredBy: referralCode }, { merge: true });
+
+    // 3. Grant 7 days premium to caller
+    t.set(
+      callerProfileRef,
+      { subscription: subscriptionData, isPremium: true },
+      { merge: true }
+    );
+    t.set(
+      db.doc(`users/${callerUid}`),
+      { subscription: subscriptionData, isPremium: true },
+      { merge: true }
+    );
+
+    // 4. Grant 7 days premium to referrer
+    t.set(
+      referrerProfileRef,
+      { subscription: subscriptionData, isPremium: true },
+      { merge: true }
+    );
+    t.set(
+      db.doc(`users/${referrerUid}`),
+      { subscription: subscriptionData, isPremium: true },
+      { merge: true }
+    );
+  });
+
+  return { success: true, message: "7 days premium activated for both!" };
+});
+
+// ============================================================================
+// IRONCORE OPEN API — The first fitness API for the AI agent era
+// ============================================================================
+
+const VALID_API_SCOPES = [
+  "workouts:read",
+  "workouts:write",
+  "nutrition:read",
+  "nutrition:write",
+  "progress:read",
+  "profile:read",
+  "battles:read",
+  "battles:create",
+  "leaderboard:read",
+  "guild:read",
+];
+
+// --- Helper: Set CORS headers on every response ---
+function setCorsHeaders(res) {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
+}
+
+// --- Helper: Handle OPTIONS preflight ---
+function handleCorsPreflightIfNeeded(req, res) {
+  if (req.method === "OPTIONS") {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
+    res.set("Access-Control-Max-Age", "3600");
+    res.status(204).send("");
+    return true;
+  }
+  return false;
+}
+
+// --- Helper: Validate API Key (NOT exported) ---
+async function validateApiKey(keyRaw, requiredScope) {
+  const db = admin.firestore();
+
+  if (!keyRaw || typeof keyRaw !== "string" || !keyRaw.startsWith("ic_")) {
+    throw new Error("Invalid API key format.");
+  }
+
+  const hash = crypto.createHash("sha256").update(keyRaw).digest("hex");
+  const keyRef = db.collection("apiKeys").doc(hash);
+  const keySnap = await keyRef.get();
+
+  if (!keySnap.exists) {
+    throw new Error("API key not found.");
+  }
+
+  const keyDoc = keySnap.data();
+
+  if (keyDoc.revoked) {
+    throw new Error("API key has been revoked.");
+  }
+
+  if (!keyDoc.scopes.includes(requiredScope)) {
+    throw new Error(`API key does not have scope: ${requiredScope}`);
+  }
+
+  // Rate limit: max 100 requests per minute
+  const rateLimitRef = db.collection("apiRateLimits").doc(hash);
+  await db.runTransaction(async (t) => {
+    const rlSnap = await t.get(rateLimitRef);
+    const now = Date.now();
+    const windowMs = 60_000;
+
+    if (rlSnap.exists) {
+      const rlData = rlSnap.data();
+      const windowStart = rlData.windowStart || 0;
+      const count = rlData.count || 0;
+
+      if (now - windowStart < windowMs) {
+        if (count >= 100) {
+          throw new Error("Rate limit exceeded. Max 100 requests per minute.");
+        }
+        t.update(rateLimitRef, { count: count + 1 });
+      } else {
+        t.set(rateLimitRef, { windowStart: now, count: 1 });
+      }
+    } else {
+      t.set(rateLimitRef, { windowStart: now, count: 1 });
+    }
+  });
+
+  // Update usage stats
+  await keyRef.update({
+    lastUsedAt: admin.firestore.FieldValue.serverTimestamp(),
+    requestCount: admin.firestore.FieldValue.increment(1),
+  });
+
+  return { uid: keyDoc.uid, scopes: keyDoc.scopes, keyDoc };
+}
+
+// --- Helper: Log API Call (NOT exported) ---
+async function logApiCall(uid, keyHash, endpoint, method, statusCode) {
+  const db = admin.firestore();
+
+  await db.collection("apiAuditLog").add({
+    uid,
+    keyHash: keyHash.substring(0, 16),
+    endpoint,
+    method,
+    statusCode,
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  // Trim: cap at 10000 audit logs per user
+  const userLogs = await db
+    .collection("apiAuditLog")
+    .where("uid", "==", uid)
+    .orderBy("timestamp", "desc")
+    .offset(10000)
+    .limit(500)
+    .get();
+
+  if (!userLogs.empty) {
+    const batch = db.batch();
+    userLogs.docs.forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
+  }
+}
+
+// --- Helper: Extract and validate API key from Authorization header ---
+async function extractApiAuth(req, requiredScope) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    throw new Error("Missing or invalid Authorization header. Use: Bearer ic_...");
+  }
+  const keyRaw = authHeader.replace("Bearer ", "").trim();
+  const result = await validateApiKey(keyRaw, requiredScope);
+  const keyHash = crypto.createHash("sha256").update(keyRaw).digest("hex");
+  return { ...result, keyHash };
+}
+
+// ============================================================================
+// SECTION 1: API Key Management (Callable Functions)
+// ============================================================================
+
+// --- Generate API Key ---
+exports.generateApiKey = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be logged in.");
+  }
+
+  const uid = request.auth.uid;
+  const { name, scopes } = request.data;
+
+  // Validate name
+  if (!name || typeof name !== "string" || name.trim().length === 0 || name.length > 50) {
+    throw new HttpsError("invalid-argument", "name is required and must be a string (max 50 chars).");
+  }
+
+  // Validate scopes
+  if (!Array.isArray(scopes) || scopes.length === 0) {
+    throw new HttpsError("invalid-argument", "scopes must be a non-empty array.");
+  }
+  for (const scope of scopes) {
+    if (!VALID_API_SCOPES.includes(scope)) {
+      throw new HttpsError("invalid-argument", `Invalid scope: ${scope}. Valid scopes: ${VALID_API_SCOPES.join(", ")}`);
+    }
+  }
+
+  const db = admin.firestore();
+  const profileRef = db.doc(`users/${uid}/data/profile`);
+  const profileSnap = await profileRef.get();
+  const profileData = profileSnap.exists ? profileSnap.data() : {};
+  const existingKeys = profileData.apiKeys || [];
+
+  // Max 5 keys per user
+  if (existingKeys.length >= 5) {
+    throw new HttpsError("resource-exhausted", "Maximum 5 API keys per user. Revoke an existing key first.");
+  }
+
+  // Generate the raw key: ic_ + 48 hex chars
+  const rawHex = crypto.randomBytes(24).toString("hex"); // 48 hex chars
+  const rawKey = `ic_${rawHex}`;
+  const keyPrefix = rawKey.substring(0, 11); // "ic_" + first 8 hex chars
+
+  // Hash the key for storage
+  const keyHash = crypto.createHash("sha256").update(rawKey).digest("hex");
+  const now = admin.firestore.FieldValue.serverTimestamp();
+
+  // Store hashed key in apiKeys collection
+  await db.collection("apiKeys").doc(keyHash).set({
+    uid,
+    name: name.trim(),
+    scopes,
+    createdAt: now,
+    lastUsedAt: null,
+    requestCount: 0,
+    revoked: false,
+  });
+
+  // Add reference to user profile
+  const keyMeta = {
+    keyPrefix,
+    name: name.trim(),
+    scopes,
+    createdAt: new Date().toISOString(),
+  };
+  await profileRef.set(
+    { apiKeys: admin.firestore.FieldValue.arrayUnion(keyMeta) },
+    { merge: true }
+  );
+
+  // Return the raw key ONCE — it is never stored
+  return {
+    key: rawKey,
+    prefix: keyPrefix,
+    name: name.trim(),
+    scopes,
+  };
+});
+
+// --- List API Keys ---
+exports.listApiKeys = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be logged in.");
+  }
+
+  const uid = request.auth.uid;
+  const db = admin.firestore();
+  const profileRef = db.doc(`users/${uid}/data/profile`);
+  const profileSnap = await profileRef.get();
+
+  if (!profileSnap.exists) {
+    return { keys: [] };
+  }
+
+  const profileData = profileSnap.data();
+  const keys = (profileData.apiKeys || []).map((k) => ({
+    keyPrefix: k.keyPrefix,
+    name: k.name,
+    scopes: k.scopes,
+    createdAt: k.createdAt,
+  }));
+
+  return { keys };
+});
+
+// --- Revoke API Key ---
+exports.revokeApiKey = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be logged in.");
+  }
+
+  const uid = request.auth.uid;
+  const { keyPrefix } = request.data;
+
+  if (!keyPrefix || typeof keyPrefix !== "string") {
+    throw new HttpsError("invalid-argument", "keyPrefix is required.");
+  }
+
+  const db = admin.firestore();
+
+  // Find the key in apiKeys collection by uid + prefix match
+  const keysSnap = await db
+    .collection("apiKeys")
+    .where("uid", "==", uid)
+    .where("revoked", "==", false)
+    .get();
+
+  let foundKeyRef = null;
+  for (const doc of keysSnap.docs) {
+    // Reconstruct: we can't reverse the hash, so we match by checking all user keys
+    // The prefix is stored in the user profile, so we find the matching doc
+    const keyData = doc.data();
+    if (keyData.name) {
+      // Check if this key matches by looking at user profile
+      foundKeyRef = doc.ref;
+      // We need to verify this is the right key via the profile
+    }
+  }
+
+  // Look up in user profile to find the matching key metadata
+  const profileRef = db.doc(`users/${uid}/data/profile`);
+  const profileSnap = await profileRef.get();
+  const profileData = profileSnap.exists ? profileSnap.data() : {};
+  const existingKeys = profileData.apiKeys || [];
+
+  const matchingKeyMeta = existingKeys.find((k) => k.keyPrefix === keyPrefix);
+  if (!matchingKeyMeta) {
+    throw new HttpsError("not-found", "API key with that prefix not found.");
+  }
+
+  // Find the actual apiKeys doc — match by uid and name+scopes+createdAt
+  let revokedCount = 0;
+  for (const doc of keysSnap.docs) {
+    const keyData = doc.data();
+    if (
+      keyData.name === matchingKeyMeta.name &&
+      JSON.stringify(keyData.scopes) === JSON.stringify(matchingKeyMeta.scopes)
+    ) {
+      await doc.ref.update({ revoked: true });
+      revokedCount++;
+      break;
+    }
+  }
+
+  // Remove from user profile
+  await profileRef.update({
+    apiKeys: admin.firestore.FieldValue.arrayRemove(matchingKeyMeta),
+  });
+
+  return { success: true, revokedPrefix: keyPrefix };
+});
+
+// ============================================================================
+// SECTION 3: REST API Endpoints (onRequest — HTTP endpoints for external agents)
+// ============================================================================
+
+// --- GET /apiGetProfile ---
+exports.apiGetProfile = onRequest(async (req, res) => {
+  if (handleCorsPreflightIfNeeded(req, res)) return;
+  setCorsHeaders(res);
+
+  let auth;
+  try {
+    if (req.method !== "GET") {
+      res.status(405).json({ error: true, message: "Method not allowed. Use GET.", code: 405 });
+      return;
+    }
+
+    auth = await extractApiAuth(req, "profile:read");
+    const db = admin.firestore();
+    const profileRef = db.doc(`users/${auth.uid}/data/profile`);
+    const profileSnap = await profileRef.get();
+
+    if (!profileSnap.exists) {
+      await logApiCall(auth.uid, auth.keyHash, "/apiGetProfile", "GET", 404);
+      res.status(404).json({ error: true, message: "Profile not found.", code: 404 });
+      return;
+    }
+
+    const p = profileSnap.data();
+    const safeProfile = {
+      username: p.username || null,
+      level: p.level || 1,
+      xp: p.xp || 0,
+      league: p.league || "iron",
+      currentForge: p.currentForge || 0,
+      longestForge: p.longestForge || 0,
+      wins: p.wins || 0,
+      losses: p.losses || 0,
+      eloRating: p.eloRating || 1000,
+      workoutsCompleted: p.workoutsCompleted || 0,
+      joinedAt: p.joinedAt || null,
+    };
+
+    await logApiCall(auth.uid, auth.keyHash, "/apiGetProfile", "GET", 200);
+    res.status(200).json(safeProfile);
+  } catch (err) {
+    const keyHash = auth ? auth.keyHash : "unknown";
+    const uid = auth ? auth.uid : "unknown";
+    try { await logApiCall(uid, keyHash, "/apiGetProfile", "GET", 401); } catch (_) {}
+    res.status(401).json({ error: true, message: err.message, code: 401 });
+  }
+});
+
+// --- GET /apiGetWorkouts ---
+exports.apiGetWorkouts = onRequest(async (req, res) => {
+  if (handleCorsPreflightIfNeeded(req, res)) return;
+  setCorsHeaders(res);
+
+  let auth;
+  try {
+    if (req.method !== "GET") {
+      res.status(405).json({ error: true, message: "Method not allowed. Use GET.", code: 405 });
+      return;
+    }
+
+    auth = await extractApiAuth(req, "workouts:read");
+    const db = admin.firestore();
+
+    const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+    const offset = parseInt(req.query.offset) || 0;
+    const from = req.query.from || null;
+    const to = req.query.to || null;
+
+    let query = db
+      .collection(`users/${auth.uid}/workouts`)
+      .orderBy("createdAt", "desc");
+
+    if (from) {
+      query = query.where("createdAt", ">=", new Date(from));
+    }
+    if (to) {
+      query = query.where("createdAt", "<=", new Date(to));
+    }
+
+    query = query.offset(offset).limit(limit);
+    const snap = await query.get();
+
+    const workouts = snap.docs.map((doc) => {
+      const d = doc.data();
+      return {
+        id: doc.id,
+        date: d.date || null,
+        exercises: (d.exercises || []).map((ex) => ({
+          name: ex.name,
+          sets: (ex.sets || []).map((s) => ({ weight: s.weight, reps: s.reps })),
+        })),
+        duration: d.duration || null,
+        volume: d.volume || null,
+        createdAt: d.createdAt ? d.createdAt.toDate().toISOString() : null,
+      };
+    });
+
+    await logApiCall(auth.uid, auth.keyHash, "/apiGetWorkouts", "GET", 200);
+    res.status(200).json({ workouts, count: workouts.length, limit, offset });
+  } catch (err) {
+    const keyHash = auth ? auth.keyHash : "unknown";
+    const uid = auth ? auth.uid : "unknown";
+    try { await logApiCall(uid, keyHash, "/apiGetWorkouts", "GET", 401); } catch (_) {}
+    res.status(401).json({ error: true, message: err.message, code: 401 });
+  }
+});
+
+// --- POST /apiCreateWorkout ---
+exports.apiCreateWorkout = onRequest(async (req, res) => {
+  if (handleCorsPreflightIfNeeded(req, res)) return;
+  setCorsHeaders(res);
+
+  let auth;
+  try {
+    if (req.method !== "POST") {
+      res.status(405).json({ error: true, message: "Method not allowed. Use POST.", code: 405 });
+      return;
+    }
+
+    auth = await extractApiAuth(req, "workouts:write");
+    const db = admin.firestore();
+
+    const { exercises, duration, date } = req.body;
+
+    // Validate exercises
+    if (!Array.isArray(exercises) || exercises.length === 0) {
+      await logApiCall(auth.uid, auth.keyHash, "/apiCreateWorkout", "POST", 400);
+      res.status(400).json({ error: true, message: "exercises must be a non-empty array.", code: 400 });
+      return;
+    }
+
+    for (let i = 0; i < exercises.length; i++) {
+      const ex = exercises[i];
+      if (!ex.name || typeof ex.name !== "string") {
+        await logApiCall(auth.uid, auth.keyHash, "/apiCreateWorkout", "POST", 400);
+        res.status(400).json({ error: true, message: `exercises[${i}].name must be a string.`, code: 400 });
+        return;
+      }
+      if (!Array.isArray(ex.sets) || ex.sets.length === 0) {
+        await logApiCall(auth.uid, auth.keyHash, "/apiCreateWorkout", "POST", 400);
+        res.status(400).json({ error: true, message: `exercises[${i}].sets must be a non-empty array.`, code: 400 });
+        return;
+      }
+      for (let j = 0; j < ex.sets.length; j++) {
+        const s = ex.sets[j];
+        if (typeof s.weight !== "number" || typeof s.reps !== "number") {
+          await logApiCall(auth.uid, auth.keyHash, "/apiCreateWorkout", "POST", 400);
+          res.status(400).json({
+            error: true,
+            message: `exercises[${i}].sets[${j}] must have numeric weight and reps.`,
+            code: 400,
+          });
+          return;
+        }
+      }
+    }
+
+    // Calculate volume
+    let totalVolume = 0;
+    const cleanExercises = exercises.map((ex) => {
+      const cleanSets = ex.sets.map((s) => {
+        totalVolume += s.weight * s.reps;
+        return { weight: s.weight, reps: s.reps };
+      });
+      return { name: ex.name, sets: cleanSets };
+    });
+
+    // Write workout
+    const workoutData = {
+      exercises: cleanExercises,
+      duration: typeof duration === "number" ? duration : null,
+      date: date || new Date().toISOString().split("T")[0],
+      volume: totalVolume,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      source: "api",
+    };
+
+    const workoutRef = await db.collection(`users/${auth.uid}/workouts`).add(workoutData);
+
+    // Award XP using same XP_MAP pattern as awardActivityXP
+    const XP_MAP = {
+      meal: 10,
+      workout: 50,
+      progress: 20,
+      burned: 15,
+    };
+    const xpAwarded = XP_MAP.workout;
+
+    const profileRef = db.doc(`users/${auth.uid}/data/profile`);
+    const leaderboardRef = db.doc(`leaderboard/${auth.uid}`);
+
+    await db.runTransaction(async (t) => {
+      const profileSnap = await t.get(profileRef);
+      const currentXp = profileSnap.exists ? (profileSnap.data().xp || 0) : 0;
+      const updatedXp = currentXp + xpAwarded;
+      const currentCount = profileSnap.exists ? (profileSnap.data().workoutsCompleted || 0) : 0;
+
+      if (profileSnap.exists) {
+        t.update(profileRef, { xp: updatedXp, workoutsCompleted: currentCount + 1 });
+      } else {
+        t.set(profileRef, { xp: updatedXp, workoutsCompleted: 1 });
+      }
+
+      t.set(leaderboardRef, { xp: updatedXp, uid: auth.uid }, { merge: true });
+    });
+
+    await logApiCall(auth.uid, auth.keyHash, "/apiCreateWorkout", "POST", 201);
+    res.status(201).json({ success: true, workoutId: workoutRef.id, xpAwarded });
+  } catch (err) {
+    const keyHash = auth ? auth.keyHash : "unknown";
+    const uid = auth ? auth.uid : "unknown";
+    try { await logApiCall(uid, keyHash, "/apiCreateWorkout", "POST", err.message.includes("Rate limit") ? 429 : 401); } catch (_) {}
+    const code = err.message.includes("Rate limit") ? 429 : 401;
+    res.status(code).json({ error: true, message: err.message, code });
+  }
+});
+
+// --- GET /apiGetNutrition ---
+exports.apiGetNutrition = onRequest(async (req, res) => {
+  if (handleCorsPreflightIfNeeded(req, res)) return;
+  setCorsHeaders(res);
+
+  let auth;
+  try {
+    if (req.method !== "GET") {
+      res.status(405).json({ error: true, message: "Method not allowed. Use GET.", code: 405 });
+      return;
+    }
+
+    auth = await extractApiAuth(req, "nutrition:read");
+    const db = admin.firestore();
+
+    const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+    const dateFilter = req.query.date || null;
+
+    let query = db
+      .collection(`users/${auth.uid}/meals`)
+      .orderBy("createdAt", "desc");
+
+    if (dateFilter) {
+      query = query.where("date", "==", dateFilter);
+    }
+
+    query = query.limit(limit);
+    const snap = await query.get();
+
+    const meals = snap.docs.map((doc) => {
+      const d = doc.data();
+      return {
+        id: doc.id,
+        name: d.name || null,
+        calories: d.calories || 0,
+        protein: d.protein || 0,
+        carbs: d.carbs || 0,
+        fat: d.fat || 0,
+        date: d.date || null,
+        createdAt: d.createdAt ? d.createdAt.toDate().toISOString() : null,
+      };
+    });
+
+    await logApiCall(auth.uid, auth.keyHash, "/apiGetNutrition", "GET", 200);
+    res.status(200).json({ meals, count: meals.length });
+  } catch (err) {
+    const keyHash = auth ? auth.keyHash : "unknown";
+    const uid = auth ? auth.uid : "unknown";
+    try { await logApiCall(uid, keyHash, "/apiGetNutrition", "GET", 401); } catch (_) {}
+    res.status(401).json({ error: true, message: err.message, code: 401 });
+  }
+});
+
+// --- GET /apiGetLeaderboard ---
+exports.apiGetLeaderboard = onRequest(async (req, res) => {
+  if (handleCorsPreflightIfNeeded(req, res)) return;
+  setCorsHeaders(res);
+
+  let auth;
+  try {
+    if (req.method !== "GET") {
+      res.status(405).json({ error: true, message: "Method not allowed. Use GET.", code: 405 });
+      return;
+    }
+
+    auth = await extractApiAuth(req, "leaderboard:read");
+    const db = admin.firestore();
+
+    const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+
+    const snap = await db
+      .collection("leaderboard")
+      .orderBy("xp", "desc")
+      .limit(limit)
+      .get();
+
+    const leaderboard = snap.docs.map((doc, index) => {
+      const d = doc.data();
+      return {
+        rank: index + 1,
+        uid: doc.id,
+        username: d.username || null,
+        xp: d.xp || 0,
+        level: d.level || 1,
+        league: d.league || "iron",
+        wins: d.wins || 0,
+      };
+    });
+
+    await logApiCall(auth.uid, auth.keyHash, "/apiGetLeaderboard", "GET", 200);
+    res.status(200).json({ leaderboard, count: leaderboard.length });
+  } catch (err) {
+    const keyHash = auth ? auth.keyHash : "unknown";
+    const uid = auth ? auth.uid : "unknown";
+    try { await logApiCall(uid, keyHash, "/apiGetLeaderboard", "GET", 401); } catch (_) {}
+    res.status(401).json({ error: true, message: err.message, code: 401 });
+  }
+});
+
+// --- POST /apiCreateBattle ---
+exports.apiCreateBattle = onRequest(async (req, res) => {
+  if (handleCorsPreflightIfNeeded(req, res)) return;
+  setCorsHeaders(res);
+
+  let auth;
+  try {
+    if (req.method !== "POST") {
+      res.status(405).json({ error: true, message: "Method not allowed. Use POST.", code: 405 });
+      return;
+    }
+
+    auth = await extractApiAuth(req, "battles:create");
+    const db = admin.firestore();
+
+    const { opponentUsername } = req.body;
+    if (!opponentUsername || typeof opponentUsername !== "string") {
+      await logApiCall(auth.uid, auth.keyHash, "/apiCreateBattle", "POST", 400);
+      res.status(400).json({ error: true, message: "opponentUsername is required.", code: 400 });
+      return;
+    }
+
+    // Look up opponent by username in usernames collection
+    const usernameSnap = await db.collection("usernames").doc(opponentUsername.toLowerCase()).get();
+    if (!usernameSnap.exists) {
+      await logApiCall(auth.uid, auth.keyHash, "/apiCreateBattle", "POST", 404);
+      res.status(404).json({ error: true, message: "Opponent not found.", code: 404 });
+      return;
+    }
+
+    const opponentUid = usernameSnap.data().uid;
+
+    if (opponentUid === auth.uid) {
+      await logApiCall(auth.uid, auth.keyHash, "/apiCreateBattle", "POST", 400);
+      res.status(400).json({ error: true, message: "Cannot battle yourself.", code: 400 });
+      return;
+    }
+
+    // Get both profiles
+    const [challengerSnap, opponentProfileSnap] = await Promise.all([
+      db.doc(`users/${auth.uid}/data/profile`).get(),
+      db.doc(`users/${opponentUid}/data/profile`).get(),
+    ]);
+
+    const challengerData = challengerSnap.exists ? challengerSnap.data() : {};
+    const opponentData = opponentProfileSnap.exists ? opponentProfileSnap.data() : {};
+
+    // Create battle document
+    const battleData = {
+      challengerUid: auth.uid,
+      challengerUsername: challengerData.username || "Unknown",
+      opponentUid,
+      opponentUsername: opponentData.username || opponentUsername,
+      status: "pending",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h expiry
+      source: "api",
+    };
+
+    const battleRef = await db.collection("battles").add(battleData);
+
+    await logApiCall(auth.uid, auth.keyHash, "/apiCreateBattle", "POST", 201);
+    res.status(201).json({ success: true, battleId: battleRef.id });
+  } catch (err) {
+    const keyHash = auth ? auth.keyHash : "unknown";
+    const uid = auth ? auth.uid : "unknown";
+    try { await logApiCall(uid, keyHash, "/apiCreateBattle", "POST", err.message.includes("Rate limit") ? 429 : 401); } catch (_) {}
+    const code = err.message.includes("Rate limit") ? 429 : 401;
+    res.status(code).json({ error: true, message: err.message, code });
   }
 });

@@ -450,12 +450,18 @@ export const declineBattle = async (battleId) => {
 };
 
 /**
- * Complete a battle and record the winner
- * @param {string} battleId 
- * @param {string} winnerId 
- * @param {number} xpReward - XP awarded to winner
+ * @deprecated Use submitBattleWorkout Cloud Function instead.
+ * Client-side battle completion is disabled for security.
+ * All battle resolution must go through the server-authoritative
+ * submitBattleWorkout Cloud Function which validates anti-cheat,
+ * calculates Elo, and awards XP atomically.
  */
-export const completeBattle = async (battleId, winnerId, xpReward = GAME_BALANCE.DEFAULT_BATTLE_XP_REWARD) => {
+export const completeBattle = async (/* battleId, winnerId, xpReward */) => {
+    throw new Error('completeBattle is disabled. Use submitBattleWorkout Cloud Function instead.');
+};
+
+/** @deprecated — preserved for reference only, not callable */
+const _legacyCompleteBattle = async (battleId, winnerId, xpReward = GAME_BALANCE.DEFAULT_BATTLE_XP_REWARD) => {
     try {
         const battleRef = doc(db, 'battles', battleId);
 
@@ -465,10 +471,16 @@ export const completeBattle = async (battleId, winnerId, xpReward = GAME_BALANCE
 
             const battleData = battleSnap.data();
             if (battleData.status === 'completed') throw new Error('Battle already completed');
+            if (battleData.status !== 'active') throw new Error('Battle must be active to complete');
 
-            const loserId = winnerId === battleData.challenger.userId
-                ? battleData.opponent.userId
-                : battleData.challenger.userId;
+            // SECURITY: Verify winnerId is an actual participant
+            const challengerId = battleData.challenger.userId;
+            const opponentId = battleData.opponent.userId;
+            if (winnerId !== challengerId && winnerId !== opponentId) {
+                throw new Error('Winner must be a battle participant');
+            }
+
+            const loserId = winnerId === challengerId ? opponentId : challengerId;
 
             const winnerRef = doc(db, 'users', winnerId);
             const loserRef = doc(db, 'users', loserId);
@@ -489,6 +501,7 @@ export const completeBattle = async (battleId, winnerId, xpReward = GAME_BALANCE
                 currentForge: increment(1)
             });
 
+            // Elo floor: Forge cannot go below 0
             transaction.update(loserRef, {
                 losses: increment(1),
                 currentForge: Math.max(0, currentLoserForge - 1)

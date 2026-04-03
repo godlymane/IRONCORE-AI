@@ -30,6 +30,14 @@
     ],
     "rewrites": [
       {
+        "source": "/invite/**",
+        "destination": "/invite.html"
+      },
+      {
+        "source": "/developers",
+        "destination": "/developers.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

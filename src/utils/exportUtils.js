@@ -1,6 +1,11 @@
 // Data Export Utilities
 // Export workout and meal data as CSV files
 
+const escapeHtml = (str) => {
+    if (typeof str !== 'string') return String(str ?? '');
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+};
+
 /**
  * Convert array of objects to CSV string
  */
@@ -143,12 +148,12 @@ export const exportPDFReport = ({ workouts = [], meals = [], profile = {}, progr
   @media print{body{padding:20px}}
 </style></head><body>
 <h1>IronCore Fitness Report</h1>
-<p style="color:#6b7280;font-size:13px">${profile.displayName || 'Athlete'} &mdash; Generated ${new Date().toLocaleDateString()}</p>
+<p style="color:#6b7280;font-size:13px">${escapeHtml(profile.displayName) || 'Athlete'} &mdash; Generated ${new Date().toLocaleDateString()}</p>
 
 <h2>Overview</h2>
 <div class="grid">
-  <div class="card"><div class="label">Current Weight</div><div class="value">${latestWeight} kg</div></div>
-  <div class="card"><div class="label">Total XP</div><div class="value">${profile.xp || 0}</div></div>
+  <div class="card"><div class="label">Current Weight</div><div class="value">${escapeHtml(latestWeight)} kg</div></div>
+  <div class="card"><div class="label">Total XP</div><div class="value">${escapeHtml(profile.xp || 0)}</div></div>
   <div class="card"><div class="label">Total Workouts</div><div class="value">${totalWorkouts}</div></div>
   <div class="card"><div class="label">Meals Logged</div><div class="value">${totalMeals}</div></div>
 </div>
@@ -164,13 +169,13 @@ export const exportPDFReport = ({ workouts = [], meals = [], profile = {}, progr
 <h2>Recent Workouts</h2>
 <table>
   <tr><th>Date</th><th>Name</th><th>Exercises</th></tr>
-  ${workouts.slice(0, 10).map(w => `<tr><td>${w.date || '--'}</td><td>${w.name || 'Workout'}</td><td>${w.exercises?.length || 0}</td></tr>`).join('')}
+  ${workouts.slice(0, 10).map(w => `<tr><td>${escapeHtml(w.date || '--')}</td><td>${escapeHtml(w.name || 'Workout')}</td><td>${escapeHtml(w.exercises?.length || 0)}</td></tr>`).join('')}
 </table>
 
 <h2>Weight History</h2>
 <table>
   <tr><th>Date</th><th>Weight (kg)</th></tr>
-  ${progress.filter(p => p.weight).slice(0, 10).map(p => `<tr><td>${p.date}</td><td>${p.weight}</td></tr>`).join('')}
+  ${progress.filter(p => p.weight).slice(0, 10).map(p => `<tr><td>${escapeHtml(p.date)}</td><td>${escapeHtml(p.weight)}</td></tr>`).join('')}
 </table>
 
 <p class="meta">IronCore AI &mdash; Your Fitness Companion</p>

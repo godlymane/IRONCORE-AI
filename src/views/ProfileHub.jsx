@@ -1,5 +1,8 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { User, Users, Calendar, Activity, Image as ImageIcon, LogOut, Flame, UserPlus, Check, X, Swords, Trophy, Medal } from 'lucide-react';
+import { User, Users, Calendar, Activity, Image as ImageIcon, LogOut, Flame, UserPlus, Check, X, Swords, Trophy, Medal, Gift } from 'lucide-react';
+
+const InviteSystem = React.lazy(() => import('../components/InviteSystem'));
+const ApiKeyManager = React.lazy(() => import('../components/ApiKeyManager'));
 import { TrackView } from './TrackView';
 import { StatsView } from './StatsView';
 import { ChronicleView } from './ChronicleView';
@@ -50,6 +53,8 @@ export const ProfileHub = ({
     } = useStore();
     const [subTab, setSubTab] = useState('overview');
     const [selectedPlayer, setSelectedPlayer] = useState(null);
+    const [showInvite, setShowInvite] = useState(false);
+    const [showApiKeys, setShowApiKeys] = useState(false);
     const [personalRecords, setPersonalRecords] = useState(null); // { exerciseName: { weight, date } }
 
     // Subscribe to PRs doc
@@ -127,6 +132,30 @@ export const ProfileHub = ({
                 </button>
             </div>
 
+            {/* Action Buttons */}
+            <div className="space-y-2">
+                <button
+                    onClick={() => setShowInvite(true)}
+                    className="w-full py-3 rounded-2xl text-xs font-black uppercase tracking-wider text-white flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95"
+                    style={{
+                        background: 'linear-gradient(135deg, #7c3aed 0%, #dc2626 100%)',
+                        boxShadow: '0 4px 20px rgba(124,58,237,0.3)',
+                    }}
+                >
+                    <Gift size={16} /> Invite Friends — Get 7 Days Premium Free
+                </button>
+                <button
+                    onClick={() => setShowApiKeys(true)}
+                    className="w-full py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider text-gray-300 flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95"
+                    style={{
+                        background: 'rgba(255,255,255,0.03)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                    }}
+                >
+                    <span className="text-sm">🔌</span> Connected Agents — Open API
+                </button>
+            </div>
+
             {/* Player Card — identity card at top */}
             <PlayerCard isOwn={true} />
 
@@ -189,7 +218,7 @@ export const ProfileHub = ({
                             color={ironScoreColor}
                         />
                         <div className="absolute inset-0 flex items-center justify-center">
-                            <span className="text-lg font-black text-white">{ironScore || '—'}</span>
+                            <span className="text-lg font-black text-white">{ironScore != null ? ironScore : '—'}</span>
                         </div>
                     </div>
                     <div className="flex-1 min-w-0">
@@ -275,6 +304,20 @@ export const ProfileHub = ({
                 onClose={() => setSelectedPlayer(null)}
                 onChallenge={selectedPlayer ? () => setSelectedPlayer(null) : undefined}
             />
+
+            {/* Invite System Overlay */}
+            {showInvite && (
+                <React.Suspense fallback={null}>
+                    <InviteSystem user={user} profile={profile} onClose={() => setShowInvite(false)} />
+                </React.Suspense>
+            )}
+
+            {/* API Key Manager Overlay */}
+            {showApiKeys && (
+                <React.Suspense fallback={null}>
+                    <ApiKeyManager user={user} profile={profile} onClose={() => setShowApiKeys(false)} />
+                </React.Suspense>
+            )}
         </div>
     );
 };

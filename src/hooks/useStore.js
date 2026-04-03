@@ -48,3 +48,30 @@ export const useStore = create((set, get) => ({
     // Deep Merge Update Utility
     updateState: (payload) => set((state) => ({ ...state, ...payload }))
 }));
+
+// ── Memoized Selectors ─────────────────────────────────────────────────
+// Use these instead of destructuring the whole store to prevent unnecessary re-renders.
+// Example: const user = useStore(selectUser);
+export const selectUser = (s) => s.user;
+export const selectProfile = (s) => s.profile;
+export const selectUserDoc = (s) => s.userDoc;
+export const selectMeals = (s) => s.meals;
+export const selectProgress = (s) => s.progress;
+export const selectBurned = (s) => s.burned;
+export const selectWorkouts = (s) => s.workouts;
+export const selectPhotos = (s) => s.photos;
+export const selectLeaderboard = (s) => s.leaderboard;
+export const selectChat = (s) => s.chat;
+export const selectPosts = (s) => s.posts;
+export const selectInbox = (s) => s.inbox;
+export const selectGlobalFeed = (s) => s.globalFeed;
+export const selectBattles = (s) => s.battles;
+export const selectFriendRequests = (s) => s.friendRequests;
+export const selectFriends = (s) => s.friends;
+export const selectActiveTab = (s) => s.activeTab;
+export const selectLoading = (s) => s.loading;
+export const selectError = (s) => s.error;
+export const selectDataLoaded = (s) => s.dataLoaded;
+export const selectProfileLoaded = (s) => s.profileLoaded;
+export const selectProfileExists = (s) => s.profileExists;
+export const selectFollowing = (s) => s.following;

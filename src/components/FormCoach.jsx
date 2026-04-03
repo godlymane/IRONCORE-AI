@@ -104,6 +104,12 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
 
     // ── Initialize engine, renderer, feedback manager on exercise change ──
     useEffect(() => {
+        // Cancel any in-flight pose detection RAF before resetting engine
+        if (animationRef.current) {
+            cancelAnimationFrame(animationRef.current);
+            animationRef.current = null;
+        }
+
         const vw = profile.width;
         const vh = profile.height;
         engineRef.current = new FormAnalysisEngine(exercise, vw, vh);
@@ -201,9 +207,10 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
 
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
-            if (videoRef.current) {
+            if (videoRef.current && isMountedRef.current) {
                 videoRef.current.srcObject = stream;
                 videoRef.current.onloadedmetadata = () => {
+                    if (!isMountedRef.current) return; // Guard against unmounted state updates
                     videoRef.current.play();
                     syncCanvasSize();
                     isStreamingRef.current = true;
