@@ -147,22 +147,27 @@ export const CardioView = () => {
         let cals = 0;
 
         if (activity === 'treadmill') {
-            const speedMmin = tmSpeed * 16.6667;
-            const grade = tmIncline / 100;
+            const speed = parseFloat(tmSpeed) || 0;
+            const incline = parseFloat(tmIncline) || 0;
+            const duration = parseFloat(tmDuration) || 0;
+            const speedMmin = speed * 16.6667;
+            const grade = incline / 100;
             const vo2 = (0.2 * speedMmin) + (0.9 * speedMmin * grade) + 3.5;
-            cals = (vo2 * weight / 200) * tmDuration;
+            cals = (vo2 * weight / 200) * duration;
         } else if (activity === 'walking') {
             let met = 2.5;
             if (walkIntensity === 'moderate') met = 3.5;
             if (walkIntensity === 'aggressive') met = 5.0;
-            const approxMins = walkSteps / 100;
+            const steps = parseFloat(walkSteps) || 0;
+            const approxMins = steps / 100;
             cals = (met * 3.5 * weight / 200) * approxMins;
         } else if (activity === 'cycling') {
             let met = 6.0;
             if (cycIntensity === 'low') met = 4.0;
             if (cycIntensity === 'high') met = 8.5;
             if (cycIntensity === 'extreme') met = 12.0;
-            cals = (met * 3.5 * weight / 200) * cycDuration;
+            const duration = parseFloat(cycDuration) || 0;
+            cals = (met * 3.5 * weight / 200) * duration;
         } else {
             // Default MET for unknown/general activity
             const met = 3.5;

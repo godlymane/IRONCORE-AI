@@ -13,7 +13,8 @@ import {
     startAfter,
     serverTimestamp,
     increment,
-    onSnapshot
+    onSnapshot,
+    runTransaction
 } from 'firebase/firestore';
 
 /**
@@ -60,19 +61,34 @@ export const getCurrentTournament = async () => {
 export const joinTournament = async (tournamentId, user) => {
     try {
         const participantRef = doc(db, `tournaments/${tournamentId}/participants`, user.userId);
-        await setDoc(participantRef, {
-            userId: user.userId,
-            username: user.username,
-            avatarUrl: user.avatarUrl || '',
-            score: 0,
-            rank: 0,
-            joinedAt: serverTimestamp()
-        });
-
-        // Increment participant count
         const tournamentRef = doc(db, 'tournaments', tournamentId);
-        await updateDoc(tournamentRef, {
-            participantCount: increment(1)
+
+        await runTransaction(db, async (transaction) => {
+            // Check for duplicate join
+            const participantSnap = await transaction.get(participantRef);
+            if (participantSnap.exists()) {
+                throw new Error('Already joined this tournament');
+            }
+
+            // Verify tournament exists and is joinable
+            const tournamentSnap = await transaction.get(tournamentRef);
+            if (!tournamentSnap.exists()) {
+                throw new Error('Tournament not found');
+            }
+
+            // Atomically create participant and increment count
+            transaction.set(participantRef, {
+                userId: user.userId,
+                username: user.username,
+                avatarUrl: user.avatarUrl || '',
+                score: 0,
+                rank: 0,
+                joinedAt: serverTimestamp()
+            });
+
+            transaction.update(tournamentRef, {
+                participantCount: increment(1)
+            });
         });
 
         return true;

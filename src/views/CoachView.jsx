@@ -100,6 +100,15 @@ TOTAL WORKOUTS: ${workouts.length}, XP: ${profile?.xp || 0}`;
         ).join('\n');
     };
 
+    // Basic prompt injection defense — strip patterns that attempt to override system instructions
+    const sanitizeInput = (raw) => {
+        return raw
+            .replace(/\b(ignore|disregard|forget|override)\s+(all\s+)?(previous|above|prior|system)\s+(instructions?|prompts?|rules?|context)/gi, '[filtered]')
+            .replace(/\b(you are now|act as|pretend to be|new instructions?|system prompt)\b/gi, '[filtered]')
+            .replace(/```[\s\S]*?```/g, '[code block removed]')
+            .trim();
+    };
+
     const sendMessage = async (textOverride) => {
         const text = textOverride || input;
         if (!text.trim() || loading) return;
@@ -110,7 +119,8 @@ TOTAL WORKOUTS: ${workouts.length}, XP: ${profile?.xp || 0}`;
             return;
         }
 
-        const newMsg = { role: 'user', text };
+        const sanitizedText = sanitizeInput(text.trim());
+        const newMsg = { role: 'user', text: sanitizedText };
         setMessages(prev => [...prev, newMsg]);
         setInput("");
         setLoading(true);
@@ -125,7 +135,7 @@ ${context}
 
 CONVERSATION SO FAR:
 ${history}
-User: ${text}
+User: ${sanitizedText}
 
 Coach (respond in character — short, specific, intense):`;
 

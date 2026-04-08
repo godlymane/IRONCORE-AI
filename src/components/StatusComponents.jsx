@@ -1,7 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { WifiOff, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
+
+// Re-export EmptyState from UIComponents as the canonical source
+export { EmptyState } from './UIComponents';
+
+// Re-export useNetworkStatus as useOnlineStatus for backward compat
+export { useNetworkStatus as useOnlineStatus } from '../hooks/useNetworkStatus';
 
 // Offline Indicator - shows when user loses internet + sync banner on reconnect
 export const OfflineIndicator = () => {
@@ -55,58 +61,24 @@ export const ErrorCard = ({ message, onRetry, className = '' }) => {
     );
 };
 
-// Loading Skeleton - generic skeleton loader
+// Loading Skeleton - generic skeleton loader (issue 10: random widths stabilized with useMemo)
 export const SkeletonLoader = ({ className = '', lines = 3 }) => {
+    const widths = useMemo(
+        () => Array.from({ length: lines }, () => `${Math.random() * 30 + 70}%`),
+        [lines]
+    );
+
     return (
         <div className={`animate-pulse space-y-3 ${className}`}>
-            {Array.from({ length: lines }).map((_, i) => (
+            {widths.map((w, i) => (
                 <div
                     key={i}
                     className="h-4 bg-white/10 rounded"
-                    style={{ width: `${Math.random() * 30 + 70}%` }}
+                    style={{ width: w }}
                 />
             ))}
         </div>
     );
-};
-
-// Empty State - friendly empty state with action
-export const EmptyState = ({ icon, title, description, action, actionLabel }) => {
-    return (
-        <div className="text-center py-12 px-6">
-            {icon && <div className="text-5xl mb-4 opacity-50">{icon}</div>}
-            <h3 className="text-lg font-bold text-white mb-2">{title}</h3>
-            <p className="text-sm text-white/50 mb-6 max-w-xs mx-auto">{description}</p>
-            {action && (
-                <button
-                    onClick={action}
-                    className="px-6 py-3 bg-red-600 hover:bg-red-500 rounded-xl text-white font-bold transition-colors"
-                >
-                    {actionLabel || 'Get Started'}
-                </button>
-            )}
-        </div>
-    );
-};
-
-// Connection Status Hook
-export const useOnlineStatus = () => {
-    const [isOnline, setIsOnline] = useState(navigator.onLine);
-
-    useEffect(() => {
-        const handleOnline = () => setIsOnline(true);
-        const handleOffline = () => setIsOnline(false);
-
-        window.addEventListener('online', handleOnline);
-        window.addEventListener('offline', handleOffline);
-
-        return () => {
-            window.removeEventListener('online', handleOnline);
-            window.removeEventListener('offline', handleOffline);
-        };
-    }, []);
-
-    return isOnline;
 };
 
 

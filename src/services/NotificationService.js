@@ -10,7 +10,8 @@ import {
     updateDoc,
     doc,
     serverTimestamp,
-    getDocs
+    getDocs,
+    writeBatch
 } from 'firebase/firestore';
 
 /**
@@ -52,13 +53,17 @@ export const markAllAsRead = async (userId) => {
     try {
         const q = query(
             collection(db, `users/${userId}/notifications`),
-            where('read', '==', false)
+            where('read', '==', false),
+            limit(500) // Firestore batch limit is 500 writes
         );
         const snapshot = await getDocs(q);
-        const batchPromises = snapshot.docs.map(doc =>
-            updateDoc(doc.ref, { read: true })
-        );
-        await Promise.all(batchPromises);
+        if (snapshot.empty) return;
+
+        const batch = writeBatch(db);
+        snapshot.docs.forEach(d => {
+            batch.update(d.ref, { read: true });
+        });
+        await batch.commit();
     } catch (error) {
         console.error('Error marking all as read:', error);
     }
@@ -94,7 +99,7 @@ const hasSentToday = (triggerId) => {
         const record = JSON.parse(localStorage.getItem(TRIGGER_KEY) || '{}');
         const today = new Date().toISOString().split('T')[0];
         return record[triggerId] === today;
-    } catch { return false; }
+    } catch (e) { console.warn('Error reading AI trigger record:', e); return false; }
 };
 
 const markSent = (triggerId) => {
@@ -102,7 +107,7 @@ const markSent = (triggerId) => {
         const record = JSON.parse(localStorage.getItem(TRIGGER_KEY) || '{}');
         record[triggerId] = new Date().toISOString().split('T')[0];
         localStorage.setItem(TRIGGER_KEY, JSON.stringify(record));
-    } catch { /* skip */ }
+    } catch (e) { console.warn('Error writing AI trigger record:', e); }
 };
 
 export const checkAITriggers = async (user) => {

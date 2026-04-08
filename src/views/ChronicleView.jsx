@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     BarChart, Bar,
     Tooltip, ResponsiveContainer, XAxis, Cell
@@ -8,7 +8,7 @@ import { Card } from '../components/UIComponents';
 import { usePremium } from '../context/PremiumContext';
 import { useStore } from '../hooks/useStore';
 
-export const ChronicleView = ({ deleteEntry }) => {
+export const ChronicleView = ({ deleteEntry = () => {} }) => {
     const { meals, burned, workouts, progress, user, profile } = useStore();
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
     const scrollRef = useRef(null);
@@ -24,18 +24,22 @@ export const ChronicleView = ({ deleteEntry }) => {
     };
 
     const today = new Date();
-    const allDates = [];
-    const startDate = user?.metadata?.creationTime ? new Date(Number(user.metadata.creationTime) || user.metadata.creationTime) : new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    const current = new Date(startDate);
-    current.setHours(0, 0, 0, 0);
-    const end = new Date();
-    end.setHours(23, 59, 59, 999);
+    const allDates = useMemo(() => {
+        const dates = [];
+        const startDate = user?.metadata?.creationTime ? new Date(Number(user.metadata.creationTime) || user.metadata.creationTime) : new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    while (current <= end) {
-        allDates.push(current.toISOString().split('T')[0]);
-        current.setDate(current.getDate() + 1);
-    }
+        const current = new Date(startDate);
+        current.setHours(0, 0, 0, 0);
+        const end = new Date();
+        end.setHours(23, 59, 59, 999);
+
+        while (current <= end) {
+            dates.push(current.toISOString().split('T')[0]);
+            current.setDate(current.getDate() + 1);
+        }
+        return dates;
+    }, [user?.metadata?.creationTime]);
 
     // Free users: last 7 days only
     const freeWindowStart = new Date(today.getTime() - FREE_HISTORY_DAYS * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -96,7 +100,9 @@ export const ChronicleView = ({ deleteEntry }) => {
         if (pendingDelete.type === 'meal') collection = 'meals';
         else if (pendingDelete.type === 'workout') collection = 'workouts';
         else if (pendingDelete.type === 'cardio') collection = 'burned';
-        if (collection) deleteEntry(collection, pendingDelete.id);
+        if (collection && typeof deleteEntry === 'function') {
+            deleteEntry(collection, pendingDelete.id);
+        }
         setPendingDelete(null);
     };
 

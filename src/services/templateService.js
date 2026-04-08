@@ -149,7 +149,10 @@ export const saveTemplate = async (userId, template) => {
 };
 
 /**
- * Update an existing template
+ * Update an existing template.
+ * Ownership is enforced server-side by Firestore security rules:
+ * the write will fail if the authenticated user's UID does not match
+ * the template's `userId` field.
  */
 export const updateTemplate = async (templateId, updates) => {
     try {
@@ -166,7 +169,10 @@ export const updateTemplate = async (templateId, updates) => {
 };
 
 /**
- * Delete a custom template
+ * Delete a custom template.
+ * Ownership is enforced server-side by Firestore security rules:
+ * the delete will fail if the authenticated user's UID does not match
+ * the template's `userId` field.
  */
 export const deleteTemplate = async (templateId) => {
     try {
@@ -209,15 +215,39 @@ export const createTemplateFromWorkout = async (userId, workout, name) => {
 };
 
 /**
- * Get templates by category
+ * Get templates by category.
+ * Uses a Firestore where() clause for user templates instead of fetching all
+ * and filtering client-side. Default templates are filtered in-memory since
+ * they are not stored in Firestore.
  */
 export const getTemplatesByCategory = async (userId, category) => {
-    const all = await getUserTemplates(userId);
-    return all.filter(t => t.category === category);
+    try {
+        const q = query(
+            collection(db, TEMPLATES_COLLECTION),
+            where('userId', '==', userId),
+            where('category', '==', category),
+            orderBy('createdAt', 'desc')
+        );
+        const snapshot = await getDocs(q);
+        const userTemplates = snapshot.docs.map(d => ({
+            id: d.id,
+            ...d.data(),
+        }));
+
+        // Include matching default templates
+        const matchingDefaults = DEFAULT_TEMPLATES.filter(t => t.category === category);
+        return [...userTemplates, ...matchingDefaults];
+    } catch (error) {
+        console.error('Error getting templates by category:', error);
+        // Fallback: filter defaults only
+        return DEFAULT_TEMPLATES.filter(t => t.category === category);
+    }
 };
 
 /**
- * Search templates
+ * Search templates.
+ * Firestore does not support full-text search, so user templates are fetched
+ * and filtered client-side alongside the in-memory default templates.
  */
 export const searchTemplates = async (userId, searchTerm) => {
     const all = await getUserTemplates(userId);

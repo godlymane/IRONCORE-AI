@@ -154,10 +154,12 @@ export const LoginScreen = ({ defaultUsername = '', onLoggedIn, onBack, onRecove
     try {
       const { getFunctions, httpsCallable } = await import('firebase/functions');
       const { getApp } = await import('firebase/app');
+      const { hashPin } = await import('../utils/playerIdentity');
       const functions = getFunctions(getApp());
       const loginWithPin = httpsCallable(functions, 'loginWithPin');
-      // Send raw PIN — server does PBKDF2 verification (HTTPS encrypted in transit)
-      const result = await loginWithPin({ username: cleanUser, pin: pinValue });
+      // Hash PIN client-side before sending — defense in depth on top of HTTPS
+      const hashedPin = await hashPin(pinValue);
+      const result = await loginWithPin({ username: cleanUser, pin: hashedPin });
 
       const { token, username: returnedUser } = result.data;
 
@@ -166,7 +168,7 @@ export const LoginScreen = ({ defaultUsername = '', onLoggedIn, onBack, onRecove
       await signInWithCustomToken(auth, token);
 
       // Save to localStorage for returning-user flow
-      const { hashPin } = await import('../utils/playerIdentity');
+      // TODO [native-rebuild]: Move to secure storage (Keychain on iOS, EncryptedSharedPreferences on Android)
       const localPinHash = await hashPin(pinValue);
       localStorage.setItem('ironcore_uid', auth.currentUser.uid);
       localStorage.setItem('ironcore_username', returnedUser);
@@ -230,6 +232,7 @@ export const LoginScreen = ({ defaultUsername = '', onLoggedIn, onBack, onRecove
       const { auth } = await import('../firebase');
       await signInWithCustomToken(auth, token);
 
+      // TODO [native-rebuild]: Move to secure storage (Keychain on iOS, EncryptedSharedPreferences on Android)
       localStorage.setItem('ironcore_uid', auth.currentUser.uid);
       localStorage.setItem('ironcore_username', recoveredUser);
 

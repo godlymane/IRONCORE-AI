@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Flame } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 
 // Static imports — needed before auth resolves
@@ -21,13 +20,14 @@ const GhostMatchView = React.lazy(() => import('./views/GhostMatchView').then(m 
 
 import { NavBtn, ToastProvider, useToast, SkeletonCard } from './components/UIComponents';
 import { OfflineIndicator } from './components/StatusComponents';
-import { SplashScreen, PullToRefresh } from './components/PremiumUI';
+import { PullToRefresh } from './components/PremiumUI';
 import AmbientFX from './components/AmbientFX';
 import VoiceCoach from './components/VoiceCoach';
 import { DashboardSkeleton, WorkoutSkeleton, ArenaSkeleton, ProfileSkeleton, AILabSkeleton } from './components/ViewSkeletons';
 import { EliteFlameIcon, EliteSwordsIcon, EliteDumbbellIcon, EliteBrainIcon, EliteCrownIcon } from './components/EliteIcons';
 import { useFitnessData } from './hooks/useFitnessData';
 import { useStore } from './hooks/useStore';
+import { useIsMobile } from './hooks/useIsMobile';
 import { useScrollIntoView } from './hooks/useScrollIntoView';
 import { SFX, Haptics } from './utils/audio';
 import { initKeyboardHandling } from './utils/keyboardSetup';
@@ -46,12 +46,10 @@ const TAB_KEYS = ['dashboard', 'arena', 'train', 'ailab', 'profile'];
 // --- MAIN CONTENT WRAPPER ---
 const MainContent = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
-  // direction state removed — instant tab switching, no animation
-  const prevTabRef = useRef('dashboard');
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showSplash, setShowSplash] = useState(false); // Disabled — straight to app
   const [authGate, setAuthGate] = useState('checking'); // checking | card | login | recovery | biometric | pin | pin_setup | passed
   const authGateResolved = useRef(false);
+  const isMobile = useIsMobile();
   const { addToast } = useToast();
 
   const {
@@ -151,7 +149,6 @@ const MainContent = () => {
 
   // Instant tab switching — no animation delay
   const handleTabChange = useCallback((newTab) => {
-    prevTabRef.current = newTab;
     setActiveTab(newTab);
     setNavVisible(true);
     SFX.pageTransition();
@@ -281,29 +278,7 @@ const MainContent = () => {
     }
   };
 
-  if (error) return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center p-8 text-center">
-      <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center mb-4">
-        <span className="text-2xl">!</span>
-      </div>
-      <h3 className="text-lg font-black text-white uppercase mb-2">Connection Error</h3>
-      <p className="text-xs text-gray-500 max-w-xs mb-4">{error}</p>
-      <button
-        onClick={() => { clearError(); refreshData(); }}
-        className="px-6 py-2 rounded-xl text-xs font-bold text-white"
-        style={{ background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)', boxShadow: '0 4px 15px rgba(220, 38, 38, 0.4)' }}
-      >
-        Retry
-      </button>
-    </div>
-  );
-
-  // Show splash screen first
-  if (showSplash) {
-    return <SplashScreen onComplete={() => setShowSplash(false)} />;
-  }
-
-  if (loading || authGate === 'checking') return <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4"><div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin" /><p className="text-xs text-gray-500 font-black uppercase tracking-widest animate-pulse">Syncing Cloud Data...</p></div>;
+  if (loading || authGate === 'checking') return <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4" aria-busy="true" aria-live="polite" role="status"><div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin" aria-hidden="true" /><p className="text-xs text-gray-500 font-black uppercase tracking-widest animate-pulse">Syncing Cloud Data...</p></div>;
 
   // AUTH GATE — new Web3-style Player Card flow
   if (authGate === 'card') return <PlayerCardView onComplete={() => setAuthGate('passed')} onLogin={() => setAuthGate('login')} />;
@@ -350,10 +325,10 @@ const MainContent = () => {
       }}
     />
   );
-  if (authGate !== 'passed') return <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4"><div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin" /></div>;
+  if (authGate !== 'passed') return <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4" aria-busy="true" role="status"><div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin" aria-hidden="true" /><span className="sr-only">Authenticating...</span></div>;
 
   // Wait for Firestore profile to load before deciding onboarding — prevents flash
-  if (!profileLoaded) return <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4"><div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin" /><p className="text-xs text-gray-500 font-black uppercase tracking-widest animate-pulse">Loading Profile...</p></div>;
+  if (!profileLoaded) return <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4" aria-busy="true" aria-live="polite" role="status"><div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin" aria-hidden="true" /><p className="text-xs text-gray-500 font-black uppercase tracking-widest animate-pulse">Loading Profile...</p></div>;
 
   if (showOnboarding) return <OnboardingView user={user} onComplete={handleOnboardingComplete} />;
 
@@ -363,7 +338,7 @@ const MainContent = () => {
     <PremiumProvider user={user}>
       <div className="min-h-screen text-gray-100 font-sans selection:bg-red-500/30 pb-safe-area-inset-bottom" style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)' }}>
         {/* Background Ambient Living Light — disabled on mobile for performance */}
-        {window.innerWidth > 768 && <AmbientFX count={15} />}
+        {!isMobile && <AmbientFX count={15} />}
 
         {/* Offline Indicator */}
         <OfflineIndicator />
@@ -399,6 +374,9 @@ const MainContent = () => {
             <div
               ref={viewportRef}
               onScroll={handleScroll}
+              role="tabpanel"
+              id={`tabpanel-${activeTab}`}
+              aria-label={`${activeTab} content`}
               className="p-5 overflow-y-auto overflow-x-hidden scrollbar-hide"
               style={{ height: '100dvh', paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}
             >
@@ -471,11 +449,11 @@ const MainContent = () => {
 
                 {/* Nav Items Grid */}
                 <div className="relative z-10 grid grid-cols-5 gap-0" role="tablist" aria-label="Main navigation">
-                  <NavBtn active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} icon={<EliteFlameIcon active={activeTab === 'dashboard'} size={22} />} label="Home" />
-                  <NavBtn active={activeTab === 'arena'} onClick={() => handleTabChange('arena')} icon={<EliteSwordsIcon active={activeTab === 'arena'} size={22} />} label="Arena" />
-                  <NavBtn active={activeTab === 'train'} onClick={() => handleTabChange('train')} icon={<EliteDumbbellIcon active={activeTab === 'train'} size={22} />} label="Train" />
-                  <NavBtn active={activeTab === 'ailab'} onClick={() => handleTabChange('ailab')} icon={<EliteBrainIcon active={activeTab === 'ailab'} size={22} />} label="AI" />
-                  <NavBtn active={activeTab === 'profile'} onClick={() => handleTabChange('profile')} icon={<EliteCrownIcon active={activeTab === 'profile'} size={22} />} label="Me" />
+                  <NavBtn active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} icon={<EliteFlameIcon active={activeTab === 'dashboard'} size={22} />} label="Home" controls="tabpanel-dashboard" />
+                  <NavBtn active={activeTab === 'arena'} onClick={() => handleTabChange('arena')} icon={<EliteSwordsIcon active={activeTab === 'arena'} size={22} />} label="Arena" controls="tabpanel-arena" />
+                  <NavBtn active={activeTab === 'train'} onClick={() => handleTabChange('train')} icon={<EliteDumbbellIcon active={activeTab === 'train'} size={22} />} label="Train" controls="tabpanel-train" />
+                  <NavBtn active={activeTab === 'ailab'} onClick={() => handleTabChange('ailab')} icon={<EliteBrainIcon active={activeTab === 'ailab'} size={22} />} label="AI" controls="tabpanel-ailab" />
+                  <NavBtn active={activeTab === 'profile'} onClick={() => handleTabChange('profile')} icon={<EliteCrownIcon active={activeTab === 'profile'} size={22} />} label="Me" controls="tabpanel-profile" />
                 </div>
               </div>
             </div>
@@ -518,17 +496,25 @@ const SuspenseWithTimeout = ({ fallback, children, timeoutMs = 30000 }) => {
     );
   }
 
+  const handleLoaded = React.useCallback(() => setLoaded(true), []);
+
   return (
     <React.Suspense fallback={fallback}>
-      <SuspenseLoadedMarker onLoaded={() => setLoaded(true)} />
+      <SuspenseLoadedMarker onLoaded={handleLoaded} />
       {children}
     </React.Suspense>
   );
 };
 
-// Tiny component that fires onLoaded when mounted (meaning Suspense resolved)
+// Tiny component that fires onLoaded once when mounted (meaning Suspense resolved)
 const SuspenseLoadedMarker = ({ onLoaded }) => {
-  React.useEffect(() => { onLoaded(); }, [onLoaded]);
+  const fired = React.useRef(false);
+  React.useEffect(() => {
+    if (!fired.current) {
+      fired.current = true;
+      onLoaded();
+    }
+  }, [onLoaded]);
   return null;
 };
 

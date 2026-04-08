@@ -1,5 +1,9 @@
 import { create } from 'zustand';
 
+// IMPORTANT: Always use selectors (e.g., `useStore(selectUser)`) instead of
+// calling `useStore()` without arguments. Subscribing to the full store causes
+// every state change to re-render the consuming component. See selector exports
+// at the bottom of this file.
 export const useStore = create((set, get) => ({
     user: null,
     profileLoaded: false,
@@ -45,7 +49,8 @@ export const useStore = create((set, get) => ({
         friendRequests: [], friends: []
     }),
 
-    // Deep Merge Update Utility
+    // Shallow Merge Update Utility — only merges top-level keys.
+    // Nested objects (e.g., profile sub-fields) are replaced, not deep-merged.
     updateState: (payload) => set((state) => ({ ...state, ...payload }))
 }));
 

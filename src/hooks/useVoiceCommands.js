@@ -30,6 +30,7 @@ export function useVoiceCommands({ onCommand, onQuery, enabled = false }) {
     const silenceTimerRef = useRef(null);
     const restartTimerRef = useRef(null);
     const enabledRef = useRef(enabled);
+    const processVoiceInputRef = useRef(null);
 
     // Keep refs in sync
     useEffect(() => {
@@ -153,7 +154,7 @@ export function useVoiceCommands({ onCommand, onQuery, enabled = false }) {
                     const cleanCmd = cleanWakeWords(finalTranscript.trim());
 
                     if (cleanCmd.length > 2) {
-                        processVoiceInput(cleanCmd);
+                        processVoiceInputRef.current?.(cleanCmd);
                     }
                 }
             }
@@ -266,6 +267,11 @@ export function useVoiceCommands({ onCommand, onQuery, enabled = false }) {
             });
         });
     }, [onCommand, onQuery, speak]);
+
+    // Keep ref in sync so the recognition.onresult handler always calls the latest version
+    useEffect(() => {
+        processVoiceInputRef.current = processVoiceInput;
+    }, [processVoiceInput]);
 
     // Shared AudioContext for activation sounds — reuse to prevent leak
     const activationCtxRef = useRef(null);

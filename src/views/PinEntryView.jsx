@@ -93,7 +93,7 @@ export const PinEntryView = ({ mode = 'verify', onComplete, onForgot, storedPinH
         <p className="text-xs text-gray-500 mb-8">{subtitle}</p>
 
         {/* PIN Dots */}
-        <div className="flex justify-center gap-3 mb-8">
+        <div className="flex justify-center gap-3 mb-8" aria-hidden="true">
           {[0, 1, 2, 3, 4, 5].map(i => (
             <motion.div
               key={i}
@@ -103,6 +103,7 @@ export const PinEntryView = ({ mode = 'verify', onComplete, onForgot, storedPinH
             />
           ))}
         </div>
+        <span aria-live="polite" className="sr-only">{dots.length} of 6 digits entered</span>
 
         {error && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-4 flex items-center justify-center gap-2 text-red-400 text-xs">
@@ -116,11 +117,11 @@ export const PinEntryView = ({ mode = 'verify', onComplete, onForgot, storedPinH
           {[1, 2, 3, 4, 5, 6, 7, 8, 9, null, 0, 'del'].map((key, i) => (
             key === null ? <div key={i} /> :
               key === 'del' ? (
-                <button key={i} onClick={handleDelete} className="h-16 rounded-2xl bg-white/5 flex items-center justify-center active:bg-white/10 transition-colors">
+                <button key={i} onClick={handleDelete} aria-label="Delete last digit" className="h-16 rounded-2xl bg-white/5 flex items-center justify-center active:bg-white/10 transition-colors">
                   <Delete size={22} className="text-gray-400" />
                 </button>
               ) : (
-                <button key={i} onClick={() => handleDigit(String(key))} className="h-16 rounded-2xl bg-white/5 text-white text-2xl font-bold active:bg-white/10 transition-colors">
+                <button key={i} onClick={() => handleDigit(String(key))} aria-label={`PIN digit ${key}`} className="h-16 rounded-2xl bg-white/5 text-white text-2xl font-bold active:bg-white/10 transition-colors">
                   {key}
                 </button>
               )

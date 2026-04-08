@@ -43,11 +43,16 @@ export function useBattleSubmission(battleId, userId) {
     // Listen for opponent's submission
     const listenForOpponent = useCallback((opponentId) => {
         if (!battleId || !opponentId) return;
+        // Unsubscribe previous listener before creating a new one to prevent leak
+        if (unsubOpponentRef.current) {
+            unsubOpponentRef.current();
+            unsubOpponentRef.current = null;
+        }
         const subRef = doc(db, 'battles', battleId, 'submissions', opponentId);
         unsubOpponentRef.current = onSnapshot(subRef, (snap) => {
             if (snap.exists()) setOpponentSubmitted(true);
         });
-        return () => { if (unsubOpponentRef.current) unsubOpponentRef.current(); };
+        return () => { if (unsubOpponentRef.current) { unsubOpponentRef.current(); unsubOpponentRef.current = null; } };
     }, [battleId]);
 
     // Submit workout to Cloud Function
@@ -80,14 +85,6 @@ export function useBattleSubmission(battleId, userId) {
             setSubmitting(false);
         }
     }, [battleId, submitting, submitted]);
-
-    // Cleanup
-    useEffect(() => {
-        return () => {
-            if (unsubBattleRef.current) unsubBattleRef.current();
-            if (unsubOpponentRef.current) unsubOpponentRef.current();
-        };
-    }, []);
 
     return {
         submitWorkout,

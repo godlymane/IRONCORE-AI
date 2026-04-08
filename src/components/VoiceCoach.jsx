@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mic, MicOff, X, Volume2 } from 'lucide-react';
-import { useStore } from '../hooks/useStore';
+import { useStore, selectMeals, selectWorkouts, selectProfile } from '../hooks/useStore';
 import { callGemini } from '../utils/helpers';
 import { Capacitor } from '@capacitor/core';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
@@ -169,8 +169,12 @@ const VoiceCoach = ({ updateData, analyzeFood, cleanAIResponse }) => {
     const [showBubble, setShowBubble] = useState(false);
     const recognitionRef = useRef(null);
     const timeoutRef = useRef(null);
+    const stateRef = useRef(state);
+    stateRef.current = state;
 
-    const { meals, workouts, profile } = useStore();
+    const meals = useStore(selectMeals);
+    const workouts = useStore(selectWorkouts);
+    const profile = useStore(selectProfile);
 
     // Compute today's stats from store
     const getStats = useCallback(() => {
@@ -208,6 +212,10 @@ const VoiceCoach = ({ updateData, analyzeFood, cleanAIResponse }) => {
             recognitionRef.current?.abort();
             window.speechSynthesis?.cancel();
             clearTimeout(timeoutRef.current);
+            // Clean up native speech recognition listeners
+            if (Capacitor.isNativePlatform()) {
+                SpeechRecognition.removeAllListeners().catch(() => {});
+            }
         };
     }, []);
 
@@ -275,6 +283,9 @@ const VoiceCoach = ({ updateData, analyzeFood, cleanAIResponse }) => {
                 setShowBubble(true);
 
                 // Start native listening
+                // Remove existing listeners before adding new ones (issue 15)
+                await SpeechRecognition.removeAllListeners();
+
                 SpeechRecognition.start({
                     language: "en-US",
                     maxResults: 1,
@@ -289,13 +300,6 @@ const VoiceCoach = ({ updateData, analyzeFood, cleanAIResponse }) => {
                         setTranscript(data.matches[0]);
                     }
                 });
-
-                // Listen for when native listening stops naturally or manually
-                // We add a one-off listener to handle the final result if native supports it this way
-                // Or wait for the stop command
-
-                // Capacitor SpeechRecognition resolves the promise when listening finishes (either by timeout or manual stop)
-                // However, the standard behavior in v8 is that it just emits events. We'll handle cleanup in `stopListening`
 
             } catch (e) {
                 console.error("Native SpeechRecognition Error:", e);
@@ -337,7 +341,8 @@ const VoiceCoach = ({ updateData, analyzeFood, cleanAIResponse }) => {
         };
 
         recognition.onend = () => {
-            if (state === 'listening') setState('idle');
+            // Use ref to avoid stale closure on state (issue 16)
+            if (stateRef.current === 'listening') setState('idle');
         };
 
         recognitionRef.current = recognition;
@@ -346,7 +351,7 @@ const VoiceCoach = ({ updateData, analyzeFood, cleanAIResponse }) => {
         setTranscript('');
         setCoachText('');
         setShowBubble(true);
-    }, [handleResult, state]);
+    }, [handleResult]);
 
     const stopListening = useCallback(async () => {
         const isNative = Capacitor.isNativePlatform();

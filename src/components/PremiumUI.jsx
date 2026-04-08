@@ -3,7 +3,7 @@
 // Particles, Animations, Micro-Interactions
 // ========================================
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence, useSpring, useTransform } from 'framer-motion';
 
 // ========================================
@@ -11,7 +11,7 @@ import { motion, AnimatePresence, useSpring, useTransform } from 'framer-motion'
 // Creates floating particles with red/gold glow
 // ========================================
 export const ParticleBackground = ({ count = 30, colors = ['#dc2626', '#f59e0b', '#991b1b'] }) => {
-    const particles = Array.from({ length: count }, (_, i) => ({
+    const particles = useMemo(() => Array.from({ length: count }, (_, i) => ({
         id: i,
         x: Math.random() * 100,
         y: Math.random() * 100,
@@ -19,7 +19,7 @@ export const ParticleBackground = ({ count = 30, colors = ['#dc2626', '#f59e0b',
         duration: Math.random() * 20 + 15,
         delay: Math.random() * 5,
         color: colors[Math.floor(Math.random() * colors.length)],
-    }));
+    })), [count, colors]);
 
     return (
         <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
@@ -61,6 +61,8 @@ const CONFETTI_DURATION_MS = 2000;
 
 export const GoldConfetti = ({ trigger, onComplete }) => {
     const [particles, setParticles] = useState([]);
+    const onCompleteRef = useRef(onComplete);
+    onCompleteRef.current = onComplete;
 
     useEffect(() => {
         if (trigger) {
@@ -75,12 +77,14 @@ export const GoldConfetti = ({ trigger, onComplete }) => {
             }));
             setParticles(newParticles);
 
-            setTimeout(() => {
+            const tid = setTimeout(() => {
                 setParticles([]);
-                onComplete?.();
+                onCompleteRef.current?.();
             }, CONFETTI_DURATION_MS);
+
+            return () => clearTimeout(tid);
         }
-    }, [trigger, onComplete]);
+    }, [trigger]);
 
     return (
         <AnimatePresence>

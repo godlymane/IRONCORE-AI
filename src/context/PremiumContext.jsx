@@ -23,6 +23,7 @@ export const PremiumProvider = ({ children, user }) => {
     const [isTrial, setIsTrial] = useState(false);
     const [expiryDate, setExpiryDate] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [statusError, setStatusError] = useState(null);
     const [showPaywall, setShowPaywall] = useState(false);
     const [paywallFeature, setPaywallFeature] = useState(null);
     const [paywallMinTier, setPaywallMinTier] = useState('pro');
@@ -48,6 +49,7 @@ export const PremiumProvider = ({ children, user }) => {
                 setExpiryDate(status.expiryDate || null);
             } catch (error) {
                 console.error('Error checking premium status:', error);
+                setStatusError('Failed to verify subscription status. Some features may be restricted.');
             }
             setLoading(false);
         };
@@ -121,7 +123,7 @@ export const PremiumProvider = ({ children, user }) => {
             console.error('Error creating order:', error);
             onError?.(error);
         }
-    }, [user]);
+    }, [user?.uid]);
 
     // Close paywall
     const closePaywall = useCallback(() => {
@@ -149,7 +151,7 @@ export const PremiumProvider = ({ children, user }) => {
             console.error('[Premium] restorePurchase failed:', err.message);
             return { restored: false, message: 'Connection error. Try again.' };
         }
-    }, [user]);
+    }, [user?.uid]);
 
     // Start 7-day free trial
     const beginFreeTrial = useCallback(async (onSuccess, onError) => {
@@ -171,7 +173,7 @@ export const PremiumProvider = ({ children, user }) => {
         } catch (error) {
             onError?.(error);
         }
-    }, [user]);
+    }, [user?.uid]);
 
     const value = useMemo(() => ({
         // State
@@ -181,6 +183,7 @@ export const PremiumProvider = ({ children, user }) => {
         isTrial,
         expiryDate,
         loading,
+        statusError,
 
         // Paywall
         showPaywall,
@@ -198,7 +201,7 @@ export const PremiumProvider = ({ children, user }) => {
         // Plans info
         plans: PRICING_PLANS,
         featureAccess: FEATURE_ACCESS,
-    }), [isPremium, plan, tier, isTrial, expiryDate, loading, showPaywall, paywallFeature, paywallMinTier,
+    }), [isPremium, plan, tier, isTrial, expiryDate, loading, statusError, showPaywall, paywallFeature, paywallMinTier,
          closePaywall, requirePremium, checkFeature, purchasePlan, beginFreeTrial, restorePurchase]);
 
     return (

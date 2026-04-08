@@ -114,6 +114,10 @@ const PaywallModal = () => {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="paywall-title"
+                    onKeyDown={(e) => e.key === 'Escape' && closePaywall()}
                     className="fixed inset-0 z-[200] flex items-end justify-center"
                     onClick={(e) => e.target === e.currentTarget && closePaywall()}
                 >
@@ -162,6 +166,7 @@ const PaywallModal = () => {
                         {/* Close button */}
                         <button
                             onClick={closePaywall}
+                            aria-label="Close upgrade modal"
                             className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5
                                 flex items-center justify-center hover:bg-white/10 transition-colors"
                         >
@@ -172,7 +177,7 @@ const PaywallModal = () => {
                             {/* Header */}
                             <div className="text-center mb-5">
                                 <Sparkles size={24} className="text-red-400 mx-auto mb-2" />
-                                <h2 className="text-xl font-heading font-black text-white uppercase tracking-wide">
+                                <h2 id="paywall-title" className="text-xl font-heading font-black text-white uppercase tracking-wide">
                                     Unlock Full Power
                                 </h2>
                                 {paywallFeature && (

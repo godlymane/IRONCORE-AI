@@ -3,10 +3,9 @@
  */
 import {
     doc, setDoc, getDoc, collection, query, where, orderBy,
-    limit, onSnapshot, updateDoc, increment, arrayUnion, arrayRemove,
+    limit, onSnapshot, updateDoc, increment, arrayUnion,
     addDoc, getDocs, serverTimestamp
 } from 'firebase/firestore';
-import { getFirestore } from 'firebase/firestore';
 import {
     getForgeMultiplier, getForgeMilestone, getDailyReward,
     getRandomMysteryReward, getRandomPremiumReward, getGuildLevel
@@ -366,20 +365,13 @@ export const subscribeToGuildLeaderboard = (db, limit_count = 20, callback) => {
 // ============================================
 
 /**
- * Get current tournament data
+ * Get current tournament data — delegates to tournamentService (single source of truth).
+ * The `db` parameter is accepted for backward compat but ignored.
  */
 export const getCurrentTournament = async (db) => {
-    if (!db) return null;
-
     try {
-        const tournamentRef = doc(db, 'global', 'tournament');
-        const snapshot = await getDoc(tournamentRef);
-
-        if (snapshot.exists()) {
-            return snapshot.data();
-        }
-
-        return null;
+        const { getCurrentTournament: _getCurrent } = await import('./tournamentService');
+        return await _getCurrent();
     } catch (e) {
         console.error('Error getting tournament:', e);
         return null;
@@ -431,19 +423,6 @@ export const updateTournamentEntry = async (db, userId, username, value, metric)
             }
             transaction.set(tournamentRef, { ...data, entries }, { merge: true });
         });
-        return;
-    } catch (e) {
-        console.error('Error updating tournament entry:', e);
-    }
-
-    // Legacy fallback path (kept for reference, should not be reached)
-    try {
-        await setDoc(doc(db, 'global', 'tournament', 'entries', userId), {
-            userId,
-            username,
-            [metric]: increment(value),
-            lastUpdated: serverTimestamp(),
-        }, { merge: true });
     } catch (e) {
         console.error('Error updating tournament entry:', e);
     }

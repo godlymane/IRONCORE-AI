@@ -14,8 +14,6 @@ import {
     limit,
     serverTimestamp,
     increment,
-    arrayUnion,
-    arrayRemove,
     onSnapshot,
     runTransaction
 } from 'firebase/firestore';
@@ -30,62 +28,67 @@ import {
 export const createGuild = async (name, description, owner, options = {}) => {
     try {
         const { tag = '', focusType = 'Mixed', membershipType = 'Open', minJoinLevel = 5 } = options;
+        const upperTag = tag.toUpperCase();
 
-        // Check if name exists
-        const q = query(collection(db, 'guilds'), where('name', '==', name));
-        const existing = await getDocs(q);
-        if (!existing.empty) throw new Error('Guild name already taken');
+        // Pre-check name/tag uniqueness (will be verified atomically inside transaction)
+        const nameQ = query(collection(db, 'guilds'), where('name', '==', name), limit(1));
+        const nameExisting = await getDocs(nameQ);
+        if (!nameExisting.empty) throw new Error('Guild name already taken');
 
-        // Check if tag exists
-        if (tag) {
-            const tq = query(collection(db, 'guilds'), where('tag', '==', tag));
-            const texisting = await getDocs(tq);
-            if (!texisting.empty) throw new Error('Guild tag already taken');
+        if (upperTag) {
+            const tagQ = query(collection(db, 'guilds'), where('tag', '==', upperTag), limit(1));
+            const tagExisting = await getDocs(tagQ);
+            if (!tagExisting.empty) throw new Error('Guild tag already taken');
         }
 
         const guildRef = doc(collection(db, 'guilds'));
         const guildId = guildRef.id;
-
-        const guildData = {
-            id: guildId,
-            name,
-            tag: tag.toUpperCase(),
-            description,
-            focusType,
-            membershipType,
-            minJoinLevel,
-            level: 1,
-            xp: 0,
-            weeklyXp: 0,
-            ownerId: owner.userId,
-            ownerUsername: owner.username,
-            memberCount: 1,
-            maxMembers: 30,
-            isPublic: membershipType === 'Open',
-            memberIds: [owner.userId],
-            members: [{
-                userId: owner.userId,
-                username: owner.username,
-                avatarUrl: owner.avatarUrl || '',
-                role: 'leader',
-                joinedAt: new Date().toISOString(),
-                weeklyXpContribution: 0,
-                forgeStreak: 0,
-            }],
-            war: {
-                weeklyXp: 0,
-                rank: null,
-                lastResult: null,
-                weekStart: new Date().toISOString(),
-            },
-            createdAt: serverTimestamp(),
-        };
-
-        await setDoc(guildRef, guildData);
-
-        // Update user root doc with guildId and guildTag
         const userRef = doc(db, 'users', owner.userId);
-        await updateDoc(userRef, { guildId, guildTag: tag.toUpperCase() });
+
+        // Use a transaction to make the creation and user update atomic.
+        // NOTE: Firestore transactions cannot run collection queries inside them,
+        // so the uniqueness pre-check above is still needed. The transaction
+        // ensures the guild doc + user doc update are atomic. True uniqueness
+        // enforcement should be done via Firestore security rules or a Cloud Function.
+        await runTransaction(db, async (transaction) => {
+            const guildData = {
+                id: guildId,
+                name,
+                tag: upperTag,
+                description,
+                focusType,
+                membershipType,
+                minJoinLevel,
+                level: 1,
+                xp: 0,
+                weeklyXp: 0,
+                ownerId: owner.userId,
+                ownerUsername: owner.username,
+                memberCount: 1,
+                maxMembers: 30,
+                isPublic: membershipType === 'Open',
+                memberIds: [owner.userId],
+                members: [{
+                    userId: owner.userId,
+                    username: owner.username,
+                    avatarUrl: owner.avatarUrl || '',
+                    role: 'leader',
+                    joinedAt: new Date().toISOString(),
+                    weeklyXpContribution: 0,
+                    forgeStreak: 0,
+                }],
+                war: {
+                    weeklyXp: 0,
+                    rank: null,
+                    lastResult: null,
+                    weekStart: new Date().toISOString(),
+                },
+                createdAt: serverTimestamp(),
+            };
+
+            transaction.set(guildRef, guildData);
+            transaction.update(userRef, { guildId, guildTag: upperTag });
+        });
 
         return guildId;
     } catch (error) {

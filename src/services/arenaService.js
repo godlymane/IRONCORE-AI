@@ -1,5 +1,5 @@
 // Arena Service - All Firebase CRUD operations for Arena tab
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { GAME_BALANCE } from '../utils/constants';
 import {
     collection,
@@ -9,7 +9,6 @@ import {
     setDoc,
     updateDoc,
     addDoc,
-    deleteDoc,
     query,
     where,
     orderBy,
@@ -46,22 +45,24 @@ export const getUserStats = async (userId) => {
 };
 
 /**
- * Create or update user stats
- * @param {string} userId 
- * @param {Object} userData 
+ * Create or update user stats.
+ * Always writes to the currently authenticated user's document.
+ * @param {Object} userData
  */
-export const updateUserStats = async (userId, userData) => {
+export const updateUserStats = async (userData) => {
     try {
+        const currentUser = auth.currentUser;
+        if (!currentUser) throw new Error('Not authenticated');
+        const userId = currentUser.uid;
+
         const userRef = doc(db, 'users', userId);
         await setDoc(userRef, {
             ...userData,
             updatedAt: serverTimestamp()
         }, { merge: true });
 
-        // Also update leaderboard entry
-        await updateLeaderboardEntry(userId, userData);
-
-        // User stats updated
+        // Leaderboard writes are handled by Cloud Functions server-side.
+        // Client writes to the leaderboard collection are blocked by Firestore rules.
     } catch (error) {
         console.error('Error updating user stats:', error);
         throw error;
@@ -92,7 +93,8 @@ export const initializeUser = async (userId, username, avatarUrl = null) => {
         createdAt: serverTimestamp()
     };
 
-    await updateUserStats(userId, defaultStats);
+    // initializeUser is called right after auth, so auth.currentUser is set.
+    await updateUserStats(defaultStats);
     return defaultStats;
 };
 
@@ -108,11 +110,14 @@ export const checkDailyForge = async (userId) => {
         if (!userSnap.exists()) return null;
 
         const userData = userSnap.data();
-        const now = new Date();
         const lastLoginAt = userData.lastLoginAt?.toDate() || new Date(0);
 
-        // Calculate difference in days (ignoring time)
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        // Use lastForgeUpdateAt (server timestamp) as the reference point for "now"
+        // to avoid client clock manipulation. Fall back to lastLoginAt if not set.
+        const serverNow = userData.lastForgeUpdateAt?.toDate() || userData.updatedAt?.toDate() || lastLoginAt;
+
+        // Calculate difference in days (ignoring time) using server-derived timestamps
+        const today = new Date(serverNow.getFullYear(), serverNow.getMonth(), serverNow.getDate());
         const lastLoginDate = new Date(lastLoginAt.getFullYear(), lastLoginAt.getMonth(), lastLoginAt.getDate());
 
         const diffTime = Math.abs(today - lastLoginDate);
@@ -167,26 +172,8 @@ export const checkDailyStreak = checkDailyForge;
 // LEADERBOARD
 // ============================================
 
-/**
- * Update leaderboard entry for a user
- * @param {string} userId 
- * @param {Object} userData 
- */
-const updateLeaderboardEntry = async (userId, userData) => {
-    try {
-        const leaderboardRef = doc(db, 'leaderboard', userId);
-        await setDoc(leaderboardRef, {
-            username: userData.username,
-            xp: userData.xp || 0,
-            level: userData.level || 1,
-            league: userData.league || 'Iron Novice',
-            avatarUrl: userData.avatarUrl || '',
-            lastUpdated: serverTimestamp()
-        }, { merge: true });
-    } catch (error) {
-        console.error('Error updating leaderboard entry:', error);
-    }
-};
+// NOTE: Leaderboard writes are handled server-side by Cloud Functions.
+// Client writes to the leaderboard collection are blocked by Firestore security rules.
 
 /**
  * Get top players from leaderboard
@@ -280,96 +267,24 @@ export const subscribeToBoss = (callback) => {
     });
 };
 
+// NOTE: Community boss writes (updateBossProgress, createCommunityBoss) are handled
+// server-side by Cloud Functions. Client writes to the community_boss collection
+// are blocked by Firestore security rules.
+
 /**
- * Deal damage to the community boss
- * @param {string} userId 
- * @param {string} username 
- * @param {number} damage 
+ * @deprecated Use the submitBossDamage Cloud Function instead.
+ * Client-side boss damage is disabled for security.
  */
-export const updateBossProgress = async (userId, username, damage) => {
-    try {
-        const bossRef = doc(db, 'community_boss', 'current');
-
-        return await runTransaction(db, async (transaction) => {
-            const bossDoc = await transaction.get(bossRef);
-            if (!bossDoc.exists()) {
-                console.error("No active community boss to damage.");
-                return null;
-            }
-
-            const data = bossDoc.data();
-            if (data.status === 'defeated') return { newHP: 0, defeated: true };
-
-            const currentHP = data.currentHP || data.totalHP;
-            const newHP = Math.max(0, currentHP - damage);
-            const isDefeated = newHP === 0;
-
-            const updates = {
-                currentHP: newHP,
-                lastDamageAt: serverTimestamp()
-            };
-
-            if (isDefeated) {
-                updates.status = 'defeated';
-                updates.defeatedAt = serverTimestamp();
-            }
-
-            // Handle Contributors Array safely within transaction
-            let contributors = data.contributors || [];
-            const existingIndex = contributors.findIndex(c => c.userId === userId);
-
-            if (existingIndex >= 0) {
-                contributors[existingIndex].damageDealt += damage;
-            } else {
-                contributors.push({
-                    userId,
-                    username,
-                    damageDealt: damage,
-                    joinedAt: new Date().toISOString(),
-                    claimedXP: false
-                });
-            }
-            updates.contributors = contributors;
-
-            transaction.update(bossRef, updates);
-            return { newHP, defeated: isDefeated };
-        });
-    } catch (error) {
-        console.error('Error updating Boss HP transaction:', error);
-        throw error;
-    }
+export const updateBossProgress = async (/* userId, username, damage */) => {
+    throw new Error('updateBossProgress is disabled. Use submitBossDamage Cloud Function instead.');
 };
 
 /**
- * Create a new community boss
- * @param {Object} bossData 
+ * @deprecated Use the createBoss Cloud Function instead.
+ * Client-side boss creation is disabled for security.
  */
-export const createCommunityBoss = async (bossData) => {
-    try {
-        const bossRef = doc(db, 'community_boss', 'current');
-        const snap = await getDoc(bossRef);
-
-        // Prevent accidental overwrites of an active boss
-        if (snap.exists() && snap.data().status === 'active') {
-            console.debug("Boss already active, skipping creation.");
-            return;
-        }
-
-        await setDoc(bossRef, {
-            bossId: bossData.bossId || `boss_${Date.now()}`,
-            name: bossData.name || "Colossus Prime",
-            totalHP: bossData.totalHP || 500000,
-            currentHP: bossData.totalHP || 500000,
-            contributors: [],
-            status: 'active',
-            startedAt: serverTimestamp(),
-            defeatedAt: null
-        });
-        // Community boss created
-    } catch (error) {
-        console.error('Error creating community boss:', error);
-        throw error;
-    }
+export const createCommunityBoss = async (/* bossData */) => {
+    throw new Error('createCommunityBoss is disabled. Use createBoss Cloud Function instead.');
 };
 
 // ============================================
@@ -624,11 +539,22 @@ export const subscribeToPendingBattles = (userId, callback) => {
  */
 export const sendChatMessage = async (userId, username, photo, message) => {
     try {
+        // Validate and sanitize message
+        if (typeof message !== 'string' || message.trim().length === 0) {
+            throw new Error('Message cannot be empty');
+        }
+        const trimmed = message.trim();
+        if (trimmed.length > 2000) {
+            throw new Error('Message too long (max 2000 characters)');
+        }
+        // Strip control characters (keep newlines and tabs)
+        const sanitized = trimmed.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+
         await addDoc(collection(db, 'global', 'data', 'chat'), {
             userId,
             username,
             photo,
-            message,
+            message: sanitized,
             timestamp: serverTimestamp()
         });
         // Message sent
@@ -716,9 +642,7 @@ export const awardXP = async (userId, amount, reason = 'activity') => {
             return { newXP, newLevel, leveledUp: newLevel > (userData.level || 0), userData };
         });
 
-        // Update leaderboard outside transaction (non-critical)
-        await updateLeaderboardEntry(userId, { ...result.userData, xp: result.newXP, level: result.newLevel });
-
+        // Leaderboard is updated server-side by Cloud Functions.
         return { newXP: result.newXP, newLevel: result.newLevel, leveledUp: result.leveledUp };
     } catch (error) {
         console.error('Error awarding XP:', error);

@@ -1,5 +1,5 @@
 // Arena Context - Real-time state management for Arena tab
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
     subscribeToLeaderboard,
     subscribeToBoss,
@@ -40,6 +40,10 @@ export const ArenaProvider = ({ children, user: authUser }) => {
         boss: null,
         battles: null
     });
+
+    // Challenge confirmation state (replaces window.confirm)
+    const [pendingChallenge, setPendingChallenge] = useState(null);
+    const pendingChallengeResolveRef = useRef(null);
 
     // Get real user ID and username from auth
     const userId = authUser?.uid;
@@ -91,7 +95,7 @@ export const ArenaProvider = ({ children, user: authUser }) => {
         initUser();
 
         return () => { isMounted = false; };
-    }, [userId, authUsername, userPhoto]);
+    }, [userId]);
 
     // Subscribe to leaderboard only when user is authenticated
     useEffect(() => {
@@ -177,7 +181,12 @@ export const ArenaProvider = ({ children, user: authUser }) => {
 
         // Require explicit confirmation to prevent accidental challenges
         if (!skipConfirm) {
-            const confirmed = window.confirm(`Challenge ${opponentUsername} to a 24hr PvP battle?`);
+            const confirmed = await new Promise((resolve) => {
+                pendingChallengeResolveRef.current = resolve;
+                setPendingChallenge({ opponentUsername });
+            });
+            setPendingChallenge(null);
+            pendingChallengeResolveRef.current = null;
             if (!confirmed) return null;
         }
 
@@ -203,6 +212,14 @@ export const ArenaProvider = ({ children, user: authUser }) => {
             throw error;
         }
     }, [currentUser, userPhoto]);
+
+    const confirmChallenge = useCallback(() => {
+        pendingChallengeResolveRef.current?.(true);
+    }, []);
+
+    const cancelChallenge = useCallback(() => {
+        pendingChallengeResolveRef.current?.(false);
+    }, []);
 
     const handleAcceptBattle = useCallback(async (battleId) => {
         try {
@@ -258,12 +275,15 @@ export const ArenaProvider = ({ children, user: authUser }) => {
         }
     }, [userId]);
 
-    // Compute derived state
-    const isLoading = Object.values(loading).some(Boolean);
-    const hasErrors = Object.values(errors).some(Boolean);
+    // Compute derived state (memoized to avoid breaking context useMemo)
+    const isLoading = useMemo(() => Object.values(loading).some(Boolean), [loading]);
+    const hasErrors = useMemo(() => Object.values(errors).some(Boolean), [errors]);
 
-    // Find current user's rank
-    const userRank = leaderboard.findIndex(u => u.id === currentUser?.id) + 1 || null;
+    // Find current user's rank (memoized)
+    const userRank = useMemo(() => {
+        const idx = leaderboard.findIndex(u => u.id === currentUser?.id);
+        return idx >= 0 ? idx + 1 : null;
+    }, [leaderboard, currentUser?.id]);
 
     const value = useMemo(() => ({
         // State
@@ -281,6 +301,11 @@ export const ArenaProvider = ({ children, user: authUser }) => {
         errors,
         hasErrors,
 
+        // Challenge confirmation (state-based, replaces window.confirm)
+        pendingChallenge,
+        confirmChallenge,
+        cancelChallenge,
+
         // Actions
         dealBossDamage,
         challengePlayer,
@@ -291,7 +316,8 @@ export const ArenaProvider = ({ children, user: authUser }) => {
         // Refresh user data
         refreshUser,
     }), [currentUser, leaderboard, boss, pendingBattles, userRank, loading, isLoading,
-         errors, hasErrors, dealBossDamage, challengePlayer, handleAcceptBattle,
+         errors, hasErrors, pendingChallenge, confirmChallenge, cancelChallenge,
+         dealBossDamage, challengePlayer, handleAcceptBattle,
          handleDeclineBattle, handleAwardXP, refreshUser]);
 
     return (

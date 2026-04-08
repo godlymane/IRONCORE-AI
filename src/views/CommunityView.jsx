@@ -388,10 +388,12 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                                         <p className="text-[11px] text-red-400 uppercase font-bold">{getLevel(post.xp, LEVELS).name}</p>
                                     </div>
                                 </div>
-                                <img src={post.imageUrl} alt={post.caption || 'Progress photo'} className="w-full aspect-square object-cover bg-black" />
+                                {post.imageUrl?.startsWith('https://') && (
+                                    <img src={post.imageUrl} alt={post.caption || 'Progress photo'} className="w-full aspect-square object-cover bg-black" />
+                                )}
                                 <div className="p-4">
                                     <p className="text-sm text-gray-300"><span className="font-bold text-white">{post.username}</span> {post.caption}</p>
-                                    <p className="text-[11px] text-gray-600 mt-2">{new Date(post.createdAt?.seconds * 1000).toLocaleDateString()}</p>
+                                    <p className="text-[11px] text-gray-600 mt-2">{post.createdAt ? new Date(post.createdAt.seconds * 1000).toLocaleDateString() : ''}</p>
                                 </div>
                             </GlassCard>
                         ))}
@@ -432,7 +434,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                         <input
                             value={msgInput}
                             onChange={e => setMsgInput(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && msgInput.trim() && (sendMessage(msgInput), setMsgInput(""))}
+                            onKeyDown={e => e.key === 'Enter' && msgInput.trim() && (sendMessage(msgInput.trim()), setMsgInput(""))}
                             placeholder="Talk trash..."
                             maxLength={500}
                             className="flex-grow rounded-xl px-4 py-3 text-xs text-white outline-none"
@@ -442,7 +444,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                             }}
                         />
                         <button
-                            onClick={() => { if (!msgInput.trim()) return; sendMessage(msgInput); setMsgInput(""); }}
+                            onClick={() => { if (!msgInput.trim()) return; sendMessage(msgInput.trim()); setMsgInput(""); }}
                             className="p-3 rounded-xl text-white transition-all hover:scale-105"
                             style={{
                                 background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.9) 0%, rgba(185, 28, 28, 0.9) 100%)',
@@ -468,7 +470,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                                     </div>
                                     <span className="text-xs font-bold text-white">{msg.fromName}</span>
                                 </div>
-                                <span className="text-[11px] text-gray-600">{new Date(msg.createdAt?.seconds * 1000).toLocaleDateString()}</span>
+                                <span className="text-[11px] text-gray-600">{msg.createdAt ? new Date(msg.createdAt.seconds * 1000).toLocaleDateString() : ''}</span>
                             </div>
                             <p className="text-sm text-gray-300">{msg.text}</p>
                         </GlassCard>

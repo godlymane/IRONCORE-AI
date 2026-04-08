@@ -336,6 +336,7 @@ const TierCircle = ({ tierNum, isCompleted, isCurrent, isLast }) => {
 export const BattlePassView = ({ onClose, user }) => {
   const { isPremium, requirePremium } = usePremium();
   const currentTierRef = useRef(null);
+  const [bpError, setBpError] = useState(null);
 
   const [bpData, setBpData] = useState({
     currentTier: 1,
@@ -358,7 +359,10 @@ export const BattlePassView = ({ onClose, user }) => {
           claimedPremiumRewards: d.claimedPremiumRewards || [],
         });
       }
-    }).catch(() => {});
+    }).catch((err) => {
+      console.error('BattlePass load error:', err);
+      setBpError('Failed to load Battle Pass data. Check your connection.');
+    });
   }, [user?.uid]);
 
   const { currentTier, currentXP, xpForNextTier, claimedFreeRewards, claimedPremiumRewards } = bpData;
@@ -388,6 +392,13 @@ export const BattlePassView = ({ onClose, user }) => {
     >
       <div className="max-w-md mx-auto px-4 pb-12">
 
+        {/* Error Banner */}
+        {bpError && (
+          <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs text-center">
+            {bpError}
+          </div>
+        )}
+
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <div className="sticky top-0 z-20 bg-black/90 backdrop-blur-sm pt-4 pb-3 -mx-4 px-4">
           <div className="flex items-center justify-between mb-3">
@@ -408,10 +419,10 @@ export const BattlePassView = ({ onClose, user }) => {
               </h1>
             </div>
 
-            {/* Countdown badge */}
+            {/* Season info badge — no real end date configured yet */}
             <div className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
-              <p className="text-[10px] text-gray-400 font-medium">Ends in</p>
-              <p className="text-xs font-bold text-white tracking-tight">24d 12h</p>
+              <p className="text-[10px] text-gray-400 font-medium">Season</p>
+              <p className="text-xs font-bold text-white tracking-tight">Active</p>
             </div>
           </div>
 
@@ -567,3 +578,5 @@ export const BattlePassView = ({ onClose, user }) => {
     </motion.div>
   );
 };
+
+export default BattlePassView;

@@ -155,10 +155,15 @@ export const scheduleWorkoutReminder = (hour, minute, message) => {
  * Remove a workout reminder
  */
 export const removeWorkoutReminder = (id) => {
-    const reminders = JSON.parse(localStorage.getItem('workoutReminders') || '[]');
-    const filtered = reminders.filter(r => r.id !== id);
-    localStorage.setItem('workoutReminders', JSON.stringify(filtered));
-    return { success: true };
+    try {
+        const reminders = JSON.parse(localStorage.getItem('workoutReminders') || '[]');
+        const filtered = reminders.filter(r => r.id !== id);
+        localStorage.setItem('workoutReminders', JSON.stringify(filtered));
+        return { success: true };
+    } catch (error) {
+        console.error('Error removing workout reminder:', error);
+        return { success: false, error: error.message };
+    }
 };
 
 /**
@@ -200,6 +205,11 @@ export const startReminderChecker = () => {
             }
         });
     }, 30000); // Check every 30 seconds
+
+    // Clean up the interval when the page unloads to prevent leaks
+    if (typeof window !== 'undefined') {
+        window.addEventListener('beforeunload', stopReminderChecker);
+    }
 };
 
 /**

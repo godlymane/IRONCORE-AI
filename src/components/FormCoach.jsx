@@ -84,9 +84,14 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
     const deviceCapability = useRef(null);
 
     // Track component mount state to prevent updates after unmount
+    // Also clean up camera stream on unmount (issue 11)
     useEffect(() => {
         isMountedRef.current = true;
-        return () => { isMountedRef.current = false; };
+        return () => {
+            isMountedRef.current = false;
+            // Stop all camera tracks on unmount
+            videoRef.current?.srcObject?.getTracks().forEach(t => t.stop());
+        };
     }, []);
 
     // Determine device profile
@@ -192,8 +197,8 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
         return () => perfMonitorRef.current?.destroy();
     }, []);
 
-    // Start camera
-    const startCamera = async () => {
+    // Start camera (memoized — issue 12)
+    const startCamera = useCallback(async () => {
         try {
             const constraints = {
                 video: {
@@ -233,7 +238,7 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
         } catch (err) {
             setError('Camera access denied. Allow camera in your device settings.');
         }
-    };
+    }, [facingMode, profile]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const syncCanvasSize = () => {
         if (!videoRef.current || !canvasRef.current) return;
@@ -265,7 +270,7 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
         };
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const stopCamera = () => {
+    const stopCamera = useCallback(() => {
         isStreamingRef.current = false;
         if (videoRef.current?.srcObject) {
             videoRef.current.srcObject.getTracks().forEach(t => t.stop());
@@ -273,7 +278,7 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
         }
         setIsStreaming(false);
         if (animationRef.current) cancelAnimationFrame(animationRef.current);
-    };
+    }, []);
 
     const flipCamera = () => {
         stopCamera();
@@ -430,7 +435,10 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
             } catch (_err) { /* expected: inference may fail on dropped frames */ }
             finally { inferringRef.current = false; }
 
-            animationRef.current = requestAnimationFrame(detect);
+            // Guard: only schedule next frame if still mounted and streaming
+            if (isMountedRef.current && isStreamingRef.current) {
+                animationRef.current = requestAnimationFrame(detect);
+            }
         };
 
         detect();

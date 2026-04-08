@@ -24,7 +24,9 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 export const uploadPhoto = async (file, userId, note = '', type = 'front') => {
     try {
         // 1. Upload to Firebase Storage
-        const fileRef = ref(storage, `users/${userId}/progress_photos/${Date.now()}_${file.name}`);
+        // Sanitize filename to prevent path traversal and special character issues
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const fileRef = ref(storage, `users/${userId}/progress_photos/${Date.now()}_${safeName}`);
         const snapshot = await uploadBytes(fileRef, file);
         const url = await getDownloadURL(snapshot.ref);
 

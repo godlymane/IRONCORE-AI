@@ -6,7 +6,7 @@ import {
     onAuthStateChanged
 } from 'firebase/auth';
 import {
-    doc, setDoc, collection, addDoc, getDoc, runTransaction,
+    doc, setDoc, collection, addDoc, runTransaction,
     onSnapshot, query, deleteDoc, orderBy, limit
 } from 'firebase/firestore';
 import {
@@ -48,14 +48,16 @@ const SOCIAL_TABS = new Set(['arena', 'profile']);
 const PHOTOS_TABS = new Set(['profile']);
 
 export function useFitnessData() {
-    // Read from Zustand store
-    const {
-        user, dataLoaded, profileLoaded, profileExists, activeTab,
-        setUser, setLoading, setError, clearStore, updateState
-    } = useStore();
-
-    // Data references (not reactive here, just needed for functions)
-    const storeState = useStore();
+    // Use individual selectors to prevent full-store re-renders
+    const user = useStore((s) => s.user);
+    const dataLoaded = useStore((s) => s.dataLoaded);
+    const profileLoaded = useStore((s) => s.profileLoaded);
+    const activeTab = useStore((s) => s.activeTab);
+    const setUser = useStore((s) => s.setUser);
+    const setLoading = useStore((s) => s.setLoading);
+    const setError = useStore((s) => s.setError);
+    const clearStore = useStore((s) => s.clearStore);
+    const updateState = useStore((s) => s.updateState);
 
     // Register offline queue notifier to surface dropped/errored ops as errors
     useEffect(() => {
@@ -146,7 +148,7 @@ export function useFitnessData() {
         }
     };
 
-    const logout = async () => {
+    const logout = useCallback(async () => {
         try {
             await signOut(firebaseAuth);
 
@@ -161,10 +163,10 @@ export function useFitnessData() {
             // so the app feels instant on re-login. Firestore onSnapshot will
             // overwrite stale data within seconds of the next sign-in.
         } catch (e) { console.error(e); }
-    };
+    }, [clearStore]);
 
     // --- DATA MUTATIONS ---
-    const uploadProfilePic = async (file) => {
+    const uploadProfilePic = useCallback(async (file) => {
         if (!isStorageReady || !user) { setError("Storage not configured."); return; }
         try {
             const options = { maxSizeMB: 0.5, maxWidthOrHeight: 800, useWebWorker: true };
@@ -184,7 +186,7 @@ export function useFitnessData() {
             } catch (_err) { /* expected: localStorage may be unavailable */ }
             return url;
         } catch (e) { console.error("Upload failed", e); }
-    };
+    }, [isStorageReady, user, setError]);
 
     const uploadProgressPhoto = async (file, note = "") => {
         if (!isStorageReady || !user) return;
@@ -256,18 +258,18 @@ export function useFitnessData() {
         }
     };
 
-    const sendMessage = async (text) => {
+    const sendMessage = useCallback(async (text) => {
         const clean = sanitizeText(text, MAX_MESSAGE_LENGTH);
         const { profile } = useStore.getState();
         if (!user || !db || !clean) return;
         try {
             await addDoc(collection(db, 'global', 'data', 'chat'), {
-                text: clean, userId: user.uid, username: sanitizeText(user.displayName || "Anonymous", MAX_USERNAME_LENGTH), photo: user.photoURL, xp: profile.xp || 0, createdAt: new Date()
+                message: clean, userId: user.uid, username: sanitizeText(user.displayName || "Anonymous", MAX_USERNAME_LENGTH), photo: user.photoURL, xp: profile.xp || 0, createdAt: new Date()
             });
         } catch (e) { console.error("Message failed", e); }
-    };
+    }, [user]);
 
-    const sendPrivateMessage = async (targetUserId, text) => {
+    const sendPrivateMessage = useCallback(async (targetUserId, text) => {
         const clean = sanitizeText(text, MAX_MESSAGE_LENGTH);
         if (!user || !db || !clean || !targetUserId) return;
         try {
@@ -276,9 +278,9 @@ export function useFitnessData() {
             });
             return true;
         } catch (e) { console.error("DM failed", e); return false; }
-    };
+    }, [user]);
 
-    const toggleFollow = async (targetUserId) => {
+    const toggleFollow = useCallback(async (targetUserId) => {
         const { following } = useStore.getState();
         if (!user || !db) return;
         const isFollowing = following.includes(targetUserId);
@@ -286,9 +288,9 @@ export function useFitnessData() {
             if (isFollowing) { await deleteDoc(doc(db, 'users', user.uid, 'following', targetUserId)); }
             else { await setDoc(doc(db, 'users', user.uid, 'following', targetUserId), { followedAt: new Date() }); }
         } catch (e) { console.error("Follow toggle failed", e); }
-    };
+    }, [user]);
 
-    const createPost = async (file, caption) => {
+    const createPost = useCallback(async (file, caption) => {
         const { profile } = useStore.getState();
         if (!isStorageReady || !user || !db) return;
         const cleanCaption = sanitizeText(caption, MAX_CAPTION_LENGTH);
@@ -301,7 +303,7 @@ export function useFitnessData() {
             });
             return true;
         } catch (e) { console.error("Post failed", e); return false; }
-    };
+    }, [isStorageReady, user]);
 
     const createBattle = async (opponentId, opponentName) => {
         if (!user || !db || !opponentId) return;
@@ -476,9 +478,9 @@ export function useFitnessData() {
                 await setDoc(doc(db, 'users', user.uid, 'data', 'profile'), patch, { merge: true });
             }
         ).catch(e => console.error('Migration error:', e));
-    }, [user, db, profileLoaded, dataLoaded, storeState.profile, storeState.progress, storeState.meals, storeState.workouts]);
+    }, [user, db, profileLoaded, dataLoaded]);
 
-    const updateData = async (action, col, payload, id) => {
+    const updateData = useCallback(async (action, col, payload, id) => {
         if (!user || !db) return;
         if (payload && !validatePayload(payload)) {
             console.error('Invalid payload rejected');
@@ -511,27 +513,43 @@ export function useFitnessData() {
                     }
                 });
 
-                // Server-side anti-cheat validation (skip when offline — Firestore cache handles the write)
+                // Client-side anti-cheat validation — always runs regardless of network status
+                const validationPayload = {
+                    exercises: docData.exercises.map(ex => ({
+                        name: ex.name || ex.exercise || 'Unknown',
+                        sets: ex.sets || []
+                    })),
+                    duration: docData.duration || 0
+                };
+
+                // Basic client-side checks (always enforced)
+                for (const ex of validationPayload.exercises) {
+                    for (const s of (ex.sets || [])) {
+                        if ((parseFloat(s.w) || 0) > 2000 || (parseFloat(s.r) || 0) > 1000) {
+                            throw new Error('Workout values exceed allowed limits');
+                        }
+                    }
+                }
+                if (validationPayload.duration > 86400) {
+                    throw new Error('Workout duration exceeds 24 hours');
+                }
+
+                // Server-side validation — runs when online, queued for replay when offline
                 if (navigator.onLine) {
                     try {
                         const validateWorkout = httpsCallable(firebaseFunctions, 'validateWorkoutData');
-                        await validateWorkout({
-                            exercises: docData.exercises.map(ex => ({
-                                name: ex.name || ex.exercise || 'Unknown',
-                                sets: ex.sets || []
-                            })),
-                            duration: docData.duration || 0
-                        });
+                        await validateWorkout(validationPayload);
                     } catch (validationErr) {
                         console.error('Workout rejected by server:', validationErr.message);
                         throw new Error(validationErr.message || 'Workout validation failed');
                     }
+                } else {
+                    enqueueOfflineOp('workout_validation', validationPayload);
                 }
             }
 
             try {
-                if (col === 'xp_bonus') { /* logic */ }
-                else if (col === 'profile') { await setDoc(doc(db, 'users', user.uid, 'data', 'profile'), { ...payload, userId: user.uid }, { merge: true }); }
+                if (col === 'profile') { await setDoc(doc(db, 'users', user.uid, 'data', 'profile'), { ...safePayload, userId: user.uid }, { merge: true }); }
                 else { await addDoc(collection(db, 'users', user.uid, col), docData); }
 
                 if (xpGain > 0 || col === 'workouts') {
@@ -597,9 +615,20 @@ export function useFitnessData() {
                 await setDoc(doc(db, 'users', user.uid, col, id), payload, { merge: true });
             } catch (e) { console.error("Update Error", e); }
         } else if (action === 'delete') { await deleteDoc(doc(db, 'users', user.uid, col, id)); }
-    };
+    }, [user, setError]);
 
-    const clearError = useCallback(() => setError(null), []);
+    // Fix #3: Collection allowlist for delete operations
+    const ALLOWED_COLLECTIONS = ['workouts', 'meals', 'progress', 'cardio', 'templates'];
+
+    const deleteEntry = useCallback((col, id) => {
+        if (!ALLOWED_COLLECTIONS.includes(col)) {
+            console.error(`deleteEntry blocked: collection "${col}" is not in the allowlist`);
+            return;
+        }
+        return updateData('delete', col, null, id);
+    }, [updateData]);
+
+    const clearError = useCallback(() => setError(null), [setError]);
 
     // --- FRIEND SYSTEM CALLABLES ---
     const sendFriendRequest = async (targetUid) => {
@@ -623,7 +652,7 @@ export function useFitnessData() {
         sendMessage, toggleFollow, sendPrivateMessage, createPost,
         buyItem, completeDailyDrop, broadcastEvent, createBattle,
         sendFriendRequest, respondFriendRequest,
-        isStorageReady, updateData, deleteEntry: (col, id) => updateData('delete', col, null, id),
+        isStorageReady, updateData, deleteEntry,
         refreshData, clearError
     };
 }

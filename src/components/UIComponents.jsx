@@ -1,8 +1,7 @@
-import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
-import { X, Check, AlertTriangle, Info, Loader2, Moon, Sun, Image, History, Swords, Dumbbell } from 'lucide-react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { X, Check, AlertTriangle, Info, Loader2, Image, History, Swords, Dumbbell } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { SFX } from '../utils/audio';
-import { useTheme } from '../context/ThemeContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 // --- ANIMATION VARIANTS ---
@@ -33,24 +32,46 @@ const ToastContext = createContext();
 
 export const ToastProvider = ({ children }) => {
   const [toasts, setToasts] = useState([]);
+  const timeoutIdsRef = useRef(new Map());
 
-  const addToast = (msg, type = 'info') => {
+  // Clear all pending timeouts on unmount
+  useEffect(() => {
+    const timeoutIds = timeoutIdsRef.current;
+    return () => {
+      timeoutIds.forEach((tid) => clearTimeout(tid));
+      timeoutIds.clear();
+    };
+  }, []);
+
+  const addToast = useCallback((msg, type = 'info') => {
     const id = Date.now() + Math.random();
     setToasts(prev => [...prev, { id, msg, type }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
-    if (SFX?.click) SFX.click();
-  };
+    const tid = setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+      timeoutIdsRef.current.delete(id);
+    }, 3000);
+    timeoutIdsRef.current.set(id, tid);
+    SFX?.click?.();
+  }, []);
 
-  const removeToast = (id) => setToasts(prev => prev.filter(t => t.id !== id));
+  const removeToast = useCallback((id) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+    const tid = timeoutIdsRef.current.get(id);
+    if (tid) {
+      clearTimeout(tid);
+      timeoutIdsRef.current.delete(id);
+    }
+  }, []);
 
   return (
     <ToastContext.Provider value={{ addToast }}>
       {children}
-      <div className="fixed left-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none" style={{ top: 'calc(env(safe-area-inset-top, 16px) + 4px)' }}>
+      <div className="fixed left-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none" role="region" aria-label="Notifications" aria-live="assertive" style={{ top: 'calc(env(safe-area-inset-top, 16px) + 4px)' }}>
         <AnimatePresence>
           {toasts.map(t => (
             <motion.div
               key={t.id}
+              role="alert"
               initial={{ opacity: 0, y: -20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
@@ -64,7 +85,7 @@ export const ToastProvider = ({ children }) => {
               {t.type === 'error' && <AlertTriangle size={18} className="text-white" />}
               {t.type === 'info' && <Info size={18} className="text-red-400" />}
               <p className="text-xs font-bold flex-grow">{t.msg}</p>
-              <button onClick={() => removeToast(t.id)}><X size={14} className="opacity-50 hover:opacity-100 transition-opacity" /></button>
+              <button onClick={() => removeToast(t.id)} aria-label="Dismiss notification"><X size={14} className="opacity-50 hover:opacity-100 transition-opacity" /></button>
             </motion.div>
           ))}
         </AnimatePresence>
@@ -73,36 +94,10 @@ export const ToastProvider = ({ children }) => {
   );
 };
 
-export const useToast = () => useContext(ToastContext);
-
-// --- THEME TOGGLE BUTTON ---
-export const ThemeToggle = () => {
-  const { isDark, toggleTheme } = useTheme();
-
-  return (
-    <motion.button
-      onClick={toggleTheme}
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
-      className="p-3 rounded-2xl backdrop-blur-xl border transition-all duration-300"
-      style={{
-        background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%)',
-        borderColor: 'var(--color-border)',
-      }}
-    >
-      <AnimatePresence mode="wait">
-        {isDark ? (
-          <motion.div key="sun" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.2 }}>
-            <Sun size={20} className="text-yellow-400" />
-          </motion.div>
-        ) : (
-          <motion.div key="moon" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.2 }}>
-            <Moon size={20} className="text-red-400" />
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.button>
-  );
+export const useToast = () => {
+  const ctx = useContext(ToastContext);
+  if (!ctx) throw new Error('useToast must be used within ToastProvider');
+  return ctx;
 };
 
 // --- SKELETON LOADERS ---
@@ -150,8 +145,9 @@ export const PageTransition = ({ children, className = '', direction = 0 }) => (
 );
 
 // --- EMPTY STATES ---
-export const EmptyState = ({ type = 'default', title, description, action }) => {
-  const isMobile = useIsMobile();
+export const EmptyState = ({ type = 'default', title, description, action, isMobile: isMobileProp }) => {
+  const isMobileHook = useIsMobile();
+  const isMobile = isMobileProp !== undefined ? isMobileProp : isMobileHook;
   const configs = {
     gallery: {
       icon: <Image size={48} className="text-red-400/50" />,
@@ -213,8 +209,9 @@ export const EmptyState = ({ type = 'default', title, description, action }) => 
 };
 
 // --- BUTTON COMPONENT ---
-export const Button = ({ children, onClick, className = "", variant = "primary", disabled = false, loading = false }) => {
-  const isMobile = useIsMobile();
+export const Button = ({ children, onClick, className = "", variant = "primary", disabled = false, loading = false, isMobile: isMobileProp }) => {
+  const isMobileHook = useIsMobile();
+  const isMobile = isMobileProp !== undefined ? isMobileProp : isMobileHook;
   const handleClick = (e) => {
     if (disabled || loading) return;
     if (navigator.vibrate) navigator.vibrate(10);
@@ -302,8 +299,9 @@ export const Button = ({ children, onClick, className = "", variant = "primary",
 };
 
 // --- GLASS CARD ---
-export const Card = ({ children, className = "", onClick }) => {
-  const isMobile = useIsMobile();
+export const Card = ({ children, className = "", onClick, isMobile: isMobileProp }) => {
+  const isMobileHook = useIsMobile();
+  const isMobile = isMobileProp !== undefined ? isMobileProp : isMobileHook;
   return (
     <motion.div
       onClick={onClick}
@@ -330,9 +328,10 @@ export const Card = ({ children, className = "", onClick }) => {
 
 // --- CONSOLIDATED GLASS CARD ---
 // Single source of truth for all glass card styling across the app
-export const GlassCard = ({ children, className = "", onClick, highlight = false, animated = false }) => {
+export const GlassCard = ({ children, className = "", onClick, highlight = false, animated = false, isMobile: isMobileProp }) => {
   // Detect mobile once — skip GPU-heavy blur, 3D tilts, and shine layers
-  const isMobile = useIsMobile();
+  const isMobileHook = useIsMobile();
+  const isMobile = isMobileProp !== undefined ? isMobileProp : isMobileHook;
 
   // 3D Magnetic Tilt Logic — hooks always called (React rules) but values unused on mobile
   const x = useMotionValue(0.5);
@@ -433,13 +432,21 @@ export const MacroBadge = ({ label, value, color }) => (
 );
 
 // --- ULTRA-PREMIUM LIQUID GLASS NAV BTN ---
-export const NavBtn = ({ active, onClick, icon, label }) => {
+export const NavBtn = ({ active, onClick, icon, label, controls }) => {
   const [isPressed, setIsPressed] = useState(false);
+  const pressTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (pressTimeoutRef.current) clearTimeout(pressTimeoutRef.current);
+    };
+  }, []);
 
   const handleClick = () => {
     if (navigator.vibrate) navigator.vibrate(5);
     setIsPressed(true);
-    setTimeout(() => setIsPressed(false), 150);
+    if (pressTimeoutRef.current) clearTimeout(pressTimeoutRef.current);
+    pressTimeoutRef.current = setTimeout(() => setIsPressed(false), 150);
     onClick();
   };
 
@@ -449,6 +456,7 @@ export const NavBtn = ({ active, onClick, icon, label }) => {
       whileTap={{ scale: 0.92 }}
       role="tab"
       aria-selected={active}
+      aria-controls={controls}
       aria-label={`${label} tab`}
       className="relative flex flex-col items-center justify-center gap-0.5 min-h-[48px] w-full py-1.5 px-0 touch-target"
     >

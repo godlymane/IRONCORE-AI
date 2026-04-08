@@ -1,9 +1,9 @@
 /**
  * Engagement Context - Central state management for engagement features
  */
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
-import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 import {
     calculateForge,
@@ -76,6 +76,11 @@ export const EngagementProvider = ({ children, user, db, profile, workouts }) =>
         notifications: true,
     });
 
+    // Extract specific profile fields to avoid excessive re-runs from profile object reference changes
+    const profileShields = profile?.forgeShields ?? profile?.streakShields ?? 0;
+    const profileHasShield = hasActiveShield(profile);
+    const profileXp = profile?.xp;
+
     // Calculate Forge when workouts change
     useEffect(() => {
         if (!db || !user?.uid || !workouts) return;
@@ -97,8 +102,8 @@ export const EngagementProvider = ({ children, user, db, profile, workouts }) =>
                 current: result.forge ?? result.streak,
                 multiplier,
                 multiplierLabel: multiplier > 1 ? `${Math.round((multiplier - 1) * 100)}% Bonus` : '',
-                hasShield: hasActiveShield(profile),
-                shieldsAvailable: profile?.forgeShields ?? profile?.streakShields ?? 0,
+                hasShield: profileHasShield,
+                shieldsAvailable: profileShields,
                 nextMilestone: nextMilestoneDay,
                 milestone: result.milestone,
             });
@@ -109,7 +114,12 @@ export const EngagementProvider = ({ children, user, db, profile, workouts }) =>
             setLoading(prev => ({ ...prev, streak: false }));
         });
         return () => { isMounted = false; };
-    }, [db, user?.uid, workouts, profile]);
+    }, [db, user?.uid, workouts, profileHasShield, profileShields]);
+
+    // Use a stable key derived from profile to avoid excessive re-runs.
+    // Daily rewards depend on dailyRewards/claimedDays fields, so we hash those.
+    const profileDailyKey = profile?.lastDailyReward ?? '';
+    const profileClaimedCount = profile?.claimedDays ? Object.keys(profile.claimedDays).length : 0;
 
     // Update daily rewards status
     useEffect(() => {
@@ -124,7 +134,8 @@ export const EngagementProvider = ({ children, user, db, profile, workouts }) =>
             claimedDays: status.claimedDays,
         });
         setLoading(prev => ({ ...prev, dailyRewards: false }));
-    }, [profile]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [profileDailyKey, profileClaimedCount]);
 
     // Subscribe to guild if user has one
     useEffect(() => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getApp } from 'firebase/app';
@@ -26,6 +26,7 @@ import { MacroMini } from '../components/Dashboard/MacroMini';
 
 import { useStore } from '../hooks/useStore';
 import { useFitnessData } from '../hooks/useFitnessData';
+import { getIronScoreColor } from '../utils/colors';
 
 // Static data — extracted to module scope to avoid re-creation on every render
 const DAILY_CHALLENGES = [
@@ -70,14 +71,6 @@ const ProgressRing = ({ progress, size = 120, strokeWidth = 8, color = "#dc2626"
       />
     </svg>
   );
-};
-
-// Iron Score color scale
-const getIronScoreColor = (score) => {
-  if (score >= 80) return '#eab308'; // gold
-  if (score >= 60) return '#f97316'; // orange
-  if (score >= 30) return '#dc2626'; // red
-  return '#6b7280'; // grey
 };
 
 export const DashboardView = () => {

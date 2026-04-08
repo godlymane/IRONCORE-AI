@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useMemo } from 'react';
 
 const ThemeContext = createContext();
 
@@ -98,7 +98,7 @@ export const themes = {
 };
 
 export function ThemeProvider({ children }) {
-    const [theme, setTheme] = useState('dark');
+    const theme = 'dark';
 
     useEffect(() => {
         try { localStorage.setItem('ironcore-theme', theme); } catch { /* private browsing / quota */ }
@@ -120,20 +120,13 @@ export function ThemeProvider({ children }) {
         if (config.spacing) applyTokens(config.spacing, 'spacing');
         if (config.radii) applyTokens(config.radii, 'radius');
         if (config.fontSizes) applyTokens(config.fontSizes, 'font-size');
-    }, [theme]);
-
-    const toggleTheme = useCallback(() => {
-        setTheme('dark');
     }, []);
 
     const value = useMemo(() => ({
         theme,
         themeConfig: themes[theme],
-        setTheme,
-        toggleTheme,
-        isDark: theme === 'dark',
-        isLight: theme === 'light',
-    }), [theme, toggleTheme]);
+        isDark: true,
+    }), []);
 
     return (
         <ThemeContext.Provider value={value}>

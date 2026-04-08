@@ -1,6 +1,5 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import viteCompression from 'vite-plugin-compression'
 import { copyFileSync, mkdirSync, readdirSync } from 'fs'
 import { resolve, join } from 'path'
 
@@ -38,11 +37,10 @@ export default defineConfig({
   plugins: [
     react(),
     copyTfjsWasm(),
-    viteCompression({ algorithm: 'gzip', ext: '.gz' }),
-    viteCompression({ algorithm: 'brotliCompress', ext: '.br' }),
   ],
   esbuild: {
-    drop: ['console', 'debugger'],
+    drop: ['debugger'],
+    pure: ['console.log', 'console.debug'],
   },
   build: {
     target: 'es2020',
