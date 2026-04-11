@@ -1,7 +1,8 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, Crown, Shield, Zap, Sparkles, Star } from 'lucide-react';
 import { usePremium } from '../context/PremiumContext';
+import { usePurchaseFlow } from '../hooks/usePurchaseFlow';
 import { PRICING_PLANS, FEATURE_ACCESS, meetsMinTier } from '../services/paymentService';
 
 // Feature labels for the comparison checklist
@@ -41,30 +42,13 @@ const TierIcon = ({ tier, size = 20 }) => {
 const PaywallModal = () => {
     const {
         showPaywall, paywallFeature, paywallMinTier, closePaywall,
-        purchasePlan, tier: currentTier, isPremium,
+        tier: currentTier, isPremium,
     } = usePremium();
 
     const [billingPeriod, setBillingPeriod] = useState('monthly');
-    const [purchasing, setPurchasing] = useState(false);
-    const [successPlan, setSuccessPlan] = useState(null);
 
-    const handlePurchase = useCallback(async (planId) => {
-        setPurchasing(true);
-        await purchasePlan(
-            planId,
-            () => {
-                setSuccessPlan(planId);
-                setTimeout(() => {
-                    setSuccessPlan(null);
-                    closePaywall();
-                }, 2000);
-            },
-            (err) => {
-                console.error('Purchase failed:', err);
-            }
-        );
-        setPurchasing(false);
-    }, [purchasePlan, closePaywall]);
+    // Shared purchase flow hook — eliminates duplication with PremiumPaywall & PostWorkoutUpsell
+    const { handlePurchase, purchasing, successPlan } = usePurchaseFlow();
 
     const proId = billingPeriod === 'yearly' ? 'pro_yearly' : 'pro_monthly';
     const eliteId = billingPeriod === 'yearly' ? 'elite_yearly' : 'elite_monthly';

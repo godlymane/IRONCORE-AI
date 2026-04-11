@@ -79,6 +79,12 @@ export const PostWorkoutUpsell = ({ show, onDismiss, workoutData, totalWorkouts,
     const { isPremium, requirePremium } = usePremium();
     const [visible, setVisible] = useState(false);
 
+    // Extract specific fields to avoid re-triggering on workoutData object identity change (issue 17)
+    const formScore = workoutData?.formScore;
+    const hasFormCheck = workoutData?.exercises?.some(ex =>
+        ex.sets?.some(s => s.formScore != null)
+    );
+
     useEffect(() => {
         if (!show || isPremium) return;
 
@@ -95,10 +101,10 @@ export const PostWorkoutUpsell = ({ show, onDismiss, workoutData, totalWorkouts,
         if (state.lastShown > 0 && daysSinceLastShown < 7) return;
 
         // Rule: Don't upsell after frustration (form score < 50%)
-        if (workoutData?.formScore && workoutData.formScore < 50) return;
+        if (formScore && formScore < 50) return;
 
         setVisible(true);
-    }, [show, isPremium, totalWorkouts, workoutData]);
+    }, [show, isPremium, totalWorkouts, formScore, hasFormCheck]);
 
     const handleDismiss = () => {
         const state = getUpsellState();
@@ -110,6 +116,9 @@ export const PostWorkoutUpsell = ({ show, onDismiss, workoutData, totalWorkouts,
         onDismiss?.();
     };
 
+    // This triggers the paywall via requirePremium, which opens PaywallModal or
+    // PremiumPaywall. The actual purchase logic is handled by the shared
+    // usePurchaseFlow hook (src/hooks/usePurchaseFlow.js) inside those components.
     const handleCTA = () => {
         saveUpsellState({ ...getUpsellState(), lastShown: Date.now() });
         setVisible(false);

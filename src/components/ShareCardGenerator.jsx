@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Share2, Download, Trophy, Zap, Shield, TrendingUp } from 'lucide-react';
-import { toPng } from 'html-to-image';
 import { GlassCard } from './UIComponents';
 
 const CARD_WIDTH = 1080;
@@ -42,14 +41,22 @@ export const ShareCardGenerator = ({ type, data, onClose }) => {
   const [imageBlob, setImageBlob] = useState(null);
   const [generating, setGenerating] = useState(true);
   const [error, setError] = useState(null);
+  // Only render the off-screen card while we're generating (issue 15)
+  const [renderCard, setRenderCard] = useState(true);
 
   const generateImage = useCallback(async () => {
-    if (!cardRef.current) return;
+    setRenderCard(true);
     setGenerating(true);
     setError(null);
+    // Wait a tick for the off-screen card to mount and render
+    await new Promise(r => setTimeout(r, 300));
+    if (!cardRef.current) {
+      setError('Failed to generate image. Please try again.');
+      setGenerating(false);
+      return;
+    }
     try {
-      // Small delay so the hidden card renders fully
-      await new Promise(r => setTimeout(r, 200));
+      const { toPng } = await import('html-to-image');
       const dataUrl = await toPng(cardRef.current, {
         width: CARD_WIDTH,
         height: CARD_HEIGHT,
@@ -62,6 +69,8 @@ export const ShareCardGenerator = ({ type, data, onClose }) => {
       const res = await fetch(dataUrl);
       const blob = await res.blob();
       setImageBlob(blob);
+      // Remove the large off-screen DOM node now that capture is done
+      setRenderCard(false);
     } catch (err) {
       console.error('Failed to generate share card:', err);
       setError('Failed to generate image. Please try again.');
@@ -123,22 +132,24 @@ export const ShareCardGenerator = ({ type, data, onClose }) => {
 
   return (
     <>
-      {/* Hidden off-screen card for capture */}
-      <div
-        style={{
-          position: 'fixed',
-          left: '-9999px',
-          top: 0,
-          width: CARD_WIDTH,
-          height: CARD_HEIGHT,
-          overflow: 'hidden',
-          zIndex: -1,
-        }}
-      >
-        <div ref={cardRef}>
-          <ShareCardContent type={type} data={data} />
+      {/* Hidden off-screen card for capture — only mounted while generating (issue 15) */}
+      {renderCard && (
+        <div
+          style={{
+            position: 'fixed',
+            left: '-9999px',
+            top: 0,
+            width: CARD_WIDTH,
+            height: CARD_HEIGHT,
+            overflow: 'hidden',
+            zIndex: -1,
+          }}
+        >
+          <div ref={cardRef}>
+            <ShareCardContent type={type} data={data} />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Modal overlay */}
       <AnimatePresence>

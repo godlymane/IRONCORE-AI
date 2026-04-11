@@ -9,8 +9,7 @@ admin.initializeApp();
 
 // Store secrets via: firebase functions:secrets:set <SECRET_NAME>
 const geminiKey = defineSecret("GEMINI_API_KEY");
-const razorpayKeyId = defineSecret("RAZORPAY_KEY_ID");
-const razorpayKeySecret = defineSecret("RAZORPAY_KEY_SECRET");
+const googlePlayServiceAccount = defineSecret("GOOGLE_PLAY_SERVICE_ACCOUNT");
 
 // Apple App Store Server API (for iOS StoreKit 2 receipt validation)
 // Set via: firebase functions:secrets:set APPLE_ISSUER_ID
@@ -377,187 +376,118 @@ exports.analyzeFood = onCall(
 );
 
 /**
- * Create a Razorpay order server-side.
- * Returns the order ID for the client to use in checkout.
+ * Verify a Google Play purchase token server-side.
+ * Called by the client after a successful in-app purchase.
+ *
+ * 1. Authenticates with Google Play Developer API via service account
+ * 2. Validates the purchase token for the given product
+ * 3. Writes subscription data to Firestore
+ * 4. Returns success/failure
  */
-const VALID_PLANS = {
-  pro_monthly:   { amount: 79900,  currency: "INR" }, // ₹799 in paise
-  pro_yearly:    { amount: 499900, currency: "INR" }, // ₹4,999 in paise
-  elite_monthly: { amount: 139900, currency: "INR" }, // ₹1,399 in paise
-  elite_yearly:  { amount: 799900, currency: "INR" }, // ₹7,999 in paise
-};
-
-// Derive tier from planId
-function getTierFromPlan(planId) {
-  if (!planId || planId === "free") return "free";
-  if (planId.startsWith("elite")) return "elite";
-  if (planId.startsWith("pro")) return "pro";
-  return "free";
-}
-
-exports.createRazorpayOrder = onCall(
-  { secrets: [razorpayKeyId, razorpayKeySecret], cors: true },
+exports.verifyGooglePlayPurchase = onCall(
+  { secrets: [googlePlayServiceAccount], cors: true },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Must be logged in.");
     }
 
-    const { planId } = request.data;
-    const plan = VALID_PLANS[planId];
-    if (!plan) {
-      throw new HttpsError("invalid-argument", "Invalid plan.");
+    const { purchaseToken, productId } = request.data;
+    if (!purchaseToken || !productId) {
+      throw new HttpsError("invalid-argument", "Missing purchaseToken or productId.");
     }
 
-    const auth = Buffer.from(
-      `${razorpayKeyId.value()}:${razorpayKeySecret.value()}`
-    ).toString("base64");
-
-    const response = await fetch("https://api.razorpay.com/v1/orders", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Basic ${auth}`,
-      },
-      body: JSON.stringify({
-        amount: plan.amount,
-        currency: plan.currency,
-        receipt: `${request.auth.uid}_${planId}_${Date.now()}`,
-        notes: { userId: request.auth.uid, planId },
-      }),
-    });
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      functions.logger.error("[createRazorpayOrder] Razorpay error", { status: response.status, description: err.error?.description || response.statusText });
-      throw new HttpsError("internal", "Payment service temporarily unavailable. Please try again.");
-    }
-
-    const order = await response.json();
-
-    // Store order in Firestore for verification later
-    const db = admin.firestore();
-    await db.doc(`orders/${order.id}`).set({
-      userId: request.auth.uid,
-      planId,
-      amount: plan.amount,
-      currency: plan.currency,
-      razorpayOrderId: order.id,
-      status: "created",
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    return {
-      orderId: order.id,
-      amount: plan.amount,
-      currency: plan.currency,
+    // Map product IDs to plan data
+    const PLAY_PLANS = {
+      pro_monthly:   { planId: "pro_monthly",   tier: "pro",   months: 1 },
+      pro_yearly:    { planId: "pro_yearly",    tier: "pro",   months: 12 },
+      elite_monthly: { planId: "elite_monthly", tier: "elite", months: 1 },
+      elite_yearly:  { planId: "elite_yearly",  tier: "elite", months: 12 },
     };
-  }
-);
 
-/**
- * Server-side payment verification.
- * Validates Razorpay HMAC-SHA256 signature, then activates subscription.
- */
-exports.verifyPayment = onCall(
-  { secrets: [razorpayKeySecret], cors: true },
-  async (request) => {
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "Must be logged in.");
+    const planInfo = PLAY_PLANS[productId];
+    if (!planInfo) {
+      throw new HttpsError("invalid-argument", `Unknown product: ${productId}`);
     }
 
-    const { paymentId, orderId, signature } = request.data;
-    if (!paymentId || !orderId || !signature) {
-      throw new HttpsError("invalid-argument", "Missing payment verification data.");
-    }
-
-    // 1. Verify Razorpay signature (HMAC-SHA256)
-    const expectedSig = crypto
-      .createHmac("sha256", razorpayKeySecret.value())
-      .update(`${orderId}|${paymentId}`)
-      .digest("hex");
-
-    // Validate signature format and length before timing-safe comparison
-    // to avoid crashes on malformed input (Buffer.from('hex') can produce
-    // different-length buffers, and timingSafeEqual throws on length mismatch)
     try {
-      const expectedBuf = Buffer.from(expectedSig, 'hex');
-      const signatureBuf = Buffer.from(signature, 'hex');
-      if (expectedBuf.length !== signatureBuf.length || !crypto.timingSafeEqual(expectedBuf, signatureBuf)) {
-        throw new HttpsError("permission-denied", "Invalid payment signature.");
+      // Parse the service account JSON from the secret
+      const serviceAccount = JSON.parse(googlePlayServiceAccount.value());
+
+      // Authenticate with Google Play Developer API
+      const { google } = require("googleapis");
+      const auth = new google.auth.GoogleAuth({
+        credentials: serviceAccount,
+        scopes: ["https://www.googleapis.com/auth/androidpublisher"],
+      });
+
+      const androidPublisher = google.androidpublisher({ version: "v3", auth });
+
+      // Verify the subscription purchase
+      const response = await androidPublisher.purchases.subscriptions.get({
+        packageName: "com.ironcore.ai",
+        subscriptionId: productId,
+        token: purchaseToken,
+      });
+
+      const purchaseData = response.data;
+
+      // Check if the subscription is valid
+      if (!purchaseData.expiryTimeMillis) {
+        throw new HttpsError("failed-precondition", "Purchase has no expiry — invalid.");
       }
+
+      const expiryTime = parseInt(purchaseData.expiryTimeMillis, 10);
+      if (expiryTime < Date.now()) {
+        throw new HttpsError("failed-precondition", "Subscription has expired.");
+      }
+
+      // Build subscription data (same schema as all other payment flows)
+      const uid = request.auth.uid;
+      const now = new Date();
+      const expiryDate = new Date(expiryTime);
+
+      const subscriptionData = {
+        planId: planInfo.planId,
+        tier: planInfo.tier,
+        status: "active",
+        startDate: now.toISOString(),
+        expiryDate: expiryDate.toISOString(),
+        paymentProvider: "google_play",
+        purchaseToken,
+        googleOrderId: purchaseData.orderId || null,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      // Write to Firestore (same paths as all other payment flows)
+      const db = admin.firestore();
+      const batch = db.batch();
+
+      batch.set(
+        db.doc(`users/${uid}`),
+        { subscription: subscriptionData, isPremium: true },
+        { merge: true }
+      );
+
+      batch.set(
+        db.doc(`users/${uid}/data/profile`),
+        { subscription: subscriptionData, isPremium: true },
+        { merge: true }
+      );
+
+      batch.set(db.doc(`subscriptions/${uid}_gp_${Date.now()}`), {
+        userId: uid,
+        ...subscriptionData,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      await batch.commit();
+
+      return { success: true, subscription: subscriptionData };
     } catch (e) {
       if (e instanceof HttpsError) throw e;
-      throw new HttpsError("permission-denied", "Invalid payment signature.");
+      functions.logger.error("[verifyGooglePlayPurchase] Error:", e);
+      throw new HttpsError("internal", "Purchase verification failed. Contact support if charged.");
     }
-
-    const uid = request.auth.uid;
-    const db = admin.firestore();
-
-    // 2. Verify the order belongs to this user
-    const orderDoc = await db.doc(`orders/${orderId}`).get();
-    if (!orderDoc.exists || orderDoc.data().userId !== uid) {
-      throw new HttpsError("permission-denied", "Order does not belong to this user.");
-    }
-
-    // 3. Prevent replay — check order hasn't already been activated
-    if (orderDoc.data().status === "paid") {
-      throw new HttpsError("already-exists", "This payment has already been processed.");
-    }
-
-    // 4. Activate subscription — read planId from server-side order doc, not client input
-    const serverPlanId = orderDoc.data().planId || "pro_monthly";
-    const tier = getTierFromPlan(serverPlanId);
-    const now = new Date();
-    const expiryDate = new Date(now);
-    if (serverPlanId.endsWith("_yearly")) {
-      expiryDate.setFullYear(expiryDate.getFullYear() + 1);
-    } else {
-      expiryDate.setMonth(expiryDate.getMonth() + 1);
-    }
-
-    const subscriptionData = {
-      planId: serverPlanId,
-      tier,
-      status: "active",
-      startDate: now.toISOString(),
-      expiryDate: expiryDate.toISOString(),
-      paymentId,
-      orderId,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    };
-
-    const batch = db.batch();
-
-    // Mark order as paid
-    batch.update(db.doc(`orders/${orderId}`), {
-      status: "paid",
-      paymentId,
-      paidAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    // Update user profile with subscription
-    batch.set(
-      db.doc(`users/${uid}`),
-      { subscription: subscriptionData, isPremium: true },
-      { merge: true }
-    );
-
-    // Also update the nested profile doc that useFitnessData reads
-    batch.set(
-      db.doc(`users/${uid}/data/profile`),
-      { subscription: subscriptionData, isPremium: true },
-      { merge: true }
-    );
-
-    // Analytics record
-    batch.set(db.doc(`subscriptions/${uid}_${paymentId}`), {
-      userId: uid,
-      ...subscriptionData,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    await batch.commit();
-    return { success: true, subscription: subscriptionData };
   }
 );
 
@@ -1560,19 +1490,31 @@ exports.dailyResetAiCalls = onSchedule(
   async () => {
     const db = admin.firestore();
 
-    // Query all non-premium AI call counters
-    const countersSnap = await db.collection("aiCallCounters")
-      .where("isPremium", "==", false)
-      .get();
+    // Query all AI call counters that are NOT premium.
+    // This includes documents where isPremium == false AND documents
+    // where isPremium is not set (e.g. legacy users or new users).
+    // Firestore cannot do "isPremium != true" in a single query, so we
+    // fetch all counters and filter in-memory.
+    const countersSnap = await db.collection("aiCallCounters").get();
 
     if (countersSnap.empty) {
+      console.log("[dailyResetAiCalls] No counters to reset.");
+      return;
+    }
+
+    // Filter out premium users — only reset non-premium (isPremium !== true)
+    const nonPremiumDocs = countersSnap.docs.filter(
+      (doc) => doc.data().isPremium !== true
+    );
+
+    if (nonPremiumDocs.length === 0) {
       console.log("[dailyResetAiCalls] No non-premium counters to reset.");
       return;
     }
 
     // Batch reset — Firestore batches support up to 500 writes
     const batchSize = 500;
-    const docs = countersSnap.docs;
+    const docs = nonPremiumDocs;
     let resetCount = 0;
 
     for (let i = 0; i < docs.length; i += batchSize) {
@@ -2003,129 +1945,6 @@ exports.checkExpiredSubscriptions = onSchedule(
 );
 
 
-// ════════════════════════════════════════════════════════════════════════════
-// RAZORPAY WEBHOOK — Server-side auto-renewal / cancellation handler
-// ════════════════════════════════════════════════════════════════════════════
-
-const razorpayWebhookSecret = defineSecret("RAZORPAY_WEBHOOK_SECRET");
-
-exports.razorpayWebhook = onRequest(
-  { secrets: [razorpayWebhookSecret], cors: false },
-  async (req, res) => {
-    if (req.method !== "POST") {
-      res.status(405).send("Method not allowed");
-      return;
-    }
-
-    // 1. Verify webhook signature (HMAC-SHA256)
-    const signature = req.headers["x-razorpay-signature"];
-    if (!signature) {
-      res.status(400).send("Missing signature");
-      return;
-    }
-
-    const rawBody = req.rawBody;
-    if (!rawBody) {
-      res.status(500).send("Missing rawBody — cannot verify signature");
-      return;
-    }
-    const expectedSig = crypto
-      .createHmac("sha256", razorpayWebhookSecret.value())
-      .update(rawBody)
-      .digest("hex");
-
-    try {
-      if (!crypto.timingSafeEqual(Buffer.from(expectedSig, "hex"), Buffer.from(signature, "hex"))) {
-        res.status(403).send("Invalid signature");
-        return;
-      }
-    } catch {
-      res.status(403).send("Invalid signature format");
-      return;
-    }
-
-    const event = req.body.event;
-    const payload = req.body.payload;
-    const db = admin.firestore();
-
-    try {
-      if (event === "subscription.activated" || event === "subscription.charged") {
-        // A subscription payment was made — extend or activate
-        const paymentEntity = payload.payment?.entity;
-        const subEntity = payload.subscription?.entity;
-        if (!paymentEntity || !subEntity) {
-          res.status(200).send("OK — no entity");
-          return;
-        }
-
-        const notes = subEntity.notes || paymentEntity.notes || {};
-        const userId = notes.userId;
-        const planId = notes.planId;
-        if (!userId || !planId) {
-          console.warn("[razorpayWebhook] Missing userId or planId in notes");
-          res.status(200).send("OK — missing notes");
-          return;
-        }
-
-        const tier = getTierFromPlan(planId);
-        const now = new Date();
-        const expiryDate = new Date(now);
-        if (planId.endsWith("_yearly")) {
-          expiryDate.setFullYear(expiryDate.getFullYear() + 1);
-        } else {
-          expiryDate.setMonth(expiryDate.getMonth() + 1);
-        }
-
-        const subscriptionData = {
-          planId,
-          tier,
-          status: "active",
-          startDate: now.toISOString(),
-          expiryDate: expiryDate.toISOString(),
-          razorpaySubscriptionId: subEntity.id,
-          paymentId: paymentEntity.id,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        };
-
-        const batch = db.batch();
-        batch.set(db.doc(`users/${userId}`),
-          { subscription: subscriptionData, isPremium: true }, { merge: true });
-        batch.set(db.doc(`users/${userId}/data/profile`),
-          { subscription: subscriptionData, isPremium: true }, { merge: true });
-        batch.set(db.doc(`subscriptions/${userId}_${paymentEntity.id}`), {
-          userId, ...subscriptionData,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-        await batch.commit();
-
-        console.log(`[razorpayWebhook] ${event}: activated ${planId} for ${userId}`);
-
-      } else if (event === "subscription.cancelled" || event === "subscription.halted") {
-        const subEntity = payload.subscription?.entity;
-        const notes = subEntity?.notes || {};
-        const userId = notes.userId;
-        if (!userId) {
-          res.status(200).send("OK — missing userId");
-          return;
-        }
-
-        const batch = db.batch();
-        batch.set(db.doc(`users/${userId}`),
-          { isPremium: false, subscription: { status: "cancelled" } }, { merge: true });
-        batch.set(db.doc(`users/${userId}/data/profile`),
-          { isPremium: false, subscription: { status: "cancelled" } }, { merge: true });
-        await batch.commit();
-
-        console.log(`[razorpayWebhook] ${event}: cancelled for ${userId}`);
-      }
-
-      res.status(200).send("OK");
-    } catch (error) {
-      console.error("[razorpayWebhook] Error:", error);
-      res.status(500).send("Internal error");
-    }
-  }
-);
 
 // ════════════════════════════════════════════════════════════════════════════
 // IRON SCORE — Internal helper (not exported)
@@ -2909,15 +2728,6 @@ exports.sendFriendRequest = onCall(
 
     const db = admin.firestore();
 
-    // Rate limit: max 20 requests per day per sender
-    const today = new Date().toISOString().split("T")[0];
-    const rlRef = db.doc(`rateLimits/${uid}_friendRequest_${today}`);
-    const rlSnap = await rlRef.get();
-    const rlCount = rlSnap.exists ? (rlSnap.data().count || 0) : 0;
-    if (rlCount >= FRIEND_REQUEST_DAILY_LIMIT) {
-      throw new HttpsError("resource-exhausted", "Daily friend request limit reached (20/day).");
-    }
-
     // Check not already friends
     const friendRef = db.doc(`users/${uid}/friends/${targetUid}`);
     const friendSnap = await friendRef.get();
@@ -2958,22 +2768,32 @@ exports.sendFriendRequest = onCall(
     ];
     const senderLeague = LEAGUE_MINS.find(l => xp >= l.min)?.name || "Iron";
 
-    // Write friend request
+    // Rate limit + write friend request atomically in a transaction
+    // to prevent TOCTOU race on the rate limit counter
+    const today = new Date().toISOString().split("T")[0];
+    const rlRef = db.doc(`rateLimits/${uid}_friendRequest_${today}`);
     const requestRef = db.collection(`users/${targetUid}/friendRequests`).doc();
-    await requestRef.set({
-      fromUid: uid,
-      fromUsername: senderUsername,
-      fromIronScore: senderIronScore,
-      fromLeague: senderLeague,
-      sentAt: admin.firestore.FieldValue.serverTimestamp(),
-      status: "pending",
-    });
 
-    // Increment rate limit counter
-    await rlRef.set(
-      { count: admin.firestore.FieldValue.increment(1), date: today },
-      { merge: true }
-    );
+    await db.runTransaction(async (t) => {
+      const rlSnap = await t.get(rlRef);
+      const rlCount = rlSnap.exists ? (rlSnap.data().count || 0) : 0;
+      if (rlCount >= FRIEND_REQUEST_DAILY_LIMIT) {
+        throw new HttpsError("resource-exhausted", "Daily friend request limit reached (20/day).");
+      }
+
+      // Write friend request
+      t.set(requestRef, {
+        fromUid: uid,
+        fromUsername: senderUsername,
+        fromIronScore: senderIronScore,
+        fromLeague: senderLeague,
+        sentAt: admin.firestore.FieldValue.serverTimestamp(),
+        status: "pending",
+      });
+
+      // Increment rate limit counter
+      t.set(rlRef, { count: (rlCount + 1), date: today }, { merge: true });
+    });
 
     return { success: true, requestId: requestRef.id };
   }
@@ -3785,22 +3605,32 @@ exports.auditLogCleanup = onSchedule(
   },
   async () => {
     const db = admin.firestore();
-    // Delete audit log entries older than 90 days
+    // Delete audit log entries older than 90 days — loop until all are gone
     const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-    const oldLogs = await db.collection("apiAuditLog")
-      .where("timestamp", "<", cutoff)
-      .limit(500)
-      .get();
+    let totalDeleted = 0;
 
-    if (oldLogs.empty) {
-      console.log("[auditLogCleanup] No old logs to clean up.");
-      return;
+    while (true) {
+      const oldLogs = await db.collection("apiAuditLog")
+        .where("timestamp", "<", cutoff)
+        .limit(500)
+        .get();
+
+      if (oldLogs.empty) break;
+
+      const batch = db.batch();
+      oldLogs.docs.forEach((doc) => batch.delete(doc.ref));
+      await batch.commit();
+      totalDeleted += oldLogs.size;
+
+      // If we got fewer than 500, there are no more to delete
+      if (oldLogs.size < 500) break;
     }
 
-    const batch = db.batch();
-    oldLogs.docs.forEach((doc) => batch.delete(doc.ref));
-    await batch.commit();
-    console.log(`[auditLogCleanup] Deleted ${oldLogs.size} audit log entries older than 90 days.`);
+    if (totalDeleted === 0) {
+      console.log("[auditLogCleanup] No old logs to clean up.");
+    } else {
+      console.log(`[auditLogCleanup] Deleted ${totalDeleted} audit log entries older than 90 days.`);
+    }
   }
 );
 
@@ -3867,6 +3697,7 @@ exports.generateApiKey = onCall(async (request) => {
   // Store hashed key in apiKeys collection
   await db.collection("apiKeys").doc(keyHash).set({
     uid,
+    keyPrefix,
     name: name.trim(),
     scopes,
     createdAt: now,
@@ -4038,8 +3869,8 @@ exports.apiGetWorkouts = onRequest(async (req, res) => {
     auth = await extractApiAuth(req, "workouts:read");
     const db = admin.firestore();
 
-    const limit = Math.min(parseInt(req.query.limit) || 20, 50);
-    const offset = parseInt(req.query.offset) || 0;
+    const pageLimit = Math.min(parseInt(req.query.limit) || 20, 50);
+    const startAfterId = req.query.startAfter || null;
     const from = req.query.from || null;
     const to = req.query.to || null;
 
@@ -4054,7 +3885,15 @@ exports.apiGetWorkouts = onRequest(async (req, res) => {
       query = query.where("createdAt", "<=", new Date(to));
     }
 
-    query = query.offset(offset).limit(limit);
+    // Cursor-based pagination using startAfter instead of offset
+    if (startAfterId) {
+      const cursorDoc = await db.doc(`users/${auth.uid}/workouts/${startAfterId}`).get();
+      if (cursorDoc.exists) {
+        query = query.startAfter(cursorDoc);
+      }
+    }
+
+    query = query.limit(pageLimit);
     const snap = await query.get();
 
     const workouts = snap.docs.map((doc) => {
@@ -4072,8 +3911,10 @@ exports.apiGetWorkouts = onRequest(async (req, res) => {
       };
     });
 
+    const lastId = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1].id : null;
+
     await logApiCall(auth.uid, auth.keyHash, "/apiGetWorkouts", "GET", 200);
-    res.status(200).json({ workouts, count: workouts.length, limit, offset });
+    res.status(200).json({ workouts, count: workouts.length, limit: pageLimit, nextCursor: lastId });
   } catch (err) {
     const keyHash = auth ? auth.keyHash : "unknown";
     const uid = auth ? auth.uid : "unknown";
@@ -4374,13 +4215,18 @@ exports.apiCreateBattle = onRequest(async (req, res) => {
     const challengerData = challengerSnap.exists ? challengerSnap.data() : {};
     const opponentData = opponentProfileSnap.exists ? opponentProfileSnap.data() : {};
 
-    // Create battle document
+    // Create battle document — nested structure matching submitBattleWorkout expectations
     const battleData = {
-      challengerUid: auth.uid,
-      challengerUsername: challengerData.username || "Unknown",
-      opponentUid,
-      opponentUsername: opponentData.username || opponentUsername,
+      challenger: {
+        userId: auth.uid,
+        username: challengerData.username || "Unknown",
+      },
+      opponent: {
+        userId: opponentUid,
+        username: opponentData.username || opponentUsername,
+      },
       status: "pending",
+      winnerId: null,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h expiry
       source: "api",

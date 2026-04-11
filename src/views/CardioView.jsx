@@ -3,13 +3,16 @@ import { Lock, Gauge, Mountain, Flame, Check, Settings, Footprints } from 'lucid
 import { PulseHeartIcon, TreadmillIcon, WalkingIcon, CyclingIcon } from '../components/IronCoreIcons';
 import { PremiumIcon } from '../components/PremiumIcon';
 import { GlassCard } from '../components/UIComponents';
-import { useStore } from '../hooks/useStore';
+import { useStore, selectProgress, selectProfile, selectActiveTab } from '../hooks/useStore';
 import { useFitnessData } from '../hooks/useFitnessData';
+import { resolveWeight } from '../utils/colors';
 
 // Activity Card Component
-const ActivityCard = ({ id, label, icon, active, onClick, color }) => (
+const ActivityCard = React.memo(({ id, label, icon, active, onClick, color }) => (
     <button
         onClick={onClick}
+        aria-label={`${label} activity`}
+        aria-pressed={active}
         className={`flex-1 p-4 rounded-2xl transition-all duration-300 flex flex-col items-center gap-2 ${active ? 'scale-105' : 'hover:scale-102 opacity-60 hover:opacity-80'}`}
         style={{
             background: active
@@ -22,10 +25,10 @@ const ActivityCard = ({ id, label, icon, active, onClick, color }) => (
         <div className={active ? 'text-red-400' : 'text-gray-500'}>{icon}</div>
         <span className={`text-[11px] font-bold uppercase tracking-wider ${active ? 'text-white' : 'text-gray-500'}`}>{label}</span>
     </button>
-);
+));
 
 // Glass Input Component
-const GlassInput = ({ label, value, onChange, placeholder, unit, icon, inputMode = "decimal" }) => (
+const GlassInput = React.memo(({ label, value, onChange, placeholder, unit, icon, inputMode = "decimal" }) => (
     <div
         className="p-4 rounded-2xl transition-all"
         style={{
@@ -49,26 +52,29 @@ const GlassInput = ({ label, value, onChange, placeholder, unit, icon, inputMode
             {unit && <span className="text-xs text-gray-500 font-bold">{unit}</span>}
         </div>
     </div>
-);
+));
 export const CardioView = () => {
-    const { progress, profile, setActiveTab } = useStore();
+    // Use Zustand selectors instead of bare useStore()
+    const progress = useStore(selectProgress);
+    const profile = useStore(selectProfile);
+    const setActiveTab = useStore((s) => s.setActiveTab);
     const { updateData } = useFitnessData();
     const [burn, setBurn] = useState(null);
     const [activity, setActivity] = useState("treadmill");
 
-    // Form States
-    const [tmSpeed, setTmSpeed] = useState(8);
-    const [tmIncline, setTmIncline] = useState(1);
-    const [tmDuration, setTmDuration] = useState(30);
+    // Form States — stored as strings (from input onChange) and parsed to number in calculate()
+    const [tmSpeed, setTmSpeed] = useState('8');
+    const [tmIncline, setTmIncline] = useState('1');
+    const [tmDuration, setTmDuration] = useState('30');
 
-    const [walkSteps, setWalkSteps] = useState(5000);
+    const [walkSteps, setWalkSteps] = useState('5000');
     const [walkIntensity, setWalkIntensity] = useState("moderate");
 
-    const [cycDuration, setCycDuration] = useState(45);
+    const [cycDuration, setCycDuration] = useState('45');
     const [cycIntensity, setCycIntensity] = useState("moderate");
 
-    // Robust Stats Fetching
-    const weight = profile.weight || [...progress].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).find(p => p.weight)?.weight;
+    // Robust Stats Fetching — uses shared utility to avoid duplication with CoachView / AILabView
+    const weight = resolveWeight(profile, progress);
     const height = profile.height || profile.heightCm;
 
     // Locked State - Premium Version

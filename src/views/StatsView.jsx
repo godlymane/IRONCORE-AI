@@ -16,6 +16,22 @@ const LEAGUES = LEVELS;
 
 export const StatsView = () => {
     const { profile, progress, meals, workouts, userDoc } = useStore();
+
+    // Build lookup Maps for EXERCISE_DB once — O(1) lookups instead of O(n) .find() per exercise
+    const { exerciseDbMap, exerciseDbPartialMap } = useMemo(() => {
+        const byExact = new Map();
+        const byFirstWord = new Map();
+        EXERCISE_DB.forEach(e => {
+            const lower = e.name.toLowerCase();
+            byExact.set(lower, e);
+            // Secondary map keyed by first word for partial matching
+            const firstWord = lower.split(' ')[0];
+            if (firstWord && !byFirstWord.has(firstWord)) {
+                byFirstWord.set(firstWord, e);
+            }
+        });
+        return { exerciseDbMap: byExact, exerciseDbPartialMap: byFirstWord };
+    }, []);
     const { isPremium, requirePremium } = usePremium();
     const currentXP = profile.xp || 0;
     const currentLeague = LEAGUES.slice().reverse().find(l => currentXP >= l.min) || LEAGUES[0];
@@ -35,8 +51,10 @@ export const StatsView = () => {
         workouts.forEach(w => {
             if (w.exercises) {
                 w.exercises.forEach(ex => {
-                    const dbEntry = EXERCISE_DB.find(e => e.name.toLowerCase() === ex.name.toLowerCase())
-                        || EXERCISE_DB.find(e => ex.name.toLowerCase().includes(e.name.toLowerCase()));
+                    const exLower = ex.name.toLowerCase();
+                    // O(1) exact match, then O(1) first-word partial match, avoids O(n) scan
+                    const dbEntry = exerciseDbMap.get(exLower)
+                        || exerciseDbPartialMap.get(exLower.split(' ')[0]);
 
                     if (dbEntry) {
                         let hardSets = 0;
@@ -56,7 +74,7 @@ export const StatsView = () => {
             }
         });
         return stats;
-    }, [workouts]);
+    }, [workouts, exerciseDbMap, exerciseDbPartialMap]);
 
     const totalHardSets = Object.values(muscleIntensity).reduce((a, b) => a + b, 0);
 
@@ -65,18 +83,30 @@ export const StatsView = () => {
         const today = new Date();
         const dailyTarget = profile.dailyCalories || 2500;
 
+        // Pre-index workouts by date — O(n) build, O(1) lookup per day
+        const workoutDates = new Set();
+        workouts.forEach(w => {
+            const wDate = w.createdAt?.seconds ? new Date(w.createdAt.seconds * 1000) : new Date(w.date);
+            workoutDates.add(wDate.toISOString().split('T')[0]);
+        });
+
+        // Pre-index meals by date — O(n) build, O(1) lookup per day
+        const mealsByDate = {};
+        meals.forEach(m => {
+            if (!mealsByDate[m.date]) mealsByDate[m.date] = { count: 0, cals: 0 };
+            mealsByDate[m.date].count++;
+            mealsByDate[m.date].cals += (m.calories || 0);
+        });
+
         for (let i = 89; i >= 0; i--) {
             const d = new Date(today);
             d.setDate(d.getDate() - i);
             const dateStr = d.toISOString().split('T')[0];
 
-            const hasWorkout = workouts.some(w => {
-                const wDate = w.createdAt?.seconds ? new Date(w.createdAt.seconds * 1000) : new Date(w.date);
-                return wDate.toISOString().split('T')[0] === dateStr;
-            });
-            const dayMeals = meals.filter(m => m.date === dateStr);
-            const dayCals = dayMeals.reduce((s, m) => s + (m.calories || 0), 0);
-            const hasLoggedFood = dayMeals.length > 0;
+            const hasWorkout = workoutDates.has(dateStr);
+            const dayData = mealsByDate[dateStr];
+            const hasLoggedFood = dayData ? dayData.count > 0 : false;
+            const dayCals = dayData ? dayData.cals : 0;
 
             let score = 0;
             if (hasWorkout) {
@@ -241,7 +271,7 @@ export const StatsView = () => {
                         <p className="text-[11px] text-gray-400">Tap to unlock</p>
                     </div>
                 )}
-                <div className="h-56 w-full">
+                <div className="h-56 w-full" role="img" aria-label="Lifter archetype radar chart showing consistency, intensity, discipline, frequency, and legacy scores">
                     <ResponsiveContainer width="100%" height="100%">
                         <RadarChart cx="50%" cy="50%" outerRadius="70%" data={archetypeData}>
                             <PolarGrid stroke="#374151" />
@@ -263,11 +293,12 @@ export const StatsView = () => {
                 <div className="flex flex-wrap gap-1 justify-center">
                     {disciplineGrid.map((day, i) => {
                         let color = 'bg-gray-800';
-                        if (day.score === 1) color = 'bg-gray-700';
-                        if (day.score === 2) color = 'bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.8)]';
-                        if (day.score === 3) color = 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.8)]';
+                        let statusTitle = `${day.date}: No data`;
+                        if (day.score === 1) { color = 'bg-gray-700'; statusTitle = `${day.date}: Partial activity`; }
+                        if (day.score === 2) { color = 'bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.8)]'; statusTitle = `${day.date}: Workout completed`; }
+                        if (day.score === 3) { color = 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.8)]'; statusTitle = `${day.date}: Perfect day`; }
 
-                        return (<div key={i} className={`w-2 h-2 rounded-sm ${color}`} title={day.date} />);
+                        return (<div key={i} className={`w-2 h-2 rounded-sm ${color}`} title={statusTitle} role="img" aria-label={statusTitle} />);
                     })}
                 </div>
             </div>
@@ -283,7 +314,7 @@ export const StatsView = () => {
             </div>
 
             {/* TRENDS CHART */}
-            <div className="bg-gray-900 border border-gray-800 p-4 rounded-3xl h-64">
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-3xl h-64" role="img" aria-label="Correlation chart showing discipline score and weight trend over the last 14 days">
                 <div className="flex justify-between items-center mb-4"><h3 className="text-xs font-black uppercase text-gray-500 flex items-center gap-2"><TrendingUp size={14} className="text-red-500" /> Correlation</h3></div>
                 <ResponsiveContainer width="100%" height="80%">
                     <ComposedChart data={trendData}>
@@ -360,7 +391,7 @@ export const StatsView = () => {
                 </div>
 
                 {weightTrendData.length >= 2 ? (
-                    <div className="h-36">
+                    <div className="h-36" role="img" aria-label="Weight trend line chart showing recent weigh-in history">
                         <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={weightTrendData}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />

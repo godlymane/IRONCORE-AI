@@ -91,6 +91,7 @@ export const ArenaView = ({
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => setShowBattlePass(true)}
+                        aria-label="Open Battle Pass"
                         className="px-3 py-2 rounded-xl flex items-center gap-1.5 transition-all hover:scale-[1.02] active:scale-95"
                         style={{
                             background: 'linear-gradient(135deg, rgba(234, 179, 8, 0.2) 0%, rgba(249, 115, 22, 0.15) 100%)',
@@ -176,7 +177,7 @@ export const ArenaView = ({
             </div>
 
             {/* Tab Switcher — Polished Pill (4 tabs) */}
-            <div className="relative flex p-1 rounded-2xl border border-white/10" style={{ background: 'rgba(255,255,255,0.04)' }}>
+            <div className="relative flex p-1 rounded-2xl border border-white/10" role="tablist" aria-label="Arena sections" style={{ background: 'rgba(255,255,255,0.04)' }}>
                 {/* Sliding Active Indicator */}
                 <motion.div
                     className="absolute z-0 rounded-xl"
@@ -213,6 +214,9 @@ export const ArenaView = ({
                             }
                             setArenaTab(tab.id);
                         }}
+                        role="tab"
+                        aria-selected={arenaTab === tab.id}
+                        aria-label={`${tab.label}${isLocked ? ' (locked, premium required)' : ''}`}
                         className={`relative z-10 flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors flex items-center justify-center gap-1 ${arenaTab === tab.id
                             ? 'text-white'
                             : 'text-gray-500 hover:text-gray-300'
@@ -333,12 +337,14 @@ export const ArenaView = ({
                                     onChange={e => setChatText(e.target.value)}
                                     onKeyDown={e => e.key === 'Enter' && handleSend()}
                                     placeholder="Talk trash..."
+                                    aria-label="Chat message"
                                     className="flex-1 bg-white/5 rounded-xl px-4 py-2.5 text-sm text-white outline-none border border-white/10 focus:border-red-500/50 transition-colors"
                                     maxLength={500}
                                 />
                                 <button
                                     onClick={handleSend}
                                     disabled={!chatText.trim()}
+                                    aria-label="Send message"
                                     className="w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90 disabled:opacity-30"
                                     style={{
                                         background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
@@ -472,6 +478,7 @@ export const ArenaView = ({
                         <div>
                             <button
                                 onClick={() => setShowAchievements(false)}
+                                aria-label="Back to Arena"
                                 className="mb-4 p-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors"
                             >
                                 <span className="text-xs font-bold text-gray-400">← Back to Arena</span>

@@ -21,13 +21,19 @@ export const InviteSystem = ({ user, profile, onClose }) => {
   const [claimCode, setClaimCode] = useState('');
   const [claimLoading, setClaimLoading] = useState(false);
   const [claimResult, setClaimResult] = useState(null); // { success, message }
+  // AbortController for cancelling in-flight async ops on unmount (issue 24)
+  const abortRef = React.useRef(null);
+
+  useEffect(() => {
+    return () => { abortRef.current?.abort(); };
+  }, []);
 
   const referralCount = profile?.referralCount || 0;
 
-  // Generate referral code on mount if the user doesn't have one
+  // Generate referral code on mount if the user doesn't have one (issue 24: AbortController)
   useEffect(() => {
     if (referralCode) return;
-    let cancelled = false;
+    const abortController = new AbortController();
 
     const generate = async () => {
       try {
@@ -35,18 +41,20 @@ export const InviteSystem = ({ user, profile, onClose }) => {
         const functions = getFunctions();
         const generateReferralCode = httpsCallable(functions, 'generateReferralCode');
         const result = await generateReferralCode();
-        if (!cancelled && result?.data?.code) {
+        if (!abortController.signal.aborted && result?.data?.code) {
           setReferralCode(result.data.code);
         }
       } catch (err) {
-        console.error('Failed to generate referral code:', err);
+        if (!abortController.signal.aborted) {
+          console.error('Failed to generate referral code:', err);
+        }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!abortController.signal.aborted) setLoading(false);
       }
     };
 
     generate();
-    return () => { cancelled = true; };
+    return () => { abortController.abort(); };
   }, [referralCode]);
 
   const inviteUrl = referralCode
@@ -116,6 +124,11 @@ export const InviteSystem = ({ user, profile, onClose }) => {
 
   const handleClaimCode = useCallback(async () => {
     if (!claimCode.trim()) return;
+    // Cancel any previous in-flight claim (issue 24)
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setClaimLoading(true);
     setClaimResult(null);
 
@@ -123,16 +136,18 @@ export const InviteSystem = ({ user, profile, onClose }) => {
       const functions = getFunctions();
       const claimReferralReward = httpsCallable(functions, 'claimReferralReward');
       const result = await claimReferralReward({ code: claimCode.trim().toUpperCase() });
+      if (controller.signal.aborted) return;
       setClaimResult({
         success: true,
         message: result?.data?.message || '7 days of Premium activated!',
       });
       setClaimCode('');
     } catch (err) {
+      if (controller.signal.aborted) return;
       const msg = err?.message || 'Failed to claim code. Please try again.';
       setClaimResult({ success: false, message: msg });
     } finally {
-      setClaimLoading(false);
+      if (!controller.signal.aborted) setClaimLoading(false);
     }
   }, [claimCode]);
 

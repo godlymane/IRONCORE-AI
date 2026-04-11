@@ -1,4 +1,4 @@
-// IronCore AI - Payment Service (Razorpay Integration)
+// IronCore AI - Payment Service (Google Play Billing)
 // Handles subscriptions and premium status
 
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -6,6 +6,7 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getApp } from 'firebase/app';
 import { db } from '../firebase';
 import { throttleAction } from '../utils/rateLimiter';
+import { purchaseSubscription, restorePurchases as restorePlayPurchases } from './playBillingService';
 
 // ─── Feature access matrix (3-tier: free / pro / elite) ────────────────────
 export const FEATURE_ACCESS = {
@@ -16,8 +17,8 @@ export const FEATURE_ACCESS = {
     guilds:                { free: false, pro: false,    elite: true },
     guildWars:             { free: false, pro: false,    elite: true },
     battlePassPremiumTrack:{ free: false, pro: false,    elite: true },
-    formCorrectionBasic:   { free: true,  pro: true,     elite: true },   // Tier 1: voice, haptics, 6 exercises, basic analysis
-    formCorrection:        { free: false, pro: false,    elite: true },   // Tier 2: 12 exercises, rep tracking, fatigue, ghost, session summary
+    formCorrectionBasic:   { free: true,  pro: true,     elite: true },
+    formCorrection:        { free: false, pro: false,    elite: true },
     priorityAI:            { free: false, pro: false,    elite: true },
     customPrograms:        { free: false, pro: false,    elite: true },
     advancedStats:         { free: false, pro: true,     elite: true },
@@ -85,22 +86,10 @@ export const PRICING_PLANS = {
     },
 };
 
-// Initialize Razorpay checkout
-export const initializeRazorpay = () => {
-    return new Promise((resolve) => {
-        const script = document.createElement('script');
-        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-        script.onload = () => resolve(true);
-        script.onerror = () => resolve(false);
-        document.body.appendChild(script);
-    });
-};
-
-// Create a payment order via Cloud Function (server-side Razorpay order creation)
-// Amount is determined server-side only — client never sends price
-export const createPaymentOrder = async (planId, userId) => {
+// Purchase a subscription via Google Play Billing
+export const purchasePlan = async (planId) => {
     const plan = PRICING_PLANS[planId];
-    if (!plan || plan.price === 0) {
+    if (!plan || plan.priceUSD === 0) {
         throw new Error('Invalid plan selected');
     }
 
@@ -109,112 +98,12 @@ export const createPaymentOrder = async (planId, userId) => {
         throw new Error('Payment already in progress — please wait before retrying.');
     }
 
-    try {
-        const functions = getFunctions(getApp());
-        const createOrder = httpsCallable(functions, 'createRazorpayOrder');
-        const result = await createOrder({ planId });
-
-        if (!result.data?.orderId) {
-            throw new Error('Server did not return a valid order ID');
-        }
-
-        return {
-            planId,
-            orderId: result.data.orderId,
-            amount: result.data.amount,
-            currency: result.data.currency,
-            userId,
-        };
-    } catch (e) {
-        console.error('Failed to create Razorpay order:', e);
-        throw new Error('Could not create payment order. Try again later.');
-    }
+    return purchaseSubscription(planId);
 };
 
-// Open Razorpay checkout
-export const openCheckout = async (orderData, userInfo, onSuccess, onFailure) => {
-    const isLoaded = await initializeRazorpay();
-
-    if (!isLoaded) {
-        onFailure(new Error('Failed to load Razorpay SDK'));
-        return;
-    }
-
-    const plan = PRICING_PLANS[orderData.planId];
-
-    if (!orderData.orderId) {
-        onFailure(new Error('Missing order ID — payment cannot be verified securely.'));
-        return;
-    }
-
-    const options = {
-        key: (() => {
-            const k = import.meta.env.VITE_RAZORPAY_KEY_ID;
-            if (!k) throw new Error('VITE_RAZORPAY_KEY_ID is not set — cannot initialize payment.');
-            return k;
-        })(),
-        order_id: orderData.orderId, // Server-generated Razorpay order ID — required for signature verification
-        amount: orderData.amount,
-        currency: orderData.currency,
-        name: 'IronCore AI',
-        description: `${plan.name} Subscription`,
-        image: '/icon-192.png',
-        prefill: {
-            name: userInfo.displayName || '',
-            email: userInfo.email || '',
-            contact: userInfo.phone || ''
-        },
-        theme: {
-            color: '#DC2626'
-        },
-        handler: async function (response) {
-            // Payment successful — verify server-side with order_id + signature
-            if (!response.razorpay_order_id || !response.razorpay_signature) {
-                onFailure(new Error('Payment response missing verification data.'));
-                return;
-            }
-            try {
-                await activateSubscription(orderData.userId, orderData.planId, response);
-                onSuccess(response);
-            } catch (error) {
-                onFailure(error);
-            }
-        },
-        modal: {
-            ondismiss: function () {
-                console.debug('Payment modal closed');
-            }
-        }
-    };
-
-    const razorpay = new window.Razorpay(options);
-    razorpay.on('payment.failed', function (response) {
-        onFailure(new Error(response.error.description));
-    });
-    razorpay.open();
-};
-
-// Activate subscription via server-side Cloud Function (validates payment server-side)
-// All three Razorpay fields are REQUIRED — server rejects if any are missing
-export const activateSubscription = async (userId, planId, paymentResponse) => {
-    if (!paymentResponse.razorpay_payment_id || !paymentResponse.razorpay_order_id || !paymentResponse.razorpay_signature) {
-        throw new Error('Incomplete payment response — cannot verify.');
-    }
-
-    try {
-        const functions = getFunctions(getApp());
-        const verifyPayment = httpsCallable(functions, 'verifyPayment');
-        const result = await verifyPayment({
-            paymentId: paymentResponse.razorpay_payment_id,
-            orderId: paymentResponse.razorpay_order_id,
-            signature: paymentResponse.razorpay_signature,
-            planId,
-        });
-        return result.data.subscription;
-    } catch (e) {
-        console.error('Server-side payment verification failed:', e);
-        throw new Error('Payment verification failed. Contact support if charged.');
-    }
+// Restore purchases from Google Play
+export const restorePurchase = async () => {
+    return restorePlayPurchases();
 };
 
 // Check if user has active premium subscription
@@ -222,7 +111,6 @@ export const checkPremiumStatus = async (userId) => {
     if (!userId) return { isPremium: false, plan: 'free' };
 
     try {
-        // Read from the same path useFitnessData writes to
         const profileRef = doc(db, 'users', userId, 'data', 'profile');
         const profileDoc = await getDoc(profileRef);
 
@@ -240,12 +128,10 @@ export const checkPremiumStatus = async (userId) => {
             return { isPremium: false, plan: 'free', tier: 'free' };
         }
 
-        // Check if subscription/trial has expired
         const expiry = isTrial ? subscription.trialEnd : subscription.expiryDate;
         if (expiry && new Date(expiry) < new Date()) {
             await updateDoc(profileRef, {
-                'subscription.status': 'expired',
-                isPremium: false
+                'subscription.status': 'expired'
             });
             return { isPremium: false, plan: 'free', tier: 'free', expired: true };
         }
@@ -299,7 +185,5 @@ export const canUseFeature = (feature, planId = 'free') => {
     if (limit === Infinity || limit === true) return true;
     if (limit === false || limit === 0) return false;
 
-    return limit; // Returns the numeric limit
+    return limit;
 };
-
-// Payment Service module

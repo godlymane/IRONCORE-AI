@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, Plus, ScanLine, Search, Flame, ChefHat, Utensils, Coffee } from 'lucide-react';
 import { Button, Card, useToast } from '../components/UIComponents';
@@ -15,14 +15,23 @@ export const NutritionView = ({ meals, burned, profile, updateData, onBack }) =>
     const [showAddMeal, setShowAddMeal] = useState(false);
 
     // Debounced water update — batches rapid taps into a single Firestore write
+    // Local state drives the UI instantly; the ref + debounce batches Firestore writes
+    const [pendingWater, setPendingWater] = useState(null);
     const waterDebounceRef = useRef(null);
-    const pendingWaterRef = useRef(null);
+
+    // Sync local state when profile data arrives from Firestore
+    useEffect(() => {
+        if (pendingWater === null) return; // don't reset while user is tapping
+    }, [profile.waterGlasses]);
+
     const debouncedWaterUpdate = useCallback((newGlasses) => {
-        pendingWaterRef.current = Math.max(0, newGlasses);
+        const clamped = Math.max(0, newGlasses);
+        setPendingWater(clamped);
         if (waterDebounceRef.current) clearTimeout(waterDebounceRef.current);
         waterDebounceRef.current = setTimeout(() => {
-            updateData('update', 'profile', { waterGlasses: pendingWaterRef.current });
+            updateData('update', 'profile', { waterGlasses: clamped });
             waterDebounceRef.current = null;
+            setPendingWater(null); // clear local override so profile value takes over
         }, 500);
     }, [updateData]);
 
@@ -60,7 +69,7 @@ export const NutritionView = ({ meals, burned, profile, updateData, onBack }) =>
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     {onBack && (
-                        <button onClick={onBack} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
+                        <button onClick={onBack} aria-label="Go back" className="p-2 hover:bg-white/10 rounded-xl transition-colors">
                             <ChevronLeft size={24} className="text-white" />
                         </button>
                     )}
@@ -94,10 +103,10 @@ export const NutritionView = ({ meals, burned, profile, updateData, onBack }) =>
 
                 <div className="space-y-4">
                     <WaterTracker
-                        glasses={pendingWaterRef.current ?? (profile.waterGlasses || 0)}
+                        glasses={pendingWater ?? (profile.waterGlasses || 0)}
                         goal={profile.waterGoal || 8}
-                        onAdd={() => debouncedWaterUpdate((pendingWaterRef.current ?? (profile.waterGlasses || 0)) + 1)}
-                        onRemove={() => debouncedWaterUpdate((pendingWaterRef.current ?? (profile.waterGlasses || 0)) - 1)}
+                        onAdd={() => debouncedWaterUpdate((pendingWater ?? (profile.waterGlasses || 0)) + 1)}
+                        onRemove={() => debouncedWaterUpdate((pendingWater ?? (profile.waterGlasses || 0)) - 1)}
                     />
                     <CalorieBurnCard
                         burned={totalBurned}
@@ -162,11 +171,11 @@ export const NutritionView = ({ meals, burned, profile, updateData, onBack }) =>
 
             {/* Add Meal Modal/Overlay */}
             {showAddMeal && (
-                <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xl flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xl flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="log-meal-title" onKeyDown={(e) => e.key === 'Escape' && setShowAddMeal(false)}>
                     <div className="w-full max-w-md">
                         <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-black text-white">Log Meal</h2>
-                            <button onClick={() => setShowAddMeal(false)} className="text-white/50 hover:text-white">Close</button>
+                            <h2 id="log-meal-title" className="text-xl font-black text-white">Log Meal</h2>
+                            <button onClick={() => setShowAddMeal(false)} aria-label="Close meal form" className="text-white/50 hover:text-white">Close</button>
                         </div>
                         <AddMealForm onAdd={handleAddMeal} />
                     </div>

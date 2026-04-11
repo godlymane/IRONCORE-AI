@@ -254,7 +254,7 @@ export const getGuilds = async (limitCount = 20) => {
  */
 export const sendGuildMessage = async (guildId, messageData) => {
     try {
-        // Validate message content
+        // Extract only the message field — do not spread arbitrary caller data
         const msg = messageData.message || messageData.text || '';
         if (typeof msg !== 'string' || msg.trim().length === 0) {
             throw new Error('Message cannot be empty');
@@ -267,7 +267,8 @@ export const sendGuildMessage = async (guildId, messageData) => {
         const sanitized = msg.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 
         await addDoc(collection(db, `guilds/${guildId}/chat`), {
-            ...messageData,
+            userId: messageData.userId,
+            username: messageData.username,
             message: sanitized,
             timestamp: serverTimestamp()
         });

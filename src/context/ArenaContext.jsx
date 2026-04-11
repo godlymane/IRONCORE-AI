@@ -51,6 +51,8 @@ export const ArenaProvider = ({ children, user: authUser }) => {
     const userPhoto = authUser?.photoURL;
 
     // Initialize user on mount (when authUser changes)
+    // Debounce: rapid profile updates (displayName/photoURL) should not spam Firestore
+    const initTimerRef = useRef(null);
     useEffect(() => {
         if (!userId) {
             setLoading(prev => ({ ...prev, user: false }));
@@ -58,6 +60,9 @@ export const ArenaProvider = ({ children, user: authUser }) => {
         }
 
         let isMounted = true;
+
+        // Clear any pending debounced init
+        if (initTimerRef.current) clearTimeout(initTimerRef.current);
 
         const initUser = async () => {
             try {
@@ -92,10 +97,16 @@ export const ArenaProvider = ({ children, user: authUser }) => {
             }
         };
 
-        initUser();
+        // Debounce re-init when only authUsername/userPhoto change (300ms)
+        initTimerRef.current = setTimeout(() => {
+            initUser();
+        }, 300);
 
-        return () => { isMounted = false; };
-    }, [userId]);
+        return () => {
+            isMounted = false;
+            if (initTimerRef.current) clearTimeout(initTimerRef.current);
+        };
+    }, [userId, authUsername, userPhoto]);
 
     // Subscribe to leaderboard only when user is authenticated
     useEffect(() => {

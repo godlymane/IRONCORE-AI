@@ -7,7 +7,7 @@ import { Button } from './UIComponents';
 /**
  * Achievement Badge Component
  */
-export const AchievementBadge = ({ achievement, unlocked = false, showDetails = true, onClick }) => {
+export const AchievementBadge = React.memo(({ achievement, unlocked = false, showDetails = true, onClick }) => {
     const [isRevealing, setIsRevealing] = useState(false);
     const rarity = RARITY_CONFIG[achievement.rarity];
 
@@ -72,12 +72,12 @@ export const AchievementBadge = ({ achievement, unlocked = false, showDetails = 
             </div>
         </motion.div>
     );
-};
+});
 
 /**
  * Power-Up Card Component
  */
-export const PowerUpCard = ({ powerUp, owned = 0, onBuy, onUse, xpBalance = 0 }) => {
+export const PowerUpCard = React.memo(({ powerUp, owned = 0, onBuy, onUse, xpBalance = 0 }) => {
     const canAfford = xpBalance >= powerUp.cost;
 
     return (
@@ -119,12 +119,12 @@ export const PowerUpCard = ({ powerUp, owned = 0, onBuy, onUse, xpBalance = 0 })
             </div>
         </motion.div>
     );
-};
+});
 
 /**
  * Challenge Card Component
  */
-export const ChallengeCard = ({ challenge, progress = 0, onClaim, variant = 'daily' }) => {
+export const ChallengeCard = React.memo(({ challenge, progress = 0, onClaim, variant = 'daily' }) => {
     const isDaily = variant === 'daily';
     const isComplete = progress >= 100;
 
@@ -200,7 +200,7 @@ export const ChallengeCard = ({ challenge, progress = 0, onClaim, variant = 'dai
             )}
         </motion.div>
     );
-};
+});
 
 /**
  * Achievements Gallery Component
@@ -275,7 +275,7 @@ export const AchievementsGallery = ({ unlockedIds = [], stats = {}, category = '
 /**
  * Forge Flame Component
  */
-export const ForgeFlame = ({ streak = 0, hasFreezeActive = false }) => {
+export const ForgeFlame = React.memo(({ streak = 0, hasFreezeActive = false }) => {
     const getFlameSize = () => {
         if (streak >= 30) return 'text-6xl';
         if (streak >= 14) return 'text-5xl';
@@ -325,7 +325,7 @@ export const ForgeFlame = ({ streak = 0, hasFreezeActive = false }) => {
             )}
         </motion.div>
     );
-};
+});
 
 /** @deprecated Use ForgeFlame instead */
 export const StreakFlame = ForgeFlame;

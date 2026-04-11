@@ -17,6 +17,7 @@ import {
   KP, BILATERAL_PAIRS, PHASE,
   EXERCISE_CONFIGS, getExerciseConfig,
 } from './formExerciseConfigs.js';
+import { KeypointFilterBank } from './oneEuroFilter.js';
 
 // --- Math helpers ---
 function angleBetween(a, b, c) {
@@ -347,6 +348,9 @@ export class FormAnalysisEngine {
     // Side detection
     this.activeSide = 'left';
     this.sideConfidence = 0;
+    this.sideOverrideFrames = 0;
+    this.SIDE_SWITCH_THRESHOLD = 0.15;
+    this.SIDE_SWITCH_FRAMES = 10;
 
     // Bar path
     this.barPathPoints = [];  // [{x, y, phase, timestamp}]
@@ -365,6 +369,27 @@ export class FormAnalysisEngine {
     // Feedback state (what issues are active this frame)
     this.activeIssues = [];
     this.activeInjuryFlags = [];
+
+    // Keypoint smoothing (one-euro filter — adaptive, no lag)
+    this.keypointFilter = new KeypointFilterBank(17, {
+        minCutoff: 1.5,  // Low jitter when still
+        beta: 0.01,      // Responsive on fast movement
+        dCutoff: 1.0,
+    });
+
+    // Rep counting guards
+    this.MIN_REP_DURATION_MS = 800;
+    this.MIN_PHASE_FRAMES = 3;
+    this.phaseFrameCount = 0;
+    this.lastRepTime = 0;
+    this._partialRepFlag = false;
+
+    // Combo tracking
+    this.comboCount = 0;
+    this.maxCombo = 0;
+    this.comboJustBroke = false;
+    this.comboJustIncreased = false;
+    this.COMBO_THRESHOLD = 80;
   }
 
   /**
@@ -380,6 +405,10 @@ export class FormAnalysisEngine {
    * Returns analysis result for this frame
    */
   processFrame(keypoints) {
+    this._partialRepFlag = false;
+    this.comboJustBroke = false;
+    this.comboJustIncreased = false;
+
     if (!keypoints || keypoints.length < 17) {
       return this._emptyResult();
     }
@@ -389,11 +418,32 @@ export class FormAnalysisEngine {
     this.lastFrameTime = now;
     this.frameCount++;
 
-    // 1. Auto side detection (every 30 frames to avoid flicker)
-    if (this.frameCount % 30 === 1) {
-      this.activeSide = detectBestSide(keypoints, this.vw, this.vh);
-    }
+    // 0. Smooth keypoints (one-euro filter — adaptive, removes jitter without lag)
+    const timestamp = now / 1000;
+    const smoothedKeypoints = this.keypointFilter.filter(keypoints, timestamp);
 
+    // 1. Detect best side (sticky — don't flip mid-rep)
+    const detectedSide = detectBestSide(smoothedKeypoints, this.vw, this.vh);
+    if (detectedSide !== this.activeSide) {
+      const leftIndices = [KP.LEFT_SHOULDER, KP.LEFT_ELBOW, KP.LEFT_WRIST, KP.LEFT_HIP, KP.LEFT_KNEE, KP.LEFT_ANKLE];
+      const rightIndices = [KP.RIGHT_SHOULDER, KP.RIGHT_ELBOW, KP.RIGHT_WRIST, KP.RIGHT_HIP, KP.RIGHT_KNEE, KP.RIGHT_ANKLE];
+      let leftScore = 0, rightScore = 0;
+      for (const idx of leftIndices) leftScore += (smoothedKeypoints[idx]?.score || 0);
+      for (const idx of rightIndices) rightScore += (smoothedKeypoints[idx]?.score || 0);
+      const diff = Math.abs(leftScore - rightScore) / 6;
+
+      if (diff > this.SIDE_SWITCH_THRESHOLD) {
+        this.sideOverrideFrames++;
+        if (this.sideOverrideFrames >= this.SIDE_SWITCH_FRAMES) {
+          this.activeSide = detectedSide;
+          this.sideOverrideFrames = 0;
+        }
+      } else {
+        this.sideOverrideFrames = 0;
+      }
+    } else {
+      this.sideOverrideFrames = 0;
+    }
     const side = this.activeSide;
     const config = this.config;
 
@@ -426,17 +476,17 @@ export class FormAnalysisEngine {
     // 2. Calculate primary joint angle
     let primaryAngle = 180;
     if (config.primaryJoint) {
-      const a = getJoint(keypoints, config.primaryJoint.a, side, this.vw, this.vh);
-      const b = getJoint(keypoints, config.primaryJoint.b, side, this.vw, this.vh);
-      const c = getJoint(keypoints, config.primaryJoint.c, side, this.vw, this.vh);
+      const a = getJoint(smoothedKeypoints, config.primaryJoint.a, side, this.vw, this.vh);
+      const b = getJoint(smoothedKeypoints, config.primaryJoint.b, side, this.vw, this.vh);
+      const c = getJoint(smoothedKeypoints, config.primaryJoint.c, side, this.vw, this.vh);
       primaryAngle = angleBetween(a, b, c);
     }
 
     let secondaryAngle = null;
     if (config.secondaryJoint) {
-      const a = getJoint(keypoints, config.secondaryJoint.a, side, this.vw, this.vh);
-      const b = getJoint(keypoints, config.secondaryJoint.b, side, this.vw, this.vh);
-      const c = getJoint(keypoints, config.secondaryJoint.c, side, this.vw, this.vh);
+      const a = getJoint(smoothedKeypoints, config.secondaryJoint.a, side, this.vw, this.vh);
+      const b = getJoint(smoothedKeypoints, config.secondaryJoint.b, side, this.vw, this.vh);
+      const c = getJoint(smoothedKeypoints, config.secondaryJoint.c, side, this.vw, this.vh);
       secondaryAngle = angleBetween(a, b, c);
     }
 
@@ -447,7 +497,7 @@ export class FormAnalysisEngine {
     }
 
     // 4. Track bar path (wrist position)
-    const wrist = getJoint(keypoints, 'wrist', side, this.vw, this.vh);
+    const wrist = getJoint(smoothedKeypoints, 'wrist', side, this.vw, this.vh);
     if (wrist.score > 0.3) {
       this.barPathPoints.push({
         x: wrist.x, y: wrist.y,
@@ -461,14 +511,14 @@ export class FormAnalysisEngine {
     }
 
     // 5. Evaluate checkpoints
-    const checkpointResults = this._evaluateCheckpoints(keypoints, side);
+    const checkpointResults = this._evaluateCheckpoints(smoothedKeypoints, side);
 
     // 6. Evaluate injury risks
-    const injuryResults = this._evaluateInjuryRisks(keypoints, side);
+    const injuryResults = this._evaluateInjuryRisks(smoothedKeypoints, side);
 
     // 7. Calculate frame score (0-100)
-    const rawScore = this._calculateScore(checkpointResults, keypoints);
-    this.smoothedScore = ema(this.smoothedScore, rawScore, 0.15);
+    const rawScore = this._calculateScore(checkpointResults, smoothedKeypoints);
+    this.smoothedScore = rawScore;
 
     // 8. Update current rep data
     if (this.currentRep) {
@@ -485,13 +535,13 @@ export class FormAnalysisEngine {
     // 9. Ghost overlay — save best bottom position keypoints
     if (this.currentPhase === PHASE.BOTTOM && rawScore > this.bestRepScore) {
       this.bestRepScore = rawScore;
-      this.bestRepKeypoints = keypoints.map(kp => ({ ...kp }));
+      this.bestRepKeypoints = smoothedKeypoints.map(kp => ({ ...kp }));
     }
 
     // 10. Bilateral analysis (every 15 frames)
     let bilateralResult = null;
     if (this.frameCount % 15 === 0) {
-      bilateralResult = this._analyzeBilateral(keypoints);
+      bilateralResult = this._analyzeBilateral(smoothedKeypoints);
     }
 
     // 11. Fatigue detection
@@ -516,6 +566,11 @@ export class FormAnalysisEngine {
       isIsometric: !!config.isIsometric,
       poseConfidence,
       lowConfidence: false,
+      partialRep: this._partialRepFlag,
+      comboCount: this.comboCount,
+      maxCombo: this.maxCombo,
+      comboJustBroke: this.comboJustBroke,
+      comboJustIncreased: this.comboJustIncreased,
     };
   }
 
@@ -525,6 +580,7 @@ export class FormAnalysisEngine {
   _updatePhase(angle, now) {
     const { phases, invertedPhase } = this.config;
     const prev = this.currentPhase;
+    this.phaseFrameCount++;
 
     // Helper: for normal exercises (squat, deadlift, bench, etc.) angle DECREASES
     // during eccentric (going down) and INCREASES during concentric (going up).
@@ -545,6 +601,7 @@ export class FormAnalysisEngine {
       case PHASE.IDLE:
         if (invertedPhase ? (angle > phases.eccentricStart) : (angle < phases.eccentricStart)) {
           this.currentPhase = PHASE.ECCENTRIC;
+          this.phaseFrameCount = 0;
           this.phaseStartTime = now;
           // Start new rep
           this.currentRep = {
@@ -564,8 +621,10 @@ export class FormAnalysisEngine {
         break;
 
       case PHASE.ECCENTRIC:
+        if (this.phaseFrameCount < this.MIN_PHASE_FRAMES) break;
         if (invertedPhase ? (angle > phases.bottomThreshold) : (angle < phases.bottomThreshold)) {
           this.currentPhase = PHASE.BOTTOM;
+          this.phaseFrameCount = 0;
           this.phaseStartTime = now;
           if (this.currentRep) {
             this.currentRep.eccentricEnd = now;
@@ -573,13 +632,17 @@ export class FormAnalysisEngine {
         } else if (invertedPhase ? (angle < phases.eccentricStart - 5) : (angle > phases.eccentricStart + 5)) {
           // Went back without reaching bottom — reset
           this.currentPhase = PHASE.IDLE;
+          this.phaseFrameCount = 0;
           this.currentRep = null;
+          this._partialRepFlag = true;
         }
         break;
 
       case PHASE.BOTTOM:
+        if (this.phaseFrameCount < this.MIN_PHASE_FRAMES) break;
         if (invertedPhase ? (angle < phases.bottomThreshold - 10) : (angle > phases.bottomThreshold + 10)) {
           this.currentPhase = PHASE.CONCENTRIC;
+          this.phaseFrameCount = 0;
           this.phaseStartTime = now;
           if (this.currentRep) {
             this.currentRep.concentricStart = now;
@@ -588,8 +651,10 @@ export class FormAnalysisEngine {
         break;
 
       case PHASE.CONCENTRIC:
+        if (this.phaseFrameCount < this.MIN_PHASE_FRAMES) break;
         if (invertedPhase ? (angle < phases.concentricEnd) : (angle > phases.concentricEnd)) {
           this.currentPhase = PHASE.LOCKOUT;
+          this.phaseFrameCount = 0;
           this.phaseStartTime = now;
           if (this.currentRep) {
             this.currentRep.concentricEnd = now;
@@ -597,6 +662,7 @@ export class FormAnalysisEngine {
         } else if (invertedPhase ? (angle > phases.bottomThreshold) : (angle < phases.bottomThreshold)) {
           // Went back to bottom during concentric
           this.currentPhase = PHASE.BOTTOM;
+          this.phaseFrameCount = 0;
           this.phaseStartTime = now;
         }
         break;
@@ -608,6 +674,7 @@ export class FormAnalysisEngine {
         if (lockoutFrames >= 5) {
           this._completeRep(now);
           this.currentPhase = PHASE.IDLE;
+          this.phaseFrameCount = 0;
           this.phaseStartTime = now;
         }
         break;
@@ -621,6 +688,15 @@ export class FormAnalysisEngine {
    * Complete a rep — record data and increment counter
    */
   _completeRep(now) {
+    // Reject ghost reps (too short to be real)
+    if (this.currentRep) {
+      const repDuration = now - this.currentRep.startTime;
+      if (repDuration < this.MIN_REP_DURATION_MS) {
+        this.currentRep = null;
+        return;
+      }
+    }
+
     this.repCount++;
 
     if (this.currentRep) {
@@ -650,6 +726,24 @@ export class FormAnalysisEngine {
       };
 
       this.reps.push(repData);
+
+      // Combo tracking
+      this.comboJustBroke = false;
+      this.comboJustIncreased = false;
+
+      if (repData.score >= this.COMBO_THRESHOLD) {
+        this.comboCount++;
+        this.comboJustIncreased = true;
+        if (this.comboCount > this.maxCombo) {
+          this.maxCombo = this.comboCount;
+        }
+      } else {
+        if (this.comboCount > 0) {
+          this.comboJustBroke = true;
+        }
+        this.comboCount = 0;
+      }
+
       this.currentRep = null;
     }
   }
@@ -722,36 +816,57 @@ export class FormAnalysisEngine {
   }
 
   /**
-   * Calculate form score 0-100 with confidence weighting
+   * Calculate form score 0-100 with gradient checkpoint scoring.
+   *
+   * Instead of binary pass/fail (100 or 30), each checkpoint returns
+   * a 0-1 gradient based on how close the value is to the threshold.
+   * A knee that's 2 degrees off scores ~0.9. A knee 15 degrees off scores ~0.2.
    */
   _calculateScore(checkpointResults, keypoints) {
     const activeChecks = checkpointResults.filter(r => r.active && r.result);
-    // No active checkpoints = no data to score. Return last known score or 0.
-    // Never inflate with a fake 85 — that hides bad form.
     if (activeChecks.length === 0) return this.smoothedScore ?? 0;
 
     let totalWeight = 0;
     let weightedScore = 0;
 
     for (const check of activeChecks) {
-      // Weight by severity
+      // Severity weight
       const weight = check.severity === 'danger' ? 3 : check.severity === 'warning' ? 2 : 1;
 
-      // Weight by keypoint confidence
+      // Confidence weight (floor at 30%)
       const requiredKps = this.config.requiredKeypoints || [];
       let avgConf = 0;
       for (const idx of requiredKps) {
         avgConf += (keypoints[idx]?.score || 0);
       }
       avgConf = requiredKps.length > 0 ? avgConf / requiredKps.length : 0.5;
-      const confWeight = Math.max(0.3, avgConf); // Floor at 30%
+      const confWeight = Math.max(0.3, avgConf);
 
       const effectiveWeight = weight * confWeight;
       totalWeight += effectiveWeight;
-      weightedScore += (check.result.pass ? 100 : 30) * effectiveWeight;
+
+      // Gradient scoring: pass = 100, fail = gradient based on how far off
+      let checkScore;
+      if (check.result.pass) {
+        checkScore = 100;
+      } else {
+        // Use the ratio value if available (how close to passing)
+        const threshold = check.threshold ?? 0;
+        const value = check.result.value ?? 0;
+
+        if (threshold > 0 && value !== undefined) {
+          // How close is the value to the threshold? (0 = way off, 1 = almost passing)
+          const ratio = Math.max(0, 1 - Math.abs(value - threshold) / threshold);
+          checkScore = ratio * 60; // Max 60 for a failing check (gradient from 0-60)
+        } else {
+          checkScore = 0; // No data = full fail
+        }
+      }
+
+      weightedScore += checkScore * effectiveWeight;
     }
 
-    return totalWeight > 0 ? weightedScore / totalWeight : 85;
+    return totalWeight > 0 ? Math.max(0, Math.min(100, weightedScore / totalWeight)) : 0;
   }
 
   /**
@@ -851,6 +966,19 @@ export class FormAnalysisEngine {
     const bestRep = this.reps.reduce((best, r) => r.score > best.score ? r : best, this.reps[0]);
     const worstRep = this.reps.reduce((worst, r) => r.score < worst.score ? r : worst, this.reps[0]);
 
+    // Set grade (factors in avg score + consistency)
+    const scoreVariance = scores.length > 1
+      ? scores.reduce((sum, s) => sum + Math.pow(s - avgScore, 2), 0) / scores.length
+      : 0;
+    const consistency = Math.max(0, 100 - Math.sqrt(scoreVariance));
+    const gradeScore = avgScore * 0.7 + consistency * 0.3;
+    const grade = gradeScore >= 90 ? 'A' : gradeScore >= 80 ? 'B' : gradeScore >= 70 ? 'C' : gradeScore >= 55 ? 'D' : 'F';
+
+    // XP earned (base + combo bonus)
+    const baseXP = totalReps * 10 + Math.round(avgScore / 10) * totalReps;
+    const comboMultiplier = this.maxCombo >= 10 ? 3 : this.maxCombo >= 5 ? 2 : this.maxCombo >= 3 ? 1.5 : 1;
+    const totalXP = Math.round(baseXP * comboMultiplier);
+
     return {
       exercise: this.exerciseId,
       exerciseName: this.config.name,
@@ -870,6 +998,15 @@ export class FormAnalysisEngine {
       injuryFlags: allInjuryFlags,
       scoreTrend: scores,
       barPathPoints: this.barPathPoints,
+      maxCombo: this.maxCombo,
+      grade,
+      gradeScore: Math.round(gradeScore),
+      consistency: Math.round(consistency),
+      xp: {
+        base: baseXP,
+        comboMultiplier,
+        total: totalXP,
+      },
     };
   }
 
@@ -890,6 +1027,15 @@ export class FormAnalysisEngine {
     this.activeIssues = [];
     this.activeInjuryFlags = [];
     this.frameCount = 0;
+    this.keypointFilter.reset();
+    this.sideOverrideFrames = 0;
+    this.phaseFrameCount = 0;
+    this.lastRepTime = 0;
+    this._partialRepFlag = false;
+    this.comboCount = 0;
+    this.maxCombo = 0;
+    this.comboJustBroke = false;
+    this.comboJustIncreased = false;
   }
 
   _emptyResult() {

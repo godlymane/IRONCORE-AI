@@ -62,6 +62,7 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
     const [feedback, setFeedback] = useState([]); // checkpoint results for UI cards
     const [coachedTip, setCoachedTip] = useState('');
     const [poseVisible, setPoseVisible] = useState(true); // tracks if pose is detected
+    const [countdown, setCountdown] = useState(null);
 
     // Refs
     const animationRef = useRef(null);
@@ -89,8 +90,11 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
         isMountedRef.current = true;
         return () => {
             isMountedRef.current = false;
-            // Stop all camera tracks on unmount
-            videoRef.current?.srcObject?.getTracks().forEach(t => t.stop());
+            // Stop all camera tracks on unmount and release the stream
+            if (videoRef.current?.srcObject) {
+                videoRef.current.srcObject.getTracks().forEach(t => t.stop());
+                videoRef.current.srcObject = null;
+            }
         };
     }, []);
 
@@ -231,8 +235,23 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
                     setFormScore(0);
                     feedbackCountRef.current = 0;
                     perfMonitorRef.current?.reset();
-                    setCoachedTip('Position yourself so your full body is visible');
-                    detectPose();
+                    // 3-2-1 countdown before detection starts
+                    setCountdown(3);
+                    setCoachedTip('Get in position!');
+                    setTimeout(() => {
+                        if (!isMountedRef.current) return;
+                        setCountdown(2);
+                    }, 1000);
+                    setTimeout(() => {
+                        if (!isMountedRef.current) return;
+                        setCountdown(1);
+                    }, 2000);
+                    setTimeout(() => {
+                        if (!isMountedRef.current) return;
+                        setCountdown(null);
+                        setCoachedTip('Position yourself so your full body is visible');
+                        detectPose();
+                    }, 3000);
                 };
             }
         } catch (err) {
@@ -354,10 +373,9 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
                     const pose = poses[0];
                     const keypoints = pose.keypoints;
 
-                    // Mirror keypoints for front camera
-                    const processedKps = facingMode === 'user'
-                        ? keypoints.map(kp => ({ ...kp, x: canvas.width - kp.x }))
-                        : keypoints;
+                    // No JS mirroring needed — CSS scaleX(-1) on both video
+                    // and canvas handles visual alignment for front camera
+                    const processedKps = keypoints;
 
                     // --- ENGINE: Process frame ---
                     const analysis = engineRef.current
@@ -390,6 +408,22 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
 
                             // --- FEEDBACK: Voice + Haptics ---
                             feedbackMgrRef.current?.processFrame(analysis);
+
+                            // Trigger cue cards for active issues
+                            if (analysis.injuryFlags.length > 0 && rendererRef.current) {
+                                const flag = analysis.injuryFlags[0];
+                                const jointName = flag.joints?.[0];
+                                const JOINT_TO_KP_IDX = {
+                                    knee: 13, hip: 11, shoulder: 5, wrist: 9, elbow: 7, ankle: 15,
+                                    left_knee: 13, right_knee: 14, left_hip: 11, right_hip: 12,
+                                    left_shoulder: 5, right_shoulder: 6, left_wrist: 9, right_wrist: 10,
+                                    left_elbow: 7, right_elbow: 8, left_ankle: 15, right_ankle: 16,
+                                };
+                                const kpIdx = JOINT_TO_KP_IDX[jointName];
+                                if (kpIdx !== undefined && flag.name) {
+                                    rendererRef.current.triggerCueCard(flag.name, kpIdx);
+                                }
+                            }
                         }
 
                         // Update React state (throttled every 10 frames ~330ms to prevent flicker)
@@ -638,6 +672,21 @@ export const FormCoach = ({ exercise: initialExercise = 'squat', isEliteTier = f
                         <canvas ref={canvasRef}
                             className="absolute inset-0 w-full h-full object-cover pointer-events-none"
                             style={facingMode === 'user' ? { transform: 'scaleX(-1)' } : {}} />
+
+                        {/* Countdown overlay */}
+                        {countdown !== null && countdown > 0 && (
+                            <div className="absolute inset-0 flex items-center justify-center z-30 bg-black/40">
+                                <div className="flex flex-col items-center gap-3">
+                                    <div className="text-7xl font-black text-white" style={{
+                                        textShadow: '0 0 40px rgba(220, 38, 38, 0.8), 0 0 80px rgba(220, 38, 38, 0.4)',
+                                        animation: 'pulse 1s ease-in-out infinite',
+                                    }}>
+                                        {countdown}
+                                    </div>
+                                    <p className="text-white/70 text-sm font-medium tracking-wider uppercase">Get Ready</p>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Pose Visibility Warning */}
                         {isStreaming && !poseVisible && (

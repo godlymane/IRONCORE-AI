@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, TrendingDown, TrendingUp, AlertTriangle, Zap, Brain } from 'lucide-react';
+import { X, TrendingDown, TrendingUp, AlertTriangle, Zap, Brain, Share2 } from 'lucide-react';
+import { toPng } from 'html-to-image';
 import { Button } from './UIComponents';
 import { callGemini } from '../utils/helpers';
 
@@ -18,6 +19,26 @@ import { callGemini } from '../utils/helpers';
 export function FormSessionSummary({ summary, isElite = false, onClose }) {
     const [aiTips, setAiTips] = useState(null);
     const [loadingAI, setLoadingAI] = useState(false);
+    const shareCardRef = React.useRef(null);
+    const [sharing, setSharing] = useState(false);
+
+    const handleShare = async () => {
+        if (!shareCardRef.current) return;
+        setSharing(true);
+        try {
+            const dataUrl = await toPng(shareCardRef.current, {
+                backgroundColor: '#111827',
+                pixelRatio: 2,
+            });
+            const link = document.createElement('a');
+            link.download = `ironcore-${exerciseName}-${Date.now()}.png`;
+            link.href = dataUrl;
+            link.click();
+        } catch (err) {
+            console.error('Share card generation failed:', err);
+        }
+        setSharing(false);
+    };
 
     if (!summary || summary.totalReps === 0) {
         return (
@@ -31,10 +52,12 @@ export function FormSessionSummary({ summary, isElite = false, onClose }) {
         );
     }
 
-    const { exerciseName, totalReps, avgScore, bestRep, worstRep, tempo, rom, fatigueIndex, injuryFlags, scoreTrend, reps } = summary;
+    const { exerciseName, totalReps, avgScore, bestRep, worstRep, tempo, rom, fatigueIndex, injuryFlags, scoreTrend, reps, grade, consistency, maxCombo, xp } = summary;
 
     const scoreColor = avgScore >= 80 ? 'text-green-400' : avgScore >= 60 ? 'text-yellow-400' : 'text-red-400';
     const fatigueColor = fatigueIndex > 50 ? 'text-red-400' : fatigueIndex > 25 ? 'text-yellow-400' : 'text-green-400';
+    const gradeColor = grade === 'A' ? 'text-green-400' : grade === 'B' ? 'text-blue-400' : grade === 'C' ? 'text-yellow-400' : grade === 'D' ? 'text-orange-400' : 'text-red-400';
+    const gradeBg = grade === 'A' ? 'from-green-500/20 border-green-500/30' : grade === 'B' ? 'from-blue-500/20 border-blue-500/30' : grade === 'C' ? 'from-yellow-500/20 border-yellow-500/30' : grade === 'D' ? 'from-orange-500/20 border-orange-500/30' : 'from-red-500/20 border-red-500/30';
 
     // Build sparkline path from score trend
     const sparklinePath = buildSparkline(scoreTrend, 200, 40);
@@ -75,11 +98,21 @@ Respond with JSON: {"tips": ["tip1", "tip2", "tip3"]}`;
             <motion.div initial={{ y: 100 }} animate={{ y: 0 }}
                 className="bg-gray-900 rounded-t-3xl sm:rounded-2xl p-5 max-w-sm w-full border border-white/10 max-h-[85vh] overflow-y-auto">
 
-                {/* Header */}
+                {/* Header — Grade + Title */}
                 <div className="flex items-center justify-between mb-4">
-                    <div>
-                        <h2 className="text-white font-black text-lg">Set Complete</h2>
-                        <p className="text-gray-500 text-xs">{exerciseName} — {totalReps} reps</p>
+                    <div className="flex items-center gap-3">
+                        {grade && (
+                            <div className={`w-14 h-14 rounded-2xl bg-gradient-to-b ${gradeBg} border flex items-center justify-center`}>
+                                <span className={`text-3xl font-black ${gradeColor}`}>{grade}</span>
+                            </div>
+                        )}
+                        <div>
+                            <h2 className="text-white font-black text-lg">Set Complete</h2>
+                            <p className="text-gray-500 text-xs">{exerciseName} — {totalReps} reps</p>
+                            {consistency > 0 && (
+                                <p className="text-gray-600 text-[10px]">{consistency}% consistency</p>
+                            )}
+                        </div>
                     </div>
                     <button onClick={onClose} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-gray-400">
                         <X size={16} />
@@ -101,6 +134,31 @@ Respond with JSON: {"tips": ["tip1", "tip2", "tip3"]}`;
                         <div className="text-[10px] text-gray-500 uppercase font-bold">Fatigue</div>
                     </div>
                 </div>
+
+                {/* XP Earned + Combo */}
+                {xp && (
+                    <div className="mb-4 p-3 rounded-xl bg-gradient-to-r from-purple-500/10 to-amber-500/10 border border-purple-500/20">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <Zap size={16} className="text-amber-400" />
+                                    <span className="text-white font-black text-xl">+{xp.total} XP</span>
+                                </div>
+                                {xp.comboMultiplier > 1 && (
+                                    <p className="text-purple-400 text-[11px] font-bold mt-0.5">
+                                        {xp.comboMultiplier}x combo bonus (base: {xp.base} XP)
+                                    </p>
+                                )}
+                            </div>
+                            {maxCombo >= 2 && (
+                                <div className="text-center">
+                                    <div className="text-lg font-black text-purple-400">{maxCombo}x</div>
+                                    <div className="text-[9px] text-gray-500 uppercase font-bold">Max Combo</div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 {/* Tempo */}
                 <div className="flex gap-3 mb-4">
@@ -164,7 +222,9 @@ Respond with JSON: {"tips": ["tip1", "tip2", "tip3"]}`;
                         <div className="space-y-1 max-h-40 overflow-y-auto">
                             {reps.map((rep, i) => (
                                 <div key={i} className="flex items-center gap-2 text-[11px]">
-                                    <span className="text-gray-500 w-6">#{rep.number}</span>
+                                    <span className={`w-6 font-bold ${bestRep && rep.number === bestRep.number ? 'text-amber-400' : 'text-gray-500'}`}>
+                                        {bestRep && rep.number === bestRep.number ? '★' : '#'}{rep.number}
+                                    </span>
                                     <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
                                         <div className={`h-full rounded-full ${
                                             rep.score >= 80 ? 'bg-green-500' : rep.score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
@@ -202,6 +262,40 @@ Respond with JSON: {"tips": ["tip1", "tip2", "tip3"]}`;
                         )}
                     </div>
                 )}
+
+                {/* Share Card (screenshot target) */}
+                <div ref={shareCardRef} className="mb-4 p-4 rounded-2xl bg-gray-900 border border-white/10">
+                    <div className="flex items-center gap-3 mb-3">
+                        {grade && (
+                            <div className={`w-12 h-12 rounded-xl bg-gradient-to-b ${gradeBg} border flex items-center justify-center`}>
+                                <span className={`text-2xl font-black ${gradeColor}`}>{grade}</span>
+                            </div>
+                        )}
+                        <div>
+                            <p className="text-white font-black text-sm">{exerciseName}</p>
+                            <p className="text-gray-500 text-[11px]">{totalReps} reps — Score: {avgScore}/100</p>
+                        </div>
+                    </div>
+                    {xp && (
+                        <div className="flex items-center gap-2 mb-2">
+                            <Zap size={14} className="text-amber-400" />
+                            <span className="text-amber-400 font-bold text-sm">+{xp.total} XP</span>
+                            {maxCombo >= 2 && <span className="text-purple-400 text-xs font-bold ml-2">{maxCombo}x max combo</span>}
+                        </div>
+                    )}
+                    {scoreTrend.length > 2 && (
+                        <svg viewBox="0 0 200 30" className="w-full h-8 mb-2">
+                            <path d={buildSparkline(scoreTrend, 200, 30).line} fill="none" stroke={avgScore >= 80 ? '#22c55e' : avgScore >= 60 ? '#eab308' : '#ef4444'} strokeWidth="2" />
+                        </svg>
+                    )}
+                    <p className="text-gray-600 text-[9px] text-center">IronCore AI — Your Phone. Your Trainer.</p>
+                </div>
+
+                {/* Share Button */}
+                <Button onClick={handleShare} variant="secondary" className="w-full mb-3" disabled={sharing}>
+                    <Share2 className="w-4 h-4 mr-2" />
+                    {sharing ? 'Generating...' : 'Share Rep Card'}
+                </Button>
 
                 {/* Close */}
                 <Button onClick={onClose} variant="primary" className="w-full">Done</Button>

@@ -10,7 +10,12 @@ import { motion, AnimatePresence, useSpring, useTransform } from 'framer-motion'
 // ANIMATED PARTICLE BACKGROUND
 // Creates floating particles with red/gold glow
 // ========================================
-export const ParticleBackground = ({ count = 30, colors = ['#dc2626', '#f59e0b', '#991b1b'] }) => {
+const DEFAULT_PARTICLE_COLORS = ['#dc2626', '#f59e0b', '#991b1b'];
+
+export const ParticleBackground = ({ count = 30, colors = DEFAULT_PARTICLE_COLORS }) => {
+    // Positions are random and only need to be generated once per mount.
+    // We intentionally omit `colors` from deps — it's only used during initial
+    // generation and changing it shouldn't regenerate all random positions.
     const particles = useMemo(() => Array.from({ length: count }, (_, i) => ({
         id: i,
         x: Math.random() * 100,
@@ -19,7 +24,7 @@ export const ParticleBackground = ({ count = 30, colors = ['#dc2626', '#f59e0b',
         duration: Math.random() * 20 + 15,
         delay: Math.random() * 5,
         color: colors[Math.floor(Math.random() * colors.length)],
-    })), [count, colors]);
+    })), [count]); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
         <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">

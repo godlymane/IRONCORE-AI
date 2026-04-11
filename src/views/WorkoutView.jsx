@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Plus, Trash2, Play, Dumbbell, Trophy, Edit2, List, Calculator, X, Ghost, CheckCircle2, Circle, Timer, StopCircle, Clock, Zap } from 'lucide-react';
 import { Card, Button, GlassCard } from '../components/UIComponents';
 import { EXERCISE_DB } from '../utils/constants';
@@ -8,6 +8,19 @@ import { useStore } from '../hooks/useStore';
 import { useFitnessData } from '../hooks/useFitnessData';
 import { db, auth } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
+
+// Extracted timer display — React.memo prevents re-rendering the entire view every second
+const WorkoutTimer = React.memo(({ elapsed, formatTime }) => (
+    <div
+        className="font-mono text-xl font-bold text-white tabular-nums px-4 py-2 rounded-xl"
+        style={{
+            background: 'linear-gradient(145deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%)',
+            border: '1px solid rgba(255,255,255,0.1)',
+        }}
+    >
+        {formatTime(elapsed)}
+    </div>
+));
 
 export const WorkoutView = () => {
     const { workouts } = useStore();
@@ -20,6 +33,7 @@ export const WorkoutView = () => {
     const [showUpsell, setShowUpsell] = useState(false);
     const [lastWorkoutData, setLastWorkoutData] = useState(null);
     const [prCelebration, setPrCelebration] = useState(null); // { exerciseName, weight }
+    const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
     // REST TIMER STATE
     const [restTimer, setRestTimer] = useState(0);
@@ -62,7 +76,7 @@ export const WorkoutView = () => {
             });
         } else if (undoToast.type === 'workout') {
             // Re-save the workout back to Firestore
-            updateData('workouts', undoToast.item, undoToast.item.id);
+            updateData('update', 'workouts', undoToast.item, undoToast.item.id);
         }
         setUndoToast(null);
     }, [undoToast, updateData]);
@@ -72,32 +86,49 @@ export const WorkoutView = () => {
     const restStartRef = React.useRef(null);
     const restDurationRef = React.useRef(0);
 
-    const getGhostSet = (exerciseName, setIndex) => {
-        const history = workouts.find(w => w.exercises && w.exercises.some(e => e.name === exerciseName));
-        if (!history) return null;
-        const ex = history.exercises.find(e => e.name === exerciseName);
-        if (!ex || !ex.sets[setIndex]) return null;
-        return ex.sets[setIndex];
-    };
-
-    const getPR = (exerciseName) => {
-        let maxWeight = 0;
+    // Pre-build lookup maps for ghost sets and PRs so we don't scan all workouts per render
+    const prMap = useMemo(() => {
+        const map = {};
         workouts.forEach(w => {
             if (w.exercises) {
                 w.exercises.forEach(ex => {
-                    if (ex.name === exerciseName) {
-                        ex.sets.forEach(s => {
-                            const weight = parseFloat(s.w);
-                            if (weight > maxWeight) maxWeight = weight;
-                        });
-                    }
+                    ex.sets.forEach(s => {
+                        const weight = parseFloat(s.w);
+                        if (weight > (map[ex.name] || 0)) map[ex.name] = weight;
+                    });
                 });
             }
         });
-        return maxWeight;
-    };
+        return map;
+    }, [workouts]);
 
-    // Main Workout Timer — uses start timestamp so it catches up after background
+    const ghostMap = useMemo(() => {
+        const map = {};
+        // First matching workout per exercise name (same logic as before)
+        workouts.forEach(w => {
+            if (w.exercises) {
+                w.exercises.forEach(ex => {
+                    if (!map[ex.name]) map[ex.name] = ex.sets;
+                });
+            }
+        });
+        return map;
+    }, [workouts]);
+
+    const getGhostSet = useCallback((exerciseName, setIndex) => {
+        const sets = ghostMap[exerciseName];
+        if (!sets || !sets[setIndex]) return null;
+        return sets[setIndex];
+    }, [ghostMap]);
+
+    const getPR = useCallback((exerciseName) => {
+        return prMap[exerciseName] || 0;
+    }, [prMap]);
+
+    // Main Workout Timer — uses start timestamp so it catches up after background.
+    // NOTE: `elapsed` is intentionally NOT in the dep array. The sessionStartRef approach
+    // avoids stale closures by computing elapsed from `Date.now() - startRef` each tick,
+    // so the setInterval callback never reads stale `elapsed` state.
     useEffect(() => {
         let interval;
         if (isSessionActive) {
@@ -111,6 +142,7 @@ export const WorkoutView = () => {
             sessionStartRef.current = null;
         }
         return () => clearInterval(interval);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isSessionActive]);
 
     // Rest Timer Logic — uses start timestamp so it catches up after background
@@ -314,12 +346,14 @@ export const WorkoutView = () => {
                         <input
                             value={sessionName}
                             onChange={e => setSessionName(e.target.value)}
+                            aria-label="Workout session name"
                             className="bg-transparent text-xl font-black text-white outline-none w-44"
                         />
                     </div>
                     <div className="flex items-center gap-3">
                         <button
                             onClick={() => setShowTools(true)}
+                            aria-label="Open workout tools"
                             className="p-2.5 rounded-xl transition-all hover:scale-105"
                             style={{
                                 background: 'linear-gradient(145deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%)',
@@ -328,15 +362,7 @@ export const WorkoutView = () => {
                         >
                             <Calculator size={18} className="text-red-400" />
                         </button>
-                        <div
-                            className="font-mono text-xl font-bold text-white tabular-nums px-4 py-2 rounded-xl"
-                            style={{
-                                background: 'linear-gradient(145deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%)',
-                                border: '1px solid rgba(255,255,255,0.1)',
-                            }}
-                        >
-                            {formatTime(elapsed)}
-                        </div>
+                        <WorkoutTimer elapsed={elapsed} formatTime={formatTime} />
                     </div>
                 </div>
 
@@ -360,6 +386,7 @@ export const WorkoutView = () => {
                         <div className="flex gap-2">
                             <button
                                 onClick={() => setRestTimer(t => t + 30)}
+                                aria-label="Add 30 seconds to rest timer"
                                 className="text-[11px] px-3 py-1.5 rounded-lg font-bold text-white transition-all hover:scale-105"
                                 style={{
                                     background: 'linear-gradient(145deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
@@ -367,7 +394,7 @@ export const WorkoutView = () => {
                             >
                                 +30s
                             </button>
-                            <button onClick={cancelRest} className="text-red-400 hover:text-red-300 transition-colors">
+                            <button onClick={cancelRest} aria-label="Stop rest timer" className="text-red-400 hover:text-red-300 transition-colors">
                                 <StopCircle size={18} />
                             </button>
                         </div>
@@ -397,6 +424,7 @@ export const WorkoutView = () => {
                                             <select
                                                 value={ex.name}
                                                 onChange={(e) => updateExerciseName(ex.id, e.target.value)}
+                                                aria-label="Select exercise"
                                                 className="bg-transparent text-white font-bold text-lg outline-none w-full appearance-none"
                                             >
                                                 {EXERCISE_DB.map(e => <option key={e.name} value={e.name} className="bg-gray-900">{e.name}</option>)}
@@ -404,6 +432,7 @@ export const WorkoutView = () => {
                                         )}
                                         <button
                                             onClick={() => toggleCustomMode(ex.id)}
+                                            aria-label={ex.isCustom ? "Switch to exercise list" : "Switch to custom exercise name"}
                                             className="p-2 rounded-xl text-gray-400 hover:text-white transition-colors"
                                             style={{
                                                 background: 'linear-gradient(145deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%)',
@@ -419,6 +448,7 @@ export const WorkoutView = () => {
                                 </div>
                                 <button
                                     onClick={() => handleRemoveExercise(ex.id)}
+                                    aria-label={`Remove ${ex.name}`}
                                     className="text-gray-500 hover:text-red-400 p-2 transition-colors"
                                 >
                                     <Trash2 size={16} />
@@ -451,6 +481,7 @@ export const WorkoutView = () => {
                                                     placeholder={ghost ? ghost.w : "-"}
                                                     value={set.w}
                                                     onChange={e => updateSet(ex.id, sIdx, 'w', e.target.value)}
+                                                    aria-label={`Set ${sIdx + 1} weight in kg`}
                                                     className="flex-1 p-3 rounded-xl text-white text-center outline-none text-sm placeholder:text-gray-600"
                                                     style={{
                                                         background: 'linear-gradient(145deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.2) 100%)',
@@ -466,6 +497,7 @@ export const WorkoutView = () => {
                                                     placeholder={ghost ? ghost.r : "-"}
                                                     value={set.r}
                                                     onChange={e => updateSet(ex.id, sIdx, 'r', e.target.value)}
+                                                    aria-label={`Set ${sIdx + 1} reps`}
                                                     className="flex-1 p-3 rounded-xl text-white text-center outline-none text-sm placeholder:text-gray-600"
                                                     style={{
                                                         background: 'linear-gradient(145deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.2) 100%)',
@@ -482,6 +514,7 @@ export const WorkoutView = () => {
                                                     min="1"
                                                     max="10"
                                                     onChange={e => updateSet(ex.id, sIdx, 'rpe', Math.min(10, Math.max(1, parseInt(e.target.value) || '')))}
+                                                    aria-label={`Set ${sIdx + 1} RPE rating`}
                                                     className="w-12 p-3 rounded-xl text-white text-center outline-none text-sm placeholder:text-gray-600"
                                                     style={{
                                                         background: 'linear-gradient(145deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.2) 100%)',
@@ -491,6 +524,7 @@ export const WorkoutView = () => {
 
                                                 <button
                                                     onClick={() => toggleSetComplete(ex.id, sIdx)}
+                                                    aria-label={set.completed ? `Mark set ${sIdx + 1} incomplete` : `Mark set ${sIdx + 1} complete`}
                                                     className="w-12 flex justify-center items-center transition-all"
                                                 >
                                                     {set.completed ? (
@@ -531,9 +565,23 @@ export const WorkoutView = () => {
                 </div>
 
                 {/* Bottom Action Buttons */}
+                {/* Discard Confirmation Dialog */}
+                {showDiscardConfirm && (
+                    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xl flex items-center justify-center p-6" role="dialog" aria-modal="true" aria-labelledby="discard-confirm-title" onKeyDown={(e) => e.key === 'Escape' && setShowDiscardConfirm(false)}>
+                        <div className="w-full max-w-xs rounded-3xl p-6 space-y-4" style={{ background: 'linear-gradient(145deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))', border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <p id="discard-confirm-title" className="text-white font-bold text-center">Discard this workout?</p>
+                            <p className="text-gray-500 text-xs text-center">All progress from this session will be lost.</p>
+                            <div className="flex gap-3">
+                                <button onClick={() => setShowDiscardConfirm(false)} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-gray-400 bg-white/5 border border-white/10">Cancel</button>
+                                <button onClick={() => { setShowDiscardConfirm(false); setIsSessionActive(false); }} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white" style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)' }}>Discard</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 <div className="fixed bottom-24 left-4 right-4 max-w-md mx-auto z-40">
                     <div className="grid grid-cols-2 gap-3">
-                        <Button onClick={() => setIsSessionActive(false)} variant="danger" className="!py-4">
+                        <Button onClick={() => setShowDiscardConfirm(true)} variant="danger" className="!py-4">
                             Discard
                         </Button>
                         <button
@@ -570,6 +618,7 @@ export const WorkoutView = () => {
                 <div className="flex gap-2">
                     <button
                         onClick={() => setShowTools(true)}
+                        aria-label="Open workout tools"
                         className="p-3 rounded-xl transition-all hover:scale-105"
                         style={{
                             background: 'linear-gradient(145deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%)',
@@ -617,6 +666,7 @@ export const WorkoutView = () => {
                                 </div>
                                 <button
                                     onClick={() => handleDeleteWorkout(w.id)}
+                                    aria-label={`Delete workout: ${w.name}`}
                                     className="text-gray-600 hover:text-red-400 transition-colors"
                                 >
                                     <Trash2 size={16} />
@@ -685,7 +735,7 @@ const IronToolsModal = ({ onClose }) => {
     };
 
     return (
-        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="iron-tools-title" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
             <div
                 className="w-full max-w-sm rounded-3xl p-6 animate-in zoom-in-95"
                 style={{
@@ -696,23 +746,27 @@ const IronToolsModal = ({ onClose }) => {
                 }}
             >
                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-black italic text-white uppercase flex items-center gap-2">
+                    <h3 id="iron-tools-title" className="text-xl font-black italic text-white uppercase flex items-center gap-2">
                         <Calculator className="text-red-400" />
                         Iron Tools
                     </h3>
-                    <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
+                    <button onClick={onClose} aria-label="Close tools" className="text-gray-500 hover:text-white transition-colors">
                         <X size={20} />
                     </button>
                 </div>
 
                 <div
                     className="flex p-1 rounded-xl mb-6"
+                    role="tablist"
+                    aria-label="Workout tools"
                     style={{
                         background: 'linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
                     }}
                 >
                     <button
                         onClick={() => setTab('plate')}
+                        role="tab"
+                        aria-selected={tab === 'plate'}
                         className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all ${tab === 'plate' ? 'text-white' : 'text-gray-500'}`}
                         style={tab === 'plate' ? {
                             background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.8) 0%, rgba(185, 28, 28, 0.8) 100%)',
@@ -722,6 +776,8 @@ const IronToolsModal = ({ onClose }) => {
                     </button>
                     <button
                         onClick={() => setTab('1rm')}
+                        role="tab"
+                        aria-selected={tab === '1rm'}
                         className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all ${tab === '1rm' ? 'text-white' : 'text-gray-500'}`}
                         style={tab === '1rm' ? {
                             background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.8) 0%, rgba(185, 28, 28, 0.8) 100%)',

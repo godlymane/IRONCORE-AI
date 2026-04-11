@@ -79,6 +79,8 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
             {/* Navigation Tabs */}
             <div
                 className="flex p-1 rounded-2xl overflow-x-auto scrollbar-hide"
+                role="tablist"
+                aria-label="Community sections"
                 style={{
                     background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%)',
                     border: '1px solid rgba(255, 255, 255, 0.08)',
@@ -190,7 +192,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
 
                                 <button
                                     onClick={() => setActiveTab('train')}
-                                    className="w-full mt-4 py-4 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
+                                    className="w-full flex-none mt-4 py-4 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
                                     style={{
                                         background: userDamage > 0
                                             ? 'linear-gradient(135deg, rgba(249, 115, 22, 0.9) 0%, rgba(234, 179, 8, 0.9) 100%)'
@@ -215,6 +217,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 placeholder="Scout gladiators..."
+                                aria-label="Search players"
                                 className="w-full py-4 pl-12 pr-4 rounded-2xl text-sm text-white outline-none placeholder:text-gray-600"
                                 style={{
                                     background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%)',
@@ -434,8 +437,9 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                         <input
                             value={msgInput}
                             onChange={e => setMsgInput(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && msgInput.trim() && (sendMessage(msgInput.trim()), setMsgInput(""))}
+                            onKeyDown={e => e.key === 'Enter' && msgInput.trim() && (sendMessage(msgInput.trim().slice(0, 500)), setMsgInput(""))}
                             placeholder="Talk trash..."
+                            aria-label="Chat message"
                             maxLength={500}
                             className="flex-grow rounded-xl px-4 py-3 text-xs text-white outline-none"
                             style={{
@@ -444,7 +448,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                             }}
                         />
                         <button
-                            onClick={() => { if (!msgInput.trim()) return; sendMessage(msgInput.trim()); setMsgInput(""); }}
+                            onClick={() => { if (!msgInput.trim()) return; sendMessage(msgInput.trim().slice(0, 500)); setMsgInput(""); }}
                             className="p-3 rounded-xl text-white transition-all hover:scale-105"
                             style={{
                                 background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.9) 0%, rgba(185, 28, 28, 0.9) 100%)',
@@ -538,6 +542,7 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
                                     value={dmInput}
                                     onChange={e => setDmInput(e.target.value)}
                                     placeholder="Send Message..."
+                                    aria-label="Direct message"
                                     maxLength={500}
                                     className="flex-grow rounded-xl px-4 py-3 text-xs text-white outline-none"
                                     style={{
@@ -640,6 +645,8 @@ export const CommunityView = ({ leaderboard, profile, updateData, workouts, setA
 const NavBtn = ({ id, label, icon, active, set }) => (
     <button
         onClick={() => set(id)}
+        role="tab"
+        aria-selected={active === id}
         className={`flex-shrink-0 flex items-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${active === id ? 'text-white' : 'text-gray-500 hover:text-gray-300'
             }`}
         style={active === id ? {

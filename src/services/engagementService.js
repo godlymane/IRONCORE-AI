@@ -64,7 +64,7 @@ export const calculateForge = async (db, userId, workoutDates) => {
         await setDoc(doc(db, 'users', userId, 'data', 'profile'), {
             currentForge: forge,
             forgeMultiplier: multiplier,
-            lastForgeUpdate: new Date().toISOString(),
+            lastForgeUpdate: serverTimestamp(),
         }, { merge: true });
     } catch (e) {
         console.error('Error updating Forge:', e);
@@ -314,17 +314,13 @@ export const leaveGuild = async (db, userId, guildId) => {
 
 /**
  * Contribute XP to guild
+ * NOTE: This will be rejected by Firestore security rules — guild XP contribution
+ * must go through a Cloud Function. Kept for backward-compat signature but will
+ * throw on write. Use the server-side contributeGuildXP Cloud Function instead.
+ * @deprecated Use contributeGuildXP Cloud Function instead.
  */
-export const contributeToGuild = async (db, guildId, xpAmount) => {
-    if (!db || !guildId || !xpAmount) return;
-
-    try {
-        await updateDoc(doc(db, 'guilds', guildId), {
-            totalXP: increment(xpAmount),
-        });
-    } catch (e) {
-        console.error('Error contributing to guild:', e);
-    }
+export const contributeToGuild = async (/* db, guildId, xpAmount */) => {
+    throw new Error('contributeToGuild is disabled. Guild XP contribution must go through a Cloud Function.');
 };
 
 /**

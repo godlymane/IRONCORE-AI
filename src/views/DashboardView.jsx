@@ -24,7 +24,11 @@ import { QuickActionBtn } from '../components/Dashboard/QuickActionBtn';
 import { ShopItem } from '../components/Dashboard/ShopItem';
 import { MacroMini } from '../components/Dashboard/MacroMini';
 
-import { useStore } from '../hooks/useStore';
+import {
+  useStore,
+  selectUser, selectDataLoaded, selectProfileLoaded, selectProfileExists,
+  selectMeals, selectBurned, selectProfile, selectWorkouts, selectProgress, selectUserDoc
+} from '../hooks/useStore';
 import { useFitnessData } from '../hooks/useFitnessData';
 import { getIronScoreColor } from '../utils/colors';
 
@@ -74,11 +78,17 @@ const ProgressRing = ({ progress, size = 120, strokeWidth = 8, color = "#dc2626"
 };
 
 export const DashboardView = () => {
-  // Read state from Zustand store for optimal performance!
-  const {
-    user, dataLoaded, profileLoaded, profileExists,
-    meals, burned, profile, workouts, progress, userDoc
-  } = useStore();
+  // Use Zustand selectors for optimal performance — only re-renders on relevant state changes
+  const user = useStore(selectUser);
+  const dataLoaded = useStore(selectDataLoaded);
+  const profileLoaded = useStore(selectProfileLoaded);
+  const profileExists = useStore(selectProfileExists);
+  const meals = useStore(selectMeals);
+  const burned = useStore(selectBurned);
+  const profile = useStore(selectProfile);
+  const workouts = useStore(selectWorkouts);
+  const progress = useStore(selectProgress);
+  const userDoc = useStore(selectUserDoc);
 
   // Read functions from the refactored useFitnessData
   const {
@@ -136,18 +146,20 @@ export const DashboardView = () => {
   const showWeighIn = !hasLoggedWeightToday && !weighInDismissed;
   const dailyDrop = DAILY_CHALLENGES[new Date().getDate() % DAILY_CHALLENGES.length];
 
-  const todaysMeals = meals.filter(m => m.date === today);
-  const todaysBurned = burned.filter(b => b.date === today);
-  const todaysWorkouts = workouts.filter(w => {
+  const todaysMeals = useMemo(() => meals.filter(m => m.date === today), [meals, today]);
+  const todaysBurned = useMemo(() => burned.filter(b => b.date === today), [burned, today]);
+  const todaysWorkouts = useMemo(() => workouts.filter(w => {
     const d = w.createdAt?.seconds ? new Date(w.createdAt.seconds * 1000) : new Date(w.createdAt || w.date);
     return d.toISOString().split('T')[0] === today;
-  });
+  }), [workouts, today]);
 
-  const calsIn = todaysMeals.reduce((s, m) => s + (m.calories || 0), 0);
-  const calsOut = todaysBurned.reduce((s, b) => s + (b.calories || 0), 0);
-  const netCals = calsIn - calsOut;
-  const displayNetCals = Math.max(0, netCals);
-  const macros = todaysMeals.reduce((acc, m) => ({ p: acc.p + (m.protein || 0), c: acc.c + (m.carbs || 0), f: acc.f + (m.fat || 0) }), { p: 0, c: 0, f: 0 });
+  const { calsIn, calsOut, netCals, displayNetCals, macros } = useMemo(() => {
+    const ci = todaysMeals.reduce((s, m) => s + (m.calories || 0), 0);
+    const co = todaysBurned.reduce((s, b) => s + (b.calories || 0), 0);
+    const net = ci - co;
+    const mac = todaysMeals.reduce((acc, m) => ({ p: acc.p + (m.protein || 0), c: acc.c + (m.carbs || 0), f: acc.f + (m.fat || 0) }), { p: 0, c: 0, f: 0 });
+    return { calsIn: ci, calsOut: co, netCals: net, displayNetCals: Math.max(0, net), macros: mac };
+  }, [todaysMeals, todaysBurned]);
 
   const dailyTarget = profile?.dailyCalories || 2000;
   const dailyProteinTarget = profile?.dailyProtein || 150;
@@ -185,7 +197,7 @@ export const DashboardView = () => {
     } catch (e) { /* ignore */ }
   }, [ironScore]);
 
-  const handleDropComplete = async () => {
+  const handleDropComplete = useCallback(async () => {
     if (!completeDailyDrop || dropClaiming || dropCompleted) return;
     setDropClaiming(true);
     try {
@@ -197,7 +209,7 @@ export const DashboardView = () => {
     } finally {
       setDropClaiming(false);
     }
-  };
+  }, [completeDailyDrop, dropClaiming, dropCompleted, dailyDrop.xp, addToast]);
 
   const logWeight = async () => {
     const w = parseFloat(weighInValue);
@@ -241,31 +253,31 @@ export const DashboardView = () => {
     }
   };
 
-  const dismissWeighIn = () => {
+  const dismissWeighIn = useCallback(() => {
     localStorage.setItem(`ironcore_weigh_dismissed_${today}`, '1');
     setWeighInDismissed(true);
-  };
+  }, [today]);
 
   const [pendingBuy, setPendingBuy] = useState(null);
 
-  const handleBuy = (item, cost) => {
+  const handleBuy = useCallback((item, cost) => {
     setPendingBuy({ item, cost });
-  };
+  }, []);
 
-  const confirmBuy = async () => {
+  const confirmBuy = useCallback(async () => {
     if (!pendingBuy) return;
     const success = await buyItem(pendingBuy.item, pendingBuy.cost);
     setPendingBuy(null);
     if (success) addToast("Purchase Successful!", "success");
     else addToast("Not enough XP", "error");
-  };
+  }, [pendingBuy, buyItem, addToast]);
 
-  const toggleSupp = async (item) => {
+  const toggleSupp = useCallback(async (item) => {
     const newSupps = { ...supps, [item]: !supps[item] };
     setSupps(newSupps);
     if (!supps[item]) SFX?.click();
     await updateData('add', 'profile', { supps: { ...(profile?.supps || {}), [today]: newSupps } });
-  };
+  }, [supps, updateData, profile?.supps, today]);
 
   const spotMacros = async (imageBase64 = null) => {
     if (!mealText && !imageBase64) return;
@@ -337,7 +349,7 @@ export const DashboardView = () => {
       {/* Header Section */}
       <motion.div variants={slideUp} className="flex justify-between items-center">
         <div className="flex items-center gap-3">
-          <button onClick={() => setShowSettings(true)} className="relative group">
+          <button onClick={() => setShowSettings(true)} aria-label="Open profile settings" className="relative group">
             <div
               className="w-12 h-12 rounded-2xl overflow-hidden transition-transform active:scale-95"
               style={{
@@ -386,6 +398,7 @@ export const DashboardView = () => {
           {/* XP/Shop Button */}
           <button
             onClick={() => setShowShop(true)}
+            aria-label={`Open XP shop, ${xp} XP available`}
             className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all hover:scale-105 active:scale-95"
             style={{
               background: 'linear-gradient(145deg, rgba(234, 179, 8, 0.15) 0%, rgba(234, 179, 8, 0.05) 100%)',
@@ -435,6 +448,7 @@ export const DashboardView = () => {
             >
               <button
                 onClick={dismissWeighIn}
+                aria-label="Dismiss weigh-in prompt"
                 className="absolute top-3 right-3 text-gray-600 hover:text-gray-400 transition-colors"
               >
                 <X size={16} />
@@ -469,6 +483,7 @@ export const DashboardView = () => {
                     value={weighInValue}
                     onChange={e => setWeighInValue(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && logWeight()}
+                    aria-label="Today's weight in kilograms"
                     className="w-full text-center text-4xl font-black bg-transparent text-white outline-none py-2 border-b-2 border-red-500/30 focus:border-red-500 transition-colors placeholder:text-gray-700"
                   />
                   <span className="absolute right-0 bottom-3 text-xs text-gray-500 font-bold uppercase">kg</span>
@@ -652,6 +667,8 @@ export const DashboardView = () => {
               placeholder="Meal Name"
               value={manualMeal.name}
               onChange={e => setManualMeal({ ...manualMeal, name: e.target.value })}
+              aria-label="Meal name"
+              aria-required="true"
               className="w-full bg-gray-900/80 p-3 rounded-xl text-white text-sm outline-none border border-gray-800 focus:border-red-600 transition-colors"
             />
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -667,6 +684,7 @@ export const DashboardView = () => {
                   inputMode="numeric"
                   enterKeyHint="done"
                   placeholder={field.label}
+                  aria-label={field.key === 'cals' ? 'Calories' : field.key === 'p' ? 'Protein grams' : field.key === 'c' ? 'Carbs grams' : 'Fat grams'}
                   value={manualMeal[field.key]}
                   onChange={e => setManualMeal({ ...manualMeal, [field.key]: e.target.value })}
                   className="bg-gray-900/80 p-3 rounded-xl text-white text-sm outline-none text-center border border-gray-800 focus:border-red-600 transition-colors"
@@ -711,7 +729,7 @@ export const DashboardView = () => {
                 Log with AI Vision
               </span>
             </motion.button>
-            <input type="file" ref={foodInputRef} onChange={handleFoodScan} className="hidden" accept="image/*" capture="environment" />
+            <input type="file" ref={foodInputRef} onChange={handleFoodScan} className="hidden" accept="image/*" capture="environment" aria-label="Scan food with camera" />
 
             {/* Manual Text Input Fallback */}
             <div className="relative flex-grow">
@@ -719,6 +737,7 @@ export const DashboardView = () => {
                 value={mealText}
                 onChange={e => setMealText(e.target.value)}
                 placeholder="Or type e.g. 200g chicken..."
+                aria-label="Describe food for AI analysis"
                 className="w-full p-4 pr-14 rounded-2xl text-sm focus:ring-2 focus:ring-red-600 outline-none text-gray-300 transition-all placeholder:text-gray-600"
                 style={{
                   background: 'linear-gradient(145deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.2) 100%)',
@@ -729,6 +748,7 @@ export const DashboardView = () => {
               <button
                 onClick={spotMacros}
                 disabled={quickLogLoading || (!mealText && !foodInputRef.current?.value)}
+                aria-label="Analyze and log food"
                 className="absolute right-2 top-2 bottom-2 w-10 rounded-xl flex items-center justify-center text-white transition-all hover:scale-105 active:scale-95 disabled:opacity-30"
                 style={{
                   background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',

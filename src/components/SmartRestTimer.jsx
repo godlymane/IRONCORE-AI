@@ -5,6 +5,14 @@ import { Button } from './UIComponents';
 import { PremiumIcon } from './PremiumIcon';
 import { SmartTimerIconShape, ProteinBoltIcon, PulseHeartIcon } from './IronCoreIcons';
 
+// Static rest time recommendations by intensity — no need to recreate per render (issue 16)
+const BASE_REST_TIMES = {
+    light: 30,      // Warm-up, isolation
+    moderate: 60,   // Hypertrophy, moderate weight
+    heavy: 120,     // Strength training
+    max: 180,       // Max effort, powerlifting
+};
+
 /**
  * Smart Rest Timer with Adaptive Calculations
  * Adjusts rest periods based on exercise intensity, fatigue, and heart rate
@@ -23,17 +31,9 @@ export const SmartRestTimer = ({
     const [recommendedTime, setRecommendedTime] = useState(0);
     const [adjustmentReason, setAdjustmentReason] = useState('');
 
-    // Rest time recommendations by intensity
-    const baseRestTimes = {
-        light: 30,      // Warm-up, isolation
-        moderate: 60,   // Hypertrophy, moderate weight
-        heavy: 120,     // Strength training
-        max: 180,       // Max effort, powerlifting
-    };
-
     // Calculate adaptive rest time
     const calculateRestTime = useCallback(() => {
-        let baseTime = baseRestTimes[intensity] || 60;
+        let baseTime = BASE_REST_TIMES[intensity] || 60;
         let adjustments = [];
 
         // Adjust based on set number (fatigue accumulation)

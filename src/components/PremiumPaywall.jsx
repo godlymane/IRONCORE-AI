@@ -10,6 +10,7 @@ import {
     BarChart3, Download, Loader2
 } from 'lucide-react';
 import { usePremium } from '../context/PremiumContext';
+import { usePurchaseFlow } from '../hooks/usePurchaseFlow';
 
 // Contextual entry lines — shown when triggered by a specific feature tap
 const CONTEXTUAL_LINES = {
@@ -63,38 +64,20 @@ export const PremiumPaywall = () => {
         showPaywall,
         paywallFeature,
         closePaywall,
-        purchasePlan,
-        restorePurchase,
         plans
     } = usePremium();
 
     const [selectedPlan, setSelectedPlan] = useState('pro_yearly');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
 
-    const handlePurchase = async () => {
-        setLoading(true);
-        setError(null);
+    // Shared purchase flow hook — eliminates duplication with PaywallModal & PostWorkoutUpsell
+    const {
+        handlePurchase: doPurchase,
+        handleRestore,
+        purchasing: loading,
+        error,
+    } = usePurchaseFlow({ autoCloseDelay: 0 });
 
-        await purchasePlan(
-            selectedPlan,
-            () => {
-                setLoading(false);
-            },
-            (err) => {
-                setLoading(false);
-                setError(err.message || 'Payment failed. Please try again.');
-            }
-        );
-    };
-
-    const handleRestore = async () => {
-        setError(null);
-        const result = await restorePurchase();
-        if (!result.restored) {
-            setError(result.message);
-        }
-    };
+    const handlePurchase = () => doPurchase(selectedPlan);
 
     if (!showPaywall) return null;
 

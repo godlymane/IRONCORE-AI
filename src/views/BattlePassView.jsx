@@ -209,7 +209,7 @@ const SEASON_TIERS = [
 const getRewardIcon = (type) => REWARD_ICONS[type] || Star;
 
 // ─── Reward Card Component ─────────────────────────────────────────────────────
-const RewardCard = ({ reward, side, tierNum, isClaimed, isLocked, isPremiumTrack, isPremium, onPremiumTap, currentTier }) => {
+const RewardCard = React.memo(({ reward, side, tierNum, isClaimed, isLocked, isPremiumTrack, isPremium, onPremiumTap, currentTier }) => {
   const Icon = getRewardIcon(reward.type);
   const isReachable = tierNum <= currentTier;
 
@@ -295,10 +295,10 @@ const RewardCard = ({ reward, side, tierNum, isClaimed, isLocked, isPremiumTrack
       </div>
     </div>
   );
-};
+});
 
 // ─── Tier Circle Component ─────────────────────────────────────────────────────
-const TierCircle = ({ tierNum, isCompleted, isCurrent, isLast }) => {
+const TierCircle = React.memo(({ tierNum, isCompleted, isCurrent, isLast }) => {
   return (
     <div className="flex flex-col items-center flex-shrink-0" style={{ width: 44 }}>
       {/* The tier circle */}
@@ -330,7 +330,7 @@ const TierCircle = ({ tierNum, isCompleted, isCurrent, isLast }) => {
       )}
     </div>
   );
-};
+});
 
 // ─── Main BattlePassView ───────────────────────────────────────────────────────
 export const BattlePassView = ({ onClose, user }) => {
@@ -370,9 +370,10 @@ export const BattlePassView = ({ onClose, user }) => {
   // Auto-scroll to current tier on mount
   useEffect(() => {
     if (currentTierRef.current) {
-      setTimeout(() => {
+      const timerId = setTimeout(() => {
         currentTierRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 400);
+      return () => clearTimeout(timerId);
     }
   }, []);
 

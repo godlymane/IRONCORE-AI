@@ -484,6 +484,33 @@ service cloud.firestore {
 
 
     // ══════════════════════════════════════════════════════════════
+    // 13. SERVER-ONLY COLLECTIONS — Explicit deny
+    // ══════════════════════════════════════════════════════════════
+    // These collections are managed exclusively by Cloud Functions
+    // (Admin SDK). Client reads and writes are always denied.
+
+    match /processedOps/{doc} {
+      allow read, write: if false;
+    }
+
+    match /referralCodes/{doc} {
+      allow read, write: if false;
+    }
+
+    match /apiKeys/{doc} {
+      allow read, write: if false;
+    }
+
+    match /apiRateLimits/{doc} {
+      allow read, write: if false;
+    }
+
+    match /apiAuditLog/{doc} {
+      allow read, write: if false;
+    }
+
+
+    // ══════════════════════════════════════════════════════════════
     // DEFAULT DENY — Everything not explicitly matched above
     // ══════════════════════════════════════════════════════════════
     // No catch-all. Firestore denies any path not matched above.

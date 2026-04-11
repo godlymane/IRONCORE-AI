@@ -61,6 +61,7 @@ export const PvPBattleView = ({ battle, user, profile = {}, onBack, onComplete }
     const [showShareCard, setShowShareCard] = useState(false);
     const timerRef = useRef(null);
     const startTimeRef = useRef(null);
+    const handleSubmitRef = useRef(null);
 
     const isChallenger = battle.challenger?.userId === user?.uid;
     const opponent = isChallenger ? battle.opponent : battle.challenger;
@@ -89,7 +90,7 @@ export const PvPBattleView = ({ battle, user, profile = {}, onBack, onComplete }
                 setElapsed(s);
                 if (s >= BATTLE_DURATION) {
                     clearInterval(timerRef.current);
-                    handleSubmit();
+                    handleSubmitRef.current();
                 }
             }, 1000);
             return () => clearInterval(timerRef.current);
@@ -136,6 +137,9 @@ export const PvPBattleView = ({ battle, user, profile = {}, onBack, onComplete }
         }
     };
 
+    // Keep ref in sync so the timer interval always calls the latest handleSubmit
+    handleSubmitRef.current = handleSubmit;
+
     // Determine which initial phase to show
     const initialPhase = useMemo(() => {
         if (battle.status === 'pending' && !isChallenger) return 'accept';
@@ -159,7 +163,7 @@ export const PvPBattleView = ({ battle, user, profile = {}, onBack, onComplete }
         <div className="space-y-4 pb-4 animate-in fade-in">
             {/* Header */}
             <div className="flex items-center gap-3">
-                <button onClick={onBack} className="p-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors">
+                <button onClick={onBack} aria-label="Go back to arena" className="p-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors">
                     <ArrowLeft size={18} className="text-gray-400" />
                 </button>
                 <div className="flex items-center gap-3">
@@ -300,6 +304,7 @@ export const PvPBattleView = ({ battle, user, profile = {}, onBack, onComplete }
                         <div className="flex items-center justify-center gap-6">
                             <motion.button whileTap={{ scale: 0.85 }}
                                 onClick={() => setReps(Math.max(0, reps - 1))}
+                                aria-label="Decrease reps"
                                 className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-2xl font-black text-gray-400 hover:bg-white/10">
                                 −
                             </motion.button>
@@ -313,6 +318,7 @@ export const PvPBattleView = ({ battle, user, profile = {}, onBack, onComplete }
                             </motion.span>
                             <motion.button whileTap={{ scale: 0.85 }}
                                 onClick={() => { setReps(Math.min(selectedExercise.maxReps, reps + 1)); Haptics.light(); }}
+                                aria-label="Increase reps"
                                 className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black text-white"
                                 style={{ background: 'linear-gradient(135deg, #dc2626, #f97316)', boxShadow: '0 4px 15px rgba(220,38,38,0.4)' }}>
                                 +
@@ -333,6 +339,7 @@ export const PvPBattleView = ({ battle, user, profile = {}, onBack, onComplete }
                         </div>
                         <input type="range" min="0" max="100" value={formScore}
                             onChange={(e) => setFormScore(parseInt(e.target.value))}
+                            aria-label="Form quality score"
                             className="w-full h-2 rounded-full appearance-none cursor-pointer"
                             style={{ background: `linear-gradient(to right, #dc2626 0%, #22c55e ${formScore}%, rgba(255,255,255,0.05) ${formScore}%)` }}
                         />

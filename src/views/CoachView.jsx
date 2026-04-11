@@ -12,6 +12,7 @@ import { doc, getDoc, setDoc, increment } from 'firebase/firestore';
 const SPLITS = ['Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full Body', 'Arnold', 'Bro Split', 'Custom'];
 import { db } from '../firebase';
 import { useStore } from '../hooks/useStore';
+import { resolveWeight } from '../utils/colors';
 
 const SYSTEM_PROMPT = `You are IronCore — the most elite AI fitness coach on the planet. You are NOT a generic chatbot. You are a world-class strength & nutrition coach with 20+ years of experience training pro athletes.
 
@@ -33,7 +34,7 @@ RULES:
 
 export const CoachView = () => {
     const { meals = [], workouts = [], profile = {}, updateData, progress = [] } = useStore();
-    const weight = profile.weight || [...progress].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).find(p => p.weight)?.weight;
+    const weight = resolveWeight(profile, progress);
     const [mode, setMode] = useState('chat');
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState("");
@@ -139,7 +140,7 @@ User: ${sanitizedText}
 
 Coach (respond in character — short, specific, intense):`;
 
-            const response = await callGemini(text, fullPrompt, null, false);
+            const response = await callGemini(sanitizedText, fullPrompt, null, false);
 
             if (response && !response.startsWith('Error:')) {
                 let displayText = response;
@@ -195,15 +196,19 @@ Return ONLY valid JSON: { "title": "string", "exercises": [ { "name": "string", 
         <div className="flex flex-col overflow-hidden" style={{ height: 'calc(100dvh - 230px)' }}>
 
             {/* Compact Mode Toggle */}
-            <div className="flex p-1 rounded-xl mb-3 shrink-0" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="flex p-1 rounded-xl mb-3 shrink-0" role="tablist" aria-label="Coach mode" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
                 <button
                     onClick={() => setMode('chat')}
+                    role="tab"
+                    aria-selected={mode === 'chat'}
                     className={`flex-1 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${mode === 'chat' ? 'bg-red-600 text-white shadow-lg' : 'text-gray-500'}`}
                 >
                     Chat Coach
                 </button>
                 <button
                     onClick={() => setMode('generator')}
+                    role="tab"
+                    aria-selected={mode === 'generator'}
                     className={`flex-1 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${mode === 'generator' ? 'bg-red-600 text-white shadow-lg' : 'text-gray-500'}`}
                 >
                     Generate
@@ -278,7 +283,7 @@ Return ONLY valid JSON: { "title": "string", "exercises": [ { "name": "string", 
                                         <h3 className="text-xl font-black italic text-white uppercase tracking-tight">{generatedPlan.title}</h3>
                                         <p className="text-[11px] font-mono text-gray-400 mt-1">{genDuration} MIN // {genFocus.toUpperCase()}</p>
                                     </div>
-                                    <button onClick={() => { setGeneratedPlan(null); setMissionStarted(false); }} className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white">
+                                    <button onClick={() => { setGeneratedPlan(null); setMissionStarted(false); }} aria-label="Reset generated workout" className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white">
                                         <RotateCcw size={16} />
                                     </button>
                                 </div>
@@ -358,11 +363,13 @@ Return ONLY valid JSON: { "title": "string", "exercises": [ { "name": "string", 
                                 onChange={e => setInput(e.target.value)}
                                 onKeyDown={e => e.key === 'Enter' && sendMessage()}
                                 placeholder="Ask your coach..."
+                                aria-label="Message to AI coach"
                                 className="flex-grow bg-transparent px-3 py-2 text-white outline-none placeholder:text-gray-600 text-sm"
                             />
                             <button
                                 onClick={() => sendMessage()}
                                 disabled={loading || !input.trim()}
+                                aria-label="Send message"
                                 className="p-2.5 rounded-xl text-white transition-all active:scale-95 disabled:opacity-30"
                                 style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)' }}
                             >

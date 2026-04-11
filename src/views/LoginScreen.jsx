@@ -77,7 +77,7 @@ const QRScannerModal = ({ onDecoded, onClose }) => {
       {/* Header */}
       <div className="flex items-center justify-between p-4 pt-[env(safe-area-inset-top,16px)]">
         <h2 className="text-white font-bold text-sm uppercase tracking-wide">Scan Recovery QR</h2>
-        <button onClick={cleanup} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+        <button onClick={cleanup} aria-label="Close QR scanner" className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
           <X size={16} className="text-white" />
         </button>
       </div>
@@ -283,6 +283,7 @@ export const LoginScreen = ({ defaultUsername = '', onLoggedIn, onBack, onRecove
             value={username}
             onChange={(e) => { setUsername(e.target.value.replace(/^@/, '').toLowerCase().replace(/[^a-z0-9_]/g, '')); setError(''); }}
             placeholder="username"
+            aria-label="Username"
             maxLength={20}
             autoCapitalize="none"
             autoCorrect="off"
@@ -296,6 +297,7 @@ export const LoginScreen = ({ defaultUsername = '', onLoggedIn, onBack, onRecove
         {/* PIN Dots — shake on wrong PIN */}
         <motion.div
           className="flex justify-center gap-3 mb-6"
+          aria-hidden="true"
           animate={error && error.includes('PIN') ? { x: [0, -8, 8, -6, 6, -3, 3, 0] } : {}}
           transition={{ duration: 0.4 }}
         >
@@ -308,6 +310,7 @@ export const LoginScreen = ({ defaultUsername = '', onLoggedIn, onBack, onRecove
             />
           ))}
         </motion.div>
+        <span aria-live="polite" className="sr-only">{pin.length} of 6 digits entered</span>
 
         {/* Error */}
         {error && (
@@ -329,11 +332,11 @@ export const LoginScreen = ({ defaultUsername = '', onLoggedIn, onBack, onRecove
           {[1, 2, 3, 4, 5, 6, 7, 8, 9, null, 0, 'del'].map((key, i) => (
             key === null ? <div key={i} /> :
               key === 'del' ? (
-                <button key={i} onClick={handleDelete} className="h-14 rounded-2xl bg-white/5 flex items-center justify-center active:bg-white/10 transition-colors">
+                <button key={i} onClick={handleDelete} aria-label="Delete last digit" className="h-14 rounded-2xl bg-white/5 flex items-center justify-center active:bg-white/10 transition-colors">
                   <Delete size={20} className="text-gray-400" />
                 </button>
               ) : (
-                <button key={i} onClick={() => handleDigit(String(key))} disabled={loading} className="h-14 rounded-2xl bg-white/5 text-white text-xl font-bold active:bg-white/10 transition-colors disabled:opacity-30">
+                <button key={i} onClick={() => handleDigit(String(key))} disabled={loading} aria-label={`PIN digit ${key}`} className="h-14 rounded-2xl bg-white/5 text-white text-xl font-bold active:bg-white/10 transition-colors disabled:opacity-30">
                   {key}
                 </button>
               )

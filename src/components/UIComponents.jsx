@@ -4,6 +4,13 @@ import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-mo
 import { SFX } from '../utils/audio';
 import { useIsMobile } from '../hooks/useIsMobile';
 
+// NOTE: Multiple components below (GlassCard, Card, Button, EmptyState) each call
+// useIsMobile() individually. This is intentional — the hook internally shares a
+// single 'resize' event listener via a module-level subscription, so there is no
+// performance penalty for multiple call sites. Each component also accepts an
+// `isMobile` prop override for cases where the parent already knows the value.
+// Lifting to a context would add provider nesting without meaningful benefit.
+
 // --- ANIMATION VARIANTS ---
 export const fadeIn = {
   initial: { opacity: 0 },

@@ -4,8 +4,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import {
     checkPremiumStatus,
-    openCheckout,
-    createPaymentOrder,
+    purchasePlan as purchasePlanService,
+    restorePurchase as restorePurchaseService,
     startFreeTrial,
     PRICING_PLANS,
     FEATURE_ACCESS,
@@ -28,9 +28,20 @@ export const PremiumProvider = ({ children, user }) => {
     const [paywallFeature, setPaywallFeature] = useState(null);
     const [paywallMinTier, setPaywallMinTier] = useState('pro');
 
+    // Promo mode — unlock all features for demo/influencer builds
+    const PROMO_MODE = import.meta.env.VITE_PROMO_MODE === 'true';
+
     // Check premium status on mount and user change
     useEffect(() => {
         const checkStatus = async () => {
+            if (PROMO_MODE) {
+                setIsPremium(true);
+                setPlan('elite_yearly');
+                setTier('elite');
+                setLoading(false);
+                return;
+            }
+
             if (!user?.uid) {
                 setIsPremium(false);
                 setPlan('free');
@@ -59,13 +70,14 @@ export const PremiumProvider = ({ children, user }) => {
 
     // Trigger paywall — accepts minTier: 'pro' or 'elite'
     const requirePremium = useCallback((minTier = 'pro', featureName) => {
+        if (PROMO_MODE) return true; // Promo: never show paywall
         if (meetsMinTier(tier, minTier)) return true;
 
         setPaywallFeature(featureName || minTier);
         setPaywallMinTier(minTier);
         setShowPaywall(true);
         return false;
-    }, [tier]);
+    }, [tier, PROMO_MODE]);
 
     // Check if user can use a feature (with optional usage count for numeric limits)
     const checkFeature = useCallback((featureName, currentUsage = 0) => {
@@ -85,42 +97,26 @@ export const PremiumProvider = ({ children, user }) => {
             return;
         }
 
-        // Capture uid at call time to prevent stale closure in async callback
         const capturedUid = user.uid;
 
         try {
-            const orderData = await createPaymentOrder(planId, capturedUid);
+            await purchasePlanService(planId);
 
-            openCheckout(
-                orderData,
-                {
-                    displayName: user.displayName,
-                    email: user.email,
-                    phone: user.phoneNumber
-                },
-                async (response) => {
-                    // Payment successful - refresh status using captured uid
-                    try {
-                        const status = await checkPremiumStatus(capturedUid);
-                        setIsPremium(status.isPremium);
-                        setPlan(status.plan);
-                        setTier(status.tier || getTierFromPlan(status.plan));
-                        setIsTrial(status.isTrial || false);
-                        setExpiryDate(status.expiryDate || null);
-                        setShowPaywall(false);
-                        onSuccess?.(response);
-                    } catch (err) {
-                        console.error('Error refreshing premium status:', err);
-                        onSuccess?.(response); // Payment succeeded even if status refresh fails
-                    }
-                },
-                (error) => {
-                    console.error('Payment failed:', error);
-                    onError?.(error);
-                }
-            );
+            // Purchase verified server-side — refresh local state
+            try {
+                const status = await checkPremiumStatus(capturedUid);
+                setIsPremium(status.isPremium);
+                setPlan(status.plan);
+                setTier(status.tier || getTierFromPlan(status.plan));
+                setIsTrial(status.isTrial || false);
+                setExpiryDate(status.expiryDate || null);
+                setShowPaywall(false);
+            } catch (err) {
+                console.error('Error refreshing premium status:', err);
+            }
+            onSuccess?.({ planId });
         } catch (error) {
-            console.error('Error creating order:', error);
+            console.error('Purchase failed:', error);
             onError?.(error);
         }
     }, [user?.uid]);
@@ -131,20 +127,23 @@ export const PremiumProvider = ({ children, user }) => {
         setPaywallFeature(null);
     }, []);
 
-    // Restore purchase — re-checks Firestore for active subscription
+    // Restore purchase — asks native store then refreshes Firestore
     const restorePurchase = useCallback(async () => {
         if (!user?.uid) return { restored: false, message: 'Not signed in.' };
 
         try {
-            const status = await checkPremiumStatus(user.uid);
-            if (status.isPremium) {
-                setIsPremium(true);
-                setPlan(status.plan);
-                setTier(status.tier || getTierFromPlan(status.plan));
-                setIsTrial(status.isTrial || false);
-                setExpiryDate(status.expiryDate || null);
-                setShowPaywall(false);
-                return { restored: true };
+            const result = await restorePurchaseService();
+            if (result.restored) {
+                const status = await checkPremiumStatus(user.uid);
+                if (status.isPremium) {
+                    setIsPremium(true);
+                    setPlan(status.plan);
+                    setTier(status.tier || getTierFromPlan(status.plan));
+                    setIsTrial(status.isTrial || false);
+                    setExpiryDate(status.expiryDate || null);
+                    setShowPaywall(false);
+                    return { restored: true };
+                }
             }
             return { restored: false, message: 'No active subscription found. Contact support if you believe this is wrong.' };
         } catch (err) {

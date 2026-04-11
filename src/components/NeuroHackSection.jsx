@@ -72,18 +72,18 @@ export const NeuroHackSection = () => {
   }, []);
 
   const handlePresetTap = useCallback((preset) => {
-    Haptics.medium();
+    Haptics?.medium?.();
 
     if (active?.id === preset.id) {
       // Tapping active preset stops it
       NeuroAudio.stop();
-      SFX.modalClose();
+      SFX?.modalClose?.();
       return;
     }
 
     // Start new preset
     NeuroAudio.start(preset.id);
-    SFX.click();
+    SFX?.click?.();  // null-safe via optional chaining
 
     // Show headphone tip on first use
     if (!headphoneWarning.current) {
@@ -92,9 +92,9 @@ export const NeuroHackSection = () => {
   }, [active]);
 
   const handleStop = useCallback(() => {
-    Haptics.light();
+    Haptics?.light?.();
     NeuroAudio.stop();
-    SFX.modalClose();
+    SFX?.modalClose?.();  // null-safe via optional chaining
   }, []);
 
   return (

@@ -2,12 +2,12 @@ import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Brain, Camera, Mic, Timer, Moon, TrendingUp, Trophy, Droplets,
-    ChevronRight, Sparkles, Activity, Zap, ShieldCheck, EyeOff, Settings
+    ChevronRight, Sparkles, Activity, Zap, ShieldCheck, EyeOff, Settings, Lock
 } from 'lucide-react';
 import { Button, Card } from '../components/UIComponents';
 import { PremiumIcon } from '../components/PremiumIcon';
 import { usePremium } from '../context/PremiumContext';
-import { Lock } from 'lucide-react';
+import { resolveWeight } from '../utils/colors';
 
 const AILAB_COLOR_MAP = {
     red: 'from-red-500/20 to-red-600/10 border-red-500/30',
@@ -16,7 +16,7 @@ const AILAB_COLOR_MAP = {
     orange: 'from-orange-500/20 to-orange-600/10 border-orange-500/30',
     cyan: 'from-cyan-500/20 to-cyan-600/10 border-cyan-500/30',
     yellow: 'from-yellow-500/20 to-yellow-600/10 border-yellow-500/30',
-    blue: 'from-red-500/20 to-red-600/10 border-red-500/30',
+    blue: 'from-blue-500/20 to-blue-600/10 border-blue-500/30',
     pink: 'from-pink-500/20 to-pink-600/10 border-pink-500/30',
 };
 import { useStore } from '../hooks/useStore';
@@ -129,9 +129,12 @@ const CameraPermissionPriming = ({ onGranted, onSkip }) => {
 /**
  * AI Lab View - Showcase all AI features in one place
  */
-export const AILabView = () => {
-    const { workouts = [], meals = [], profile = {}, updateData, progress = [] } = useStore();
-    const weight = profile.weight || [...progress].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).find(p => p.weight)?.weight;
+export const AILabView = ({ updateData }) => {
+    const workouts = useStore(state => state.workouts) ?? [];
+    const meals = useStore(state => state.meals) ?? [];
+    const profile = useStore(state => state.profile) ?? {};
+    const progress = useStore(state => state.progress) ?? [];
+    const weight = resolveWeight(profile, progress);
     const [labTab, setLabTab] = useState('coach'); // 'coach' or 'vision'
     const [activeFeature, setActiveFeature] = useState(null);
     const [cameraPermGranted, setCameraPermGranted] = useState(false);
@@ -258,6 +261,7 @@ export const AILabView = () => {
                                         onClick={toggleListening}
                                         whileHover={{ scale: 1.05 }}
                                         whileTap={{ scale: 0.95 }}
+                                        aria-label={isListening ? 'Stop listening' : 'Start voice command'}
                                         className={`w-24 h-24 rounded-full mx-auto flex items-center justify-center ${isListening ? 'bg-red-500 animate-pulse' : 'bg-red-500/80'}`}
                                     >
                                         <Mic className="w-10 h-10 text-white" />
@@ -410,9 +414,11 @@ export const AILabView = () => {
                 </div>
 
                 {/* Segmented Tab Control */}
-                <div className="flex p-1 bg-white/5 rounded-xl border border-white/10">
+                <div className="flex p-1 bg-white/5 rounded-xl border border-white/10" role="tablist" aria-label="AI Coach mode">
                     <button
                         onClick={() => setLabTab('coach')}
+                        role="tab"
+                        aria-selected={labTab === 'coach'}
                         className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${labTab === 'coach'
                             ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
                             : 'text-gray-400 hover:text-white hover:bg-white/5'
@@ -422,6 +428,8 @@ export const AILabView = () => {
                     </button>
                     <button
                         onClick={() => setLabTab('vision')}
+                        role="tab"
+                        aria-selected={labTab === 'vision'}
                         className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${labTab === 'vision'
                             ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/20'
                             : 'text-gray-400 hover:text-white hover:bg-white/5'
@@ -479,6 +487,7 @@ export const AILabView = () => {
                                         whileHover={{ scale: 1.02 }}
                                         whileTap={{ scale: 0.98 }}
                                         onClick={() => handleFeatureSelect(feature)}
+                                        aria-label={`${feature.name}: ${feature.premium && !isPremium ? 'Premium feature, tap to unlock' : feature.desc}`}
                                         className={`p-4 rounded-2xl border bg-gradient-to-br ${AILAB_COLOR_MAP[feature.color]} text-left transition-all relative overflow-hidden group`}
                                     >
                                         {/* Premium lock badge */}

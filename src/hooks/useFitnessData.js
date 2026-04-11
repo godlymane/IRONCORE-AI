@@ -7,7 +7,7 @@ import {
 } from 'firebase/auth';
 import {
     doc, setDoc, collection, addDoc, runTransaction,
-    onSnapshot, query, deleteDoc, orderBy, limit
+    onSnapshot, query, deleteDoc, orderBy, limit, serverTimestamp
 } from 'firebase/firestore';
 import {
     ref,
@@ -309,12 +309,17 @@ export function useFitnessData() {
         if (!user || !db || !opponentId) return;
         try {
             await addDoc(collection(db, 'battles'), {
-                challengerId: user.uid,
-                challengerName: sanitizeText(user.displayName || "Unknown", MAX_USERNAME_LENGTH),
-                opponentId,
-                opponentName: sanitizeText(opponentName || "Unknown", MAX_USERNAME_LENGTH),
-                status: 'active',
-                createdAt: new Date(),
+                challenger: {
+                    userId: user.uid,
+                    username: sanitizeText(user.displayName || "Unknown", MAX_USERNAME_LENGTH),
+                },
+                opponent: {
+                    userId: opponentId,
+                    username: sanitizeText(opponentName || "Unknown", MAX_USERNAME_LENGTH),
+                },
+                status: 'pending',
+                winnerId: null,
+                createdAt: serverTimestamp(),
                 expiresAt: new Date(Date.now() + 86400000)
             });
         } catch (e) { console.error("Battle creation failed", e); }

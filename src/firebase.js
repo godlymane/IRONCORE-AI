@@ -44,18 +44,23 @@ export const isStorageConfigured = !!storageInstance;
 export const functions = getFunctions(app);
 
 // Messaging — only supported in browser contexts with service workers
-let messagingInstance = null;
-export const getMessagingInstance = async () => {
-    if (messagingInstance) return messagingInstance;
-    try {
-        const supported = await isMessagingSupported();
-        if (supported) {
-            messagingInstance = getMessaging(app);
-        }
-    } catch (e) {
-        console.warn('Messaging init skipped:', e.message);
+// Uses a promise cache to prevent race conditions from concurrent calls
+let _msgPromise = null;
+export const getMessagingInstance = () => {
+    if (!_msgPromise) {
+        _msgPromise = (async () => {
+            try {
+                const supported = await isMessagingSupported();
+                if (supported) {
+                    return getMessaging(app);
+                }
+            } catch (e) {
+                console.warn('Messaging init skipped:', e.message);
+            }
+            return null;
+        })();
     }
-    return messagingInstance;
+    return _msgPromise;
 };
 
 export default app;

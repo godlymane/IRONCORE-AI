@@ -30,6 +30,13 @@ export class FormFeedbackManager {
     this.lastPhase = PHASE.IDLE;
     this.consecutiveGoodFrames = 0;
     this.lastFatigueWarning = 0;
+
+    // Phase-aware coaching
+    this.lastPhaseVoiceTime = 0;
+    this.PHASE_VOICE_INTERVAL = 8000;
+
+    // Encouragement scaling
+    this.encouragementMode = 'early';
   }
 
   /**
@@ -86,9 +93,19 @@ export class FormFeedbackManager {
       this.consecutiveGoodFrames = 0;
     }
 
-    // 6. Fatigue warning
-    if (analysis.fatigueIndex > 0.5 && now - this.lastFatigueWarning > 15000) {
-      this._triggerCue('FATIGUE_WARNING', 'warning', now);
+    // 6. Fatigue-aware coaching
+    if (analysis.repCount <= 3) {
+      this.encouragementMode = 'early';
+    } else if (analysis.fatigueIndex > 0.5) {
+      this.encouragementMode = 'late';
+    } else {
+      this.encouragementMode = 'mid';
+    }
+
+    if (analysis.fatigueIndex > 0.5 && now - this.lastFatigueWarning > 12000) {
+      const fatigueCues = ['FATIGUE_STAY_TIGHT', 'FATIGUE_DONT_SLIP', 'FATIGUE_ALMOST_DONE'];
+      const cue = fatigueCues[Math.floor(Math.random() * fatigueCues.length)];
+      this._triggerCue(cue, 'warning', now);
       this.lastFatigueWarning = now;
     }
 
@@ -130,7 +147,7 @@ export class FormFeedbackManager {
   }
 
   /**
-   * Handle rep completion
+   * Handle rep completion — haptic + contextual voice
    */
   _onRepComplete(repCount, score) {
     if (this.hapticsEnabled) {
@@ -145,12 +162,23 @@ export class FormFeedbackManager {
 
     if (this.voiceEnabled) {
       if (score >= 90) {
-        const praise = ['Perfect rep.', 'Textbook.', 'Clean.', 'Money rep.'][repCount % 4];
-        speakFormCue(`${repCount}. ${praise}`);
+        if (this.encouragementMode === 'early') {
+          const praise = ['Perfect rep.', 'Textbook.', 'Great start.'][repCount % 3];
+          speakFormCue(`${repCount}. ${praise}`);
+        } else if (this.encouragementMode === 'late') {
+          speakFormCue(`${repCount}. Strong. Keep going.`);
+        } else {
+          const praise = ['Clean.', 'Money rep.', 'Solid.'][repCount % 3];
+          speakFormCue(`${repCount}. ${praise}`);
+        }
       } else if (score >= 75) {
         speakFormCue(`${repCount}. Solid.`);
       } else if (score >= 60) {
-        speakFormCue(`${repCount}. Tighten up.`);
+        if (this.encouragementMode === 'late') {
+          speakFormCue(`${repCount}. Tighten up. Almost there.`);
+        } else {
+          speakFormCue(`${repCount}. Tighten up.`);
+        }
       } else {
         speakFormCue(`${repCount}. Fix your form.`);
       }
@@ -158,15 +186,32 @@ export class FormFeedbackManager {
   }
 
   /**
-   * Handle phase change — light haptic on transitions
+   * Handle phase change — haptic + phase-aware voice coaching
    */
   _onPhaseChange(phase) {
-    if (!this.hapticsEnabled) return;
+    if (this.hapticsEnabled) {
+      if (phase === PHASE.BOTTOM) {
+        hapticLight();
+      } else if (phase === PHASE.LOCKOUT) {
+        hapticLight();
+      }
+    }
 
-    if (phase === PHASE.BOTTOM) {
-      hapticLight(); // Reached bottom
-    } else if (phase === PHASE.LOCKOUT) {
-      hapticLight(); // Reached top
+    const now = Date.now();
+    if (!this.voiceEnabled || now - this.lastPhaseVoiceTime < this.PHASE_VOICE_INTERVAL) return;
+
+    const phaseCues = {
+      [PHASE.ECCENTRIC]: ['PHASE_ECCENTRIC_1', 'PHASE_ECCENTRIC_2', 'PHASE_ECCENTRIC_3'],
+      [PHASE.BOTTOM]: ['PHASE_BOTTOM_1', 'PHASE_BOTTOM_2', 'PHASE_BOTTOM_3'],
+      [PHASE.CONCENTRIC]: ['PHASE_CONCENTRIC_1', 'PHASE_CONCENTRIC_2', 'PHASE_CONCENTRIC_3'],
+      [PHASE.LOCKOUT]: ['PHASE_LOCKOUT_1', 'PHASE_LOCKOUT_2'],
+    };
+
+    const cues = phaseCues[phase];
+    if (cues) {
+      const cue = cues[Math.floor(Math.random() * cues.length)];
+      speakFormCue(FORM_CUES[cue]);
+      this.lastPhaseVoiceTime = now;
     }
   }
 
@@ -179,5 +224,7 @@ export class FormFeedbackManager {
     this.lastPhase = PHASE.IDLE;
     this.consecutiveGoodFrames = 0;
     this.lastFatigueWarning = 0;
+    this.lastPhaseVoiceTime = 0;
+    this.encouragementMode = 'early';
   }
 }

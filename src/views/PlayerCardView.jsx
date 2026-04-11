@@ -7,255 +7,6 @@ import { generatePhrase, hashPhrase, validateUsername } from '../utils/playerIde
 import { PinEntryView } from './PinEntryView';
 import { SFX, Haptics } from '../utils/audio';
 
-// eslint-disable-next-line no-unused-vars
-const _removedWarriorScene = () => {
-  const LOOP = 14;
-  const [time, setTime] = useState(0);
-
-  useEffect(() => {
-    let raf;
-    const start = Date.now();
-    const tick = () => {
-      setTime(((Date.now() - start) / 1000) % LOOP);
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const p = (s, e) => Math.max(0, Math.min(1, (time - s) / (e - s)));
-  const ease = (t) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-
-  // Timeline
-  const fadeIn = ease(p(0, 2));
-  const drawSword = ease(p(3.5, 6));
-  const slashWind = ease(p(6.5, 8));
-  const logoReveal = ease(p(8, 9.5));
-  const logoHold = p(9.5, 11);
-  const dissolve = ease(p(11.5, 14));
-  const isSlashing = time >= 6.5 && time < 8;
-  const isLogoUp = time >= 8 && time < 11.5;
-  const isDying = time >= 11.5;
-
-  // Wind oscillation
-  const w1 = Math.sin(time * 1.3);
-  const w2 = Math.sin(time * 1.8 + 1);
-  const w3 = Math.sin(time * 0.9 + 2);
-
-  // Warrior opacity
-  const wOp = isDying ? Math.max(0, 1 - dissolve) : fadeIn;
-
-  return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden">
-      <svg viewBox="0 0 400 500" className="absolute inset-0 w-full h-full" preserveAspectRatio="xMidYMid slice">
-        <defs>
-          <radialGradient id="wg" cx="50%" cy="40%" r="40%">
-            <stop offset="0%" stopColor="#dc2626" stopOpacity="0.6" />
-            <stop offset="100%" stopColor="#dc2626" stopOpacity="0" />
-          </radialGradient>
-          <linearGradient id="blade" x1="0" y1="1" x2="0" y2="0">
-            <stop offset="0%" stopColor="#991b1b" />
-            <stop offset="40%" stopColor="#dc2626" />
-            <stop offset="100%" stopColor="#fca5a5" />
-          </linearGradient>
-          <linearGradient id="rimLight" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#dc2626" stopOpacity="0" />
-            <stop offset="85%" stopColor="#dc2626" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="#ef4444" stopOpacity="0.7" />
-          </linearGradient>
-          <filter id="gl"><feGaussianBlur stdDeviation="2" /></filter>
-          <filter id="gl2"><feGaussianBlur stdDeviation="4" /></filter>
-          <filter id="glSm"><feGaussianBlur stdDeviation="1" /></filter>
-        </defs>
-
-        {/* ── Ash / wind particles ── */}
-        {Array.from({ length: 18 }, (_, i) => {
-          const seed = i * 13.7;
-          const baseY = 80 + (seed % 350);
-          const speed = 8 + (seed % 12);
-          const xOff = ((time * speed + seed * 5) % 460) - 30;
-          const yOff = baseY - time * (3 + i % 4) * 2;
-          const yFinal = ((yOff % 520) + 520) % 520;
-          return (
-            <circle key={i} cx={xOff} cy={yFinal}
-              r={0.8 + (i % 3) * 0.4}
-              fill="#dc2626"
-              opacity={(0.15 + Math.sin(time + seed) * 0.1) * wOp} />
-          );
-        })}
-
-        {/* ── Ground reflection ── */}
-        <line x1="50" y1="430" x2="350" y2="430"
-          stroke="#dc2626" strokeWidth="0.3" opacity={0.06 * wOp} />
-
-        {/* ── THE WARRIOR — proper filled silhouette ── */}
-        <g transform="translate(200,210)" opacity={wOp}>
-
-          {/* === RED RIM LIGHT on right edge === */}
-          <path
-            d={`M12,-95 Q18,-80 16,-55 Q14,-30 18,-5 Q20,20 16,50 Q14,70 18,95
-                Q20,110 15,140 Q10,160 14,195`}
-            fill="none" stroke="#dc2626" strokeWidth="1.5" opacity={0.25 + w1 * 0.1}
-            filter="url(#glSm)"
-          />
-
-          {/* === HEAD — proper oval with jaw === */}
-          <path d="M-10,-100 Q-12,-115 0,-118 Q12,-115 10,-100 Q8,-92 0,-90 Q-8,-92 -10,-100 Z"
-            fill="#0a0a0a" />
-
-          {/* === HAIR — flowing strands in wind === */}
-          <path d={`M-5,-118 Q${-15 + w1 * 4},${-125 + w2 * 3} ${-25 + w1 * 8},${-118 + w2 * 4}
-                     M-2,-119 Q${-12 + w2 * 5},${-128 + w1 * 2} ${-22 + w2 * 7},${-122 + w1 * 5}
-                     M2,-119 Q${-8 + w1 * 3},${-130 + w3 * 3} ${-18 + w1 * 6},${-125 + w3 * 4}
-                     M5,-117 Q${-5 + w3 * 4},${-127 + w1 * 2} ${-15 + w3 * 7},${-120 + w1 * 3}`}
-            fill="none" stroke="#0a0a0a" strokeWidth="2.5" strokeLinecap="round" />
-
-          {/* === NECK === */}
-          <path d="M-5,-90 L-6,-78 L6,-78 L5,-90 Z" fill="#0a0a0a" />
-
-          {/* === SHOULDERS — broad, powerful === */}
-          <path d="M-35,-78 Q-30,-82 -6,-78 L6,-78 Q30,-82 35,-78 Q38,-74 35,-70 L-35,-70 Q-38,-74 -35,-78 Z"
-            fill="#0a0a0a" />
-
-          {/* === TORSO — V-taper, muscular === */}
-          <path d="M-35,-70 Q-33,-40 -28,-10 Q-25,10 -22,40 L22,40 Q25,10 28,-10 Q33,-40 35,-70 Z"
-            fill="#0a0a0a" />
-
-          {/* === CLOAK / CAPE — flowing in wind === */}
-          <path d={`M-35,-78 Q${-45 + w1 * 3},-60 ${-50 + w1 * 5},${-30 + w2 * 4}
-                     Q${-55 + w2 * 6},${0 + w1 * 5} ${-52 + w3 * 7},${40 + w2 * 6}
-                     Q${-48 + w1 * 8},${80 + w3 * 5} ${-42 + w2 * 10},${120 + w1 * 8}
-                     Q${-38 + w3 * 6},${150 + w2 * 4} ${-35 + w1 * 4},180
-                     L-22,40 L-28,-10 Q-33,-40 -35,-70 Z`}
-            fill="#080808" opacity="0.9" />
-          {/* Cape edge highlight */}
-          <path d={`M${-50 + w1 * 5},${-30 + w2 * 4}
-                     Q${-55 + w2 * 6},${0 + w1 * 5} ${-52 + w3 * 7},${40 + w2 * 6}
-                     Q${-48 + w1 * 8},${80 + w3 * 5} ${-42 + w2 * 10},${120 + w1 * 8}`}
-            fill="none" stroke="#dc2626" strokeWidth="0.5" opacity={0.15 + w1 * 0.05} />
-
-          {/* === SHIELD ON BACK — IronCore emblem === */}
-          <g transform="translate(0,-30)">
-            <circle cx="0" cy="0" r="22" fill="url(#wg)"
-              opacity={0.2 + Math.sin(time * 1.5) * 0.1} filter="url(#gl2)" />
-            {/* Shield outline */}
-            <path d="M0,-18 L14,-12 L14,4 L0,18 L-14,4 L-14,-12 Z"
-              fill="none" stroke="#dc2626" strokeWidth="0.8"
-              opacity={0.35 + Math.sin(time * 1.5) * 0.2} />
-            {/* Shield inner V */}
-            <path d="M0,-12 L-8,-4 L0,14 L8,-4 Z"
-              fill="none" stroke="#dc2626" strokeWidth="0.5"
-              opacity={0.25 + Math.sin(time * 1.5) * 0.15} />
-            {/* Wing accents */}
-            <path d="M-14,-8 L-22,-14 L-18,-5" fill="none" stroke="#dc2626" strokeWidth="0.5" opacity="0.2" />
-            <path d="M14,-8 L22,-14 L18,-5" fill="none" stroke="#dc2626" strokeWidth="0.5" opacity="0.2" />
-          </g>
-
-          {/* === LEFT ARM — at side, fist clenched === */}
-          <path d="M-35,-70 Q-38,-50 -36,-30 Q-35,-15 -33,0 Q-32,8 -30,12 L-26,10 Q-28,5 -29,0 Q-30,-15 -31,-30 Q-33,-50 -30,-70"
-            fill="#0a0a0a" />
-
-          {/* === RIGHT ARM — draws then slashes === */}
-          {(() => {
-            const armUp = drawSword;
-            const armSlash = slashWind;
-            const elbowY = -50 + armUp * -30 + armSlash * 25;
-            const handX = 30 + armUp * 5 + armSlash * 20;
-            const handY = -10 + armUp * -60 + armSlash * 30;
-            return (
-              <path d={`M35,-70 Q38,${elbowY} ${handX},${handY} Q${handX - 3},${handY + 4} ${handX - 5},${handY + 2}`}
-                fill="#0a0a0a" strokeWidth="0" />
-            );
-          })()}
-
-          {/* === BELT / WAIST === */}
-          <rect x="-24" y="35" width="48" height="6" rx="2" fill="#111" />
-          <rect x="-2" y="35" width="4" height="6" rx="1" fill="#1a1a1a" stroke="#dc2626" strokeWidth="0.3" opacity="0.4" />
-
-          {/* === LEGS — planted, strong === */}
-          <path d="M-22,40 Q-24,80 -26,120 Q-27,150 -28,180 Q-30,192 -35,195 L-22,195 Q-20,190 -18,180 Q-16,150 -15,120 Q-14,80 -12,40 Z"
-            fill="#0a0a0a" />
-          <path d="M22,40 Q24,80 26,120 Q27,150 28,180 Q30,192 35,195 L22,195 Q20,190 18,180 Q16,150 15,120 Q14,80 12,40 Z"
-            fill="#0a0a0a" />
-
-          {/* === BOOTS === */}
-          <path d="M-35,192 Q-38,198 -40,200 L-18,200 Q-18,196 -22,192 Z" fill="#0a0a0a" />
-          <path d="M35,192 Q38,198 40,200 L18,200 Q18,196 22,192 Z" fill="#0a0a0a" />
-
-          {/* === THE SWORD — red energy blade === */}
-          {drawSword > 0.05 && (
-            <g opacity={(isDying ? 1 - dissolve : 1)}>
-              {(() => {
-                const handX = 30 + drawSword * 5 + slashWind * 20;
-                const handY = -10 + drawSword * -60 + slashWind * 30;
-                const bladeLen = 70 * drawSword;
-                const angle = -90 + drawSword * 85 + (isSlashing ? slashWind * -50 : 0);
-                const rad = angle * Math.PI / 180;
-                const tipX = handX + Math.sin(rad) * bladeLen;
-                const tipY = handY - Math.cos(rad) * bladeLen;
-                return (
-                  <>
-                    {/* Blade glow outer */}
-                    <line x1={handX} y1={handY} x2={tipX} y2={tipY}
-                      stroke="#dc2626" strokeWidth="4" opacity="0.2" filter="url(#gl)" />
-                    {/* Blade glow inner */}
-                    <line x1={handX} y1={handY} x2={tipX} y2={tipY}
-                      stroke="#ef4444" strokeWidth="2" opacity="0.4" filter="url(#glSm)" />
-                    {/* Blade core */}
-                    <line x1={handX} y1={handY} x2={tipX} y2={tipY}
-                      stroke="url(#blade)" strokeWidth="1" strokeLinecap="round" />
-                    {/* Tip spark */}
-                    <circle cx={tipX} cy={tipY} r={1.5} fill="#fca5a5" opacity={0.5 + w1 * 0.2} filter="url(#glSm)" />
-                    {/* Hilt */}
-                    <circle cx={handX} cy={handY} r="2.5" fill="#222" stroke="#555" strokeWidth="0.5" />
-                  </>
-                );
-              })()}
-            </g>
-          )}
-        </g>
-
-        {/* ── SLASH TRAIL → LOGO ── */}
-        {(isSlashing || isLogoUp || (isDying && dissolve < 0.6)) && (
-          <g transform="translate(200,180)">
-            {/* Energy slash arc */}
-            {isSlashing && (
-              <path d={`M${-60 * slashWind},${-40 * slashWind} Q0,${-20 * slashWind} ${60 * slashWind},${40 * slashWind}`}
-                fill="none" stroke="#dc2626" strokeWidth="1" opacity={0.6} filter="url(#glSm)" />
-            )}
-
-            {/* IronCore logo forming */}
-            {(isLogoUp || isDying) && (
-              <g opacity={isDying ? Math.max(0, 1 - dissolve * 2) : logoReveal}>
-                <path d="M0,-28 L24,-16 L24,8 L0,28 L-24,8 L-24,-16 Z"
-                  fill="none" stroke="#dc2626" strokeWidth="1.2" filter="url(#glSm)" />
-                <path d="M0,-18 L-12,-6 L0,18 L12,-6 Z"
-                  fill="none" stroke="#ef4444" strokeWidth="0.8" />
-                <path d="M-24,-12 L-38,-20 L-32,-8" fill="none" stroke="#dc2626" strokeWidth="0.8" opacity="0.6" />
-                <path d="M24,-12 L38,-20 L32,-8" fill="none" stroke="#dc2626" strokeWidth="0.8" opacity="0.6" />
-                <circle cx="0" cy="0" r="35" fill="url(#wg)" opacity={0.3 * logoReveal} filter="url(#gl2)" />
-              </g>
-            )}
-          </g>
-        )}
-
-        {/* ── Dissolve particles ── */}
-        {isDying && Array.from({ length: 30 }, (_, i) => {
-          const ang = (i / 30) * Math.PI * 2;
-          const dist = dissolve * (40 + (i % 6) * 15);
-          return (
-            <circle key={`dp${i}`}
-              cx={200 + Math.cos(ang + dissolve * 3) * dist}
-              cy={180 + Math.sin(ang + dissolve * 3) * dist}
-              r={1.2 * (1 - dissolve)}
-              fill="#dc2626" opacity={(1 - dissolve) * 0.5} />
-          );
-        })}
-      </svg>
-    </div>
-  );
-};
-
 // Stoic quotes
 const QUOTES = [
   { text: "The impediment to action advances action.", author: "Marcus Aurelius" },
@@ -448,7 +199,7 @@ const UsernameScreen = ({ onNext, onBack, createError }) => {
     <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6">
       <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm text-center">
         {/* Back */}
-        <button onClick={onBack} className="flex items-center gap-1 text-xs text-gray-500 mb-8 self-start">
+        <button onClick={onBack} aria-label="Go back" className="flex items-center gap-1 text-xs text-gray-500 mb-8 self-start">
           <ChevronRight size={14} className="rotate-180" /> Back
         </button>
 
@@ -463,6 +214,8 @@ const UsernameScreen = ({ onNext, onBack, createError }) => {
             value={username}
             onChange={handleChange}
             placeholder="username"
+            aria-label="Choose your username"
+            aria-required="true"
             maxLength={20}
             autoFocus
             autoCapitalize="none"
@@ -787,6 +540,9 @@ export const PlayerCardView = ({ onComplete, onLogin }) => {
       await setDoc(doc(db, 'users', uid, 'data', 'profile'), { biometricsEnabled: bioEnabled }, { merge: true });
     } catch { /* non-fatal */ }
 
+    // Stored in localStorage for the returning-user gate: auto-fills the login username,
+    // skips the landing screen, and restores biometric preference on next app launch.
+    // TODO [native-rebuild]: Move to secure storage (Keychain on iOS, EncryptedSharedPreferences on Android)
     localStorage.setItem('ironcore_uid', uid);
     localStorage.setItem('ironcore_username', username);
     localStorage.setItem('ironcore_bio', bioEnabled ? 'true' : 'false');

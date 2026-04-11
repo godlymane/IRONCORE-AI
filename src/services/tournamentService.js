@@ -154,32 +154,5 @@ export const subscribeToTournamentLeaderboard = (tournamentId, callback) => {
     }, (err) => console.error('Tournament leaderboard listener error:', err.code || err.message));
 };
 
-/**
- * Create a demo tournament (for testing)
- */
-export const createDemoTournament = async () => {
-    try {
-        const tournamentRef = doc(collection(db, 'tournaments'));
-        await setDoc(tournamentRef, {
-            title: 'Iron Summer Slam',
-            description: 'Compete for the highest total workout volume this week!',
-            startDate: new Date().toISOString(),
-            endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-            status: 'active',
-            rules: '1 point per kg lifted. 100 points per workout session.',
-            rewards: [
-                { rank: 1, reward: '1000 XP + "Summer Champion" Badge' },
-                { rank: 2, reward: '500 XP' },
-                { rank: 3, reward: '250 XP' }
-            ],
-            participantCount: 0,
-            createdAt: serverTimestamp()
-        });
-        return tournamentRef.id;
-    } catch (error) {
-        console.error('Error creating demo tournament:', error);
-        throw error;
-    }
-};
 
 

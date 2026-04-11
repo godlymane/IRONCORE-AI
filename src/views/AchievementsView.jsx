@@ -30,6 +30,7 @@ const BadgeCard = ({ badge, unlocked, onClick }) => {
       variants={fadeUp}
       whileTap={{ scale: 0.95 }}
       onClick={() => onClick(badge)}
+      aria-label={`${badge.name} badge, ${unlocked ? `unlocked, ${rarity.label} rarity` : 'locked'}`}
       className={`relative flex flex-col items-center justify-center p-3 rounded-2xl border transition-all ${
         unlocked
           ? `${rarity.border} ${rarity.bg} ${rarity.glow}`
@@ -82,10 +83,14 @@ const BadgeDetailModal = ({ badge, unlocked, onClose }) => {
   return (
     <motion.div
       className="fixed inset-0 z-50 flex items-center justify-center p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="badge-detail-title"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
+      onKeyDown={(e) => e.key === 'Escape' && onClose()}
     >
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
@@ -103,7 +108,7 @@ const BadgeDetailModal = ({ badge, unlocked, onClose }) => {
           border: unlocked ? `1px solid ${badge.rarity === 'legendary' ? 'rgba(251,191,36,0.3)' : 'rgba(220,38,38,0.3)'}` : '1px solid rgba(255,255,255,0.05)',
         }}
       >
-        <button onClick={onClose} className="absolute top-3 right-3 text-gray-600 hover:text-white transition-colors">
+        <button onClick={onClose} aria-label="Close badge details" className="absolute top-3 right-3 text-gray-600 hover:text-white transition-colors">
           <X size={18} />
         </button>
 
@@ -115,7 +120,7 @@ const BadgeDetailModal = ({ badge, unlocked, onClose }) => {
         </div>
 
         {/* Name */}
-        <h3 className={`text-lg font-black uppercase tracking-tight ${unlocked ? 'text-white' : 'text-gray-500'}`}>
+        <h3 id="badge-detail-title" className={`text-lg font-black uppercase tracking-tight ${unlocked ? 'text-white' : 'text-gray-500'}`}>
           {badge.name}
         </h3>
 
@@ -235,9 +240,11 @@ export const AchievementsView = ({ profile = {}, workouts = [], meals = [], phot
       </GlassCard>
 
       {/* Category Filter */}
-      <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
+      <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1" role="tablist" aria-label="Badge categories">
         <button
           onClick={() => setActiveCategory('ALL')}
+          role="tab"
+          aria-selected={activeCategory === 'ALL'}
           className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
             activeCategory === 'ALL'
               ? 'bg-red-600/30 text-white border border-red-500/40'
@@ -253,6 +260,8 @@ export const AchievementsView = ({ profile = {}, workouts = [], meals = [], phot
             <button
               key={key}
               onClick={() => setActiveCategory(key)}
+              role="tab"
+              aria-selected={activeCategory === key}
               className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
                 activeCategory === key
                   ? 'bg-red-600/30 text-white border border-red-500/40'

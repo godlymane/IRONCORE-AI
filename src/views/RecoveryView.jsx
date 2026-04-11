@@ -54,7 +54,7 @@ export const RecoveryView = ({ onRecovered, onBack }) => {
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm">
-        <button onClick={onBack} className="flex items-center gap-1 text-xs text-gray-500 mb-8">
+        <button onClick={onBack} aria-label="Go back" className="flex items-center gap-1 text-xs text-gray-500 mb-8">
           <ArrowLeft size={14} /> Back
         </button>
 
@@ -69,6 +69,8 @@ export const RecoveryView = ({ onRecovered, onBack }) => {
           value={phrase}
           onChange={(e) => { setPhrase(e.target.value); setError(''); }}
           placeholder="iron forge titan apex blade thunder storm fury squat press flex pump"
+          aria-label="12-word recovery phrase"
+          aria-required="true"
           rows={4}
           autoCapitalize="none"
           autoCorrect="off"

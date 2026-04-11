@@ -54,6 +54,8 @@ export const TrainView = () => {
       <div className="sticky top-0 z-30 pb-3">
         <div
           className="relative flex items-center rounded-2xl p-1 border border-white/[0.06]"
+          role="tablist"
+          aria-label="Training mode"
           style={{
             background: 'rgba(255,255,255,0.04)',
             backdropFilter: 'blur(16px)',
@@ -76,6 +78,8 @@ export const TrainView = () => {
             <button
               key={tab.id}
               onClick={() => handleSubTabChange(tab.id)}
+              role="tab"
+              aria-selected={activeSubTab === tab.id}
               className={`
                 relative z-10 flex-1 py-2 text-center text-xs font-black uppercase tracking-widest
                 transition-colors duration-200

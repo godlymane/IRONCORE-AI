@@ -124,7 +124,8 @@ export const checkDailyForge = async (userId) => {
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
         let updates = {
-            lastLoginAt: serverTimestamp()
+            lastLoginAt: serverTimestamp(),
+            lastForgeUpdateAt: serverTimestamp()
         };
 
         const currentForge = userData.currentForge ?? userData.currentStreak ?? 0;
@@ -336,7 +337,7 @@ export const acceptBattle = async (battleId) => {
     try {
         const battleRef = doc(db, 'battles', battleId);
         await updateDoc(battleRef, {
-            status: 'active',
+            status: 'accepted',
             acceptedAt: serverTimestamp()
         });
         // Battle accepted
@@ -373,63 +374,6 @@ export const declineBattle = async (battleId) => {
  */
 export const completeBattle = async (/* battleId, winnerId, xpReward */) => {
     throw new Error('completeBattle is disabled. Use submitBattleWorkout Cloud Function instead.');
-};
-
-/** @deprecated — preserved for reference only, not callable */
-const _legacyCompleteBattle = async (battleId, winnerId, xpReward = GAME_BALANCE.DEFAULT_BATTLE_XP_REWARD) => {
-    try {
-        const battleRef = doc(db, 'battles', battleId);
-
-        const result = await runTransaction(db, async (transaction) => {
-            const battleSnap = await transaction.get(battleRef);
-            if (!battleSnap.exists()) throw new Error('Battle not found');
-
-            const battleData = battleSnap.data();
-            if (battleData.status === 'completed') throw new Error('Battle already completed');
-            if (battleData.status !== 'active') throw new Error('Battle must be active to complete');
-
-            // SECURITY: Verify winnerId is an actual participant
-            const challengerId = battleData.challenger.userId;
-            const opponentId = battleData.opponent.userId;
-            if (winnerId !== challengerId && winnerId !== opponentId) {
-                throw new Error('Winner must be a battle participant');
-            }
-
-            const loserId = winnerId === challengerId ? opponentId : challengerId;
-
-            const winnerRef = doc(db, 'users', winnerId);
-            const loserRef = doc(db, 'users', loserId);
-
-            const loserSnap = await transaction.get(loserRef);
-            const currentLoserForge = loserSnap.exists() ? (loserSnap.data().currentForge || 0) : 0;
-
-            // All writes inside the transaction — atomic
-            transaction.update(battleRef, {
-                status: 'completed',
-                winnerId,
-                completedAt: serverTimestamp()
-            });
-
-            transaction.update(winnerRef, {
-                wins: increment(1),
-                xp: increment(xpReward),
-                currentForge: increment(1)
-            });
-
-            // Elo floor: Forge cannot go below 0
-            transaction.update(loserRef, {
-                losses: increment(1),
-                currentForge: Math.max(0, currentLoserForge - 1)
-            });
-
-            return { winnerId, loserId, xpReward };
-        });
-
-        return result;
-    } catch (error) {
-        console.error('Error completing battle:', error);
-        throw error;
-    }
 };
 
 /**
@@ -539,6 +483,13 @@ export const subscribeToPendingBattles = (userId, callback) => {
  */
 export const sendChatMessage = async (userId, username, photo, message) => {
     try {
+        // Verify userId matches the currently authenticated user
+        const currentUser = auth.currentUser;
+        if (!currentUser) throw new Error('Not authenticated');
+        if (userId !== currentUser.uid) {
+            throw new Error('userId does not match authenticated user');
+        }
+
         // Validate and sanitize message
         if (typeof message !== 'string' || message.trim().length === 0) {
             throw new Error('Message cannot be empty');
@@ -551,7 +502,7 @@ export const sendChatMessage = async (userId, username, photo, message) => {
         const sanitized = trimmed.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 
         await addDoc(collection(db, 'global', 'data', 'chat'), {
-            userId,
+            userId: currentUser.uid,
             username,
             photo,
             message: sanitized,

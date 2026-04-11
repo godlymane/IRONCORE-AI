@@ -195,7 +195,8 @@ export const OnboardingView = ({ onComplete, user }) => {
                         setTimeout(() => setStep('upsell'), 500);
                         return 100;
                     }
-                    return prev + Math.floor(Math.random() * 15);
+                    // Clamp to 100 to prevent progress bar overshoot
+                    return Math.min(prev + Math.floor(Math.random() * 15), 100);
                 });
             }, 300);
             return () => clearInterval(interval);
@@ -241,6 +242,7 @@ export const OnboardingView = ({ onComplete, user }) => {
     const OptionCard = ({ selected, onClick, icon, title, desc }) => (
         <button
             onClick={onClick}
+            aria-pressed={selected}
             className="relative w-full p-6 rounded-3xl transition-all duration-300 group overflow-hidden text-left"
             style={{
                 background: selected

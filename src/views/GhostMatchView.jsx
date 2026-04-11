@@ -113,6 +113,11 @@ export const GhostMatchView = ({ user, profile = {}, workouts = [], onBack }) =>
     ) || Math.floor(Math.random() * 40 + 20);
 
     setPlayerStats({
+      // TODO: Form score is randomized (75-90 range) because real AI form scoring via
+      // pose detection is not yet wired into Ghost Match results. This is a known design
+      // decision — the UI labels it as "Estimated" to set correct expectations for users.
+      // Once the Vision Lab pose detection pipeline is integrated, replace this with
+      // actual form analysis scores from the user's workout session.
       formScore: Math.floor(Math.random() * 15) + 75,
       totalVolume: totalVol,
       totalReps: totalReps,
@@ -168,7 +173,7 @@ export const GhostMatchView = ({ user, profile = {}, workouts = [], onBack }) =>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           {onBack && (
-            <button onClick={onBack} className="p-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors">
+            <button onClick={onBack} aria-label="Go back" className="p-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors">
               <ArrowLeft size={18} className="text-gray-400" />
             </button>
           )}
@@ -305,7 +310,7 @@ export const GhostMatchView = ({ user, profile = {}, workouts = [], onBack }) =>
 
           {/* Race Bars */}
           <GlassCard className="!p-4 space-y-4">
-            <RaceBar label="Form Score" playerValue={playerStats.formScore} ghostValue={ghost.formScore} unit="%" delay={0.5} />
+            <RaceBar label="Form Score (Estimated)" playerValue={playerStats.formScore} ghostValue={ghost.formScore} unit="%" delay={0.5} />
             <RaceBar label="Volume" playerValue={playerStats.totalVolume} ghostValue={ghost.totalVolume} unit=" kg" delay={1} />
             <RaceBar label="Total Reps" playerValue={playerStats.totalReps} ghostValue={ghost.totalReps} delay={1.5} />
           </GlassCard>
@@ -390,7 +395,7 @@ export const GhostMatchView = ({ user, profile = {}, workouts = [], onBack }) =>
           {/* Final Stat Comparison */}
           <GlassCard className="!p-4 space-y-3">
             <h3 className="text-xs font-black text-gray-400 uppercase tracking-wider">Final Results</h3>
-            <RaceBar label="Form Score" playerValue={playerStats.formScore} ghostValue={ghost.formScore} unit="%" />
+            <RaceBar label="Form Score (Estimated)" playerValue={playerStats.formScore} ghostValue={ghost.formScore} unit="%" />
             <RaceBar label="Volume" playerValue={playerStats.totalVolume} ghostValue={ghost.totalVolume} unit=" kg" />
             <RaceBar label="Total Reps" playerValue={playerStats.totalReps} ghostValue={ghost.totalReps} />
           </GlassCard>

@@ -54,28 +54,38 @@ export const ApiKeyManager = ({ user, profile, onClose }) => {
   const [confirmRevoke, setConfirmRevoke] = useState(null);
   const [showDocs, setShowDocs] = useState(false);
   const [error, setError] = useState(null);
+  // AbortController ref for cancelling in-flight async ops on unmount (issue 24)
+  const abortRef = React.useRef(null);
+
+  // Clean up any in-flight operation on unmount
+  useEffect(() => {
+    return () => { abortRef.current?.abort(); };
+  }, []);
 
   // --- Fetch keys on mount ---
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
+    abortRef.current = controller;
     const fetchKeys = async () => {
       try {
         setLoading(true);
         const functions = getFunctions();
         const listApiKeys = httpsCallable(functions, 'listApiKeys');
         const result = await listApiKeys();
-        if (!cancelled && result?.data?.keys) {
+        if (!controller.signal.aborted && result?.data?.keys) {
           setKeys(result.data.keys);
         }
       } catch (err) {
-        console.error('Failed to list API keys:', err);
-        if (!cancelled) setError('Failed to load API keys.');
+        if (!controller.signal.aborted) {
+          console.error('Failed to list API keys:', err);
+          setError('Failed to load API keys.');
+        }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
     fetchKeys();
-    return () => { cancelled = true; };
+    return () => { controller.abort(); };
   }, []);
 
   // --- Toggle scope ---
@@ -85,15 +95,20 @@ export const ApiKeyManager = ({ user, profile, onClose }) => {
     );
   }, []);
 
-  // --- Generate key ---
+  // --- Generate key (issue 24: AbortController) ---
   const handleGenerate = useCallback(async () => {
     if (!agentName.trim() || selectedScopes.length === 0) return;
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       setGenerating(true);
       setError(null);
       const functions = getFunctions();
       const generateApiKey = httpsCallable(functions, 'generateApiKey');
       const result = await generateApiKey({ name: agentName.trim(), scopes: selectedScopes });
+      if (controller.signal.aborted) return;
       if (result?.data?.key) {
         setNewKey(result.data.key);
         // Add to list with prefix only
@@ -111,27 +126,34 @@ export const ApiKeyManager = ({ user, profile, onClose }) => {
         setSelectedScopes([]);
       }
     } catch (err) {
+      if (controller.signal.aborted) return;
       console.error('Failed to generate API key:', err);
       setError('Failed to generate key. Try again.');
     } finally {
-      setGenerating(false);
+      if (!controller.signal.aborted) setGenerating(false);
     }
   }, [agentName, selectedScopes]);
 
-  // --- Revoke key ---
+  // --- Revoke key (issue 24: AbortController) ---
   const handleRevoke = useCallback(async (keyId) => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       setRevoking(keyId);
       const functions = getFunctions();
       const revokeApiKey = httpsCallable(functions, 'revokeApiKey');
       await revokeApiKey({ keyId });
+      if (controller.signal.aborted) return;
       setKeys((prev) => prev.filter((k) => k.id !== keyId));
       setConfirmRevoke(null);
     } catch (err) {
+      if (controller.signal.aborted) return;
       console.error('Failed to revoke API key:', err);
       setError('Failed to revoke key.');
     } finally {
-      setRevoking(null);
+      if (!controller.signal.aborted) setRevoking(null);
     }
   }, []);
 

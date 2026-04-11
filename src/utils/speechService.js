@@ -83,4 +83,27 @@ export const FORM_CUES = {
 
     // Positive reinforcement
     GREAT_REP: 'Textbook. Keep that energy.',
+
+    // Phase-aware coaching
+    PHASE_ECCENTRIC_1: 'Slow and controlled.',
+    PHASE_ECCENTRIC_2: 'Keep the tension.',
+    PHASE_ECCENTRIC_3: 'Nice and steady.',
+    PHASE_BOTTOM_1: 'Hold.',
+    PHASE_BOTTOM_2: 'Chest up.',
+    PHASE_BOTTOM_3: 'Brace hard.',
+    PHASE_CONCENTRIC_1: 'Drive up!',
+    PHASE_CONCENTRIC_2: 'Explode!',
+    PHASE_CONCENTRIC_3: 'Push through!',
+    PHASE_LOCKOUT_1: 'Squeeze at the top.',
+    PHASE_LOCKOUT_2: 'Lock it out.',
+
+    // Fatigue-aware coaching
+    FATIGUE_STAY_TIGHT: 'Last few reps. Stay tight.',
+    FATIGUE_DONT_SLIP: "Don't let form slip.",
+    FATIGUE_ALMOST_DONE: 'Almost done. Finish strong.',
+
+    // Encouragement scaling
+    EARLY_SET_PRAISE: 'Great start. Keep it up.',
+    MID_SET_PRAISE: 'Looking strong.',
+    COMBO_PRAISE: 'On fire! Keep the combo going.',
 };

@@ -17,14 +17,7 @@ import { Achievements } from '../components/Gamification/Achievements';
 import { db, auth } from '../firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { calculateForgeStreak } from '../utils/helpers';
-
-// Iron Score color helper
-const getIronScoreColor = (score) => {
-    if (score >= 80) return '#eab308';
-    if (score >= 60) return '#f97316';
-    if (score >= 30) return '#dc2626';
-    return '#6b7280';
-};
+import { getIronScoreColor } from '../utils/colors';
 
 // Mini progress ring for profile
 const ProfileProgressRing = ({ progress: pct, size = 72, strokeWidth = 6, color = '#dc2626' }) => {
@@ -242,6 +235,8 @@ export const ProfileHub = ({
             {/* Navigation */}
             <div
                 className="flex p-1 rounded-2xl overflow-x-auto scrollbar-hide"
+                role="tablist"
+                aria-label="Profile sections"
                 style={{
                     background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%)',
                     border: '1px solid rgba(255, 255, 255, 0.08)',
@@ -259,6 +254,8 @@ export const ProfileHub = ({
                     <button
                         key={tab.id}
                         onClick={() => setSubTab(tab.id)}
+                        role="tab"
+                        aria-selected={subTab === tab.id}
                         className={`flex-1 flex items-center justify-center gap-1.5 py-3 px-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap relative ${subTab === tab.id ? 'text-white' : 'text-gray-500 hover:text-gray-300'
                             }`}
                         style={subTab === tab.id ? {
@@ -435,6 +432,7 @@ const FriendsSection = ({ friends, pendingRequests, onViewPlayer, onRespond }) =
                                 <button
                                     onClick={() => handleRespond(req.id, 'accept')}
                                     disabled={!!responding[req.id]}
+                                    aria-label={`Accept friend request from ${req.fromUsername}`}
                                     className="p-2 rounded-lg transition-all hover:scale-110 active:scale-95 disabled:opacity-50"
                                     style={{ background: 'rgba(34,197,94,0.2)', border: '1px solid rgba(34,197,94,0.4)' }}
                                 >
@@ -443,6 +441,7 @@ const FriendsSection = ({ friends, pendingRequests, onViewPlayer, onRespond }) =
                                 <button
                                     onClick={() => handleRespond(req.id, 'decline')}
                                     disabled={!!responding[req.id]}
+                                    aria-label={`Decline friend request from ${req.fromUsername}`}
                                     className="p-2 rounded-lg transition-all hover:scale-110 active:scale-95 disabled:opacity-50"
                                     style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}
                                 >
@@ -482,6 +481,7 @@ const FriendsSection = ({ friends, pendingRequests, onViewPlayer, onRespond }) =
                                     xp: friend.xp || 0,
                                     ironScore: friend.ironScore || 0,
                                 })}
+                                aria-label={`View ${friend.username}'s player card`}
                                 className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
                                 style={{
                                     background: 'linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',

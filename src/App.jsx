@@ -15,10 +15,7 @@ const TrainView = React.lazy(() => import('./views/TrainView').then(m => ({ defa
 const ArenaView = React.lazy(() => import('./views/ArenaView').then(m => ({ default: m.ArenaView })));
 const ProfileHub = React.lazy(() => import('./views/ProfileHub').then(m => ({ default: m.ProfileHub })));
 const AILabView = React.lazy(() => import('./views/AILabView').then(m => ({ default: m.AILabView })));
-const AchievementsView = React.lazy(() => import('./views/AchievementsView').then(m => ({ default: m.AchievementsView })));
-const GhostMatchView = React.lazy(() => import('./views/GhostMatchView').then(m => ({ default: m.GhostMatchView })));
-
-import { NavBtn, ToastProvider, useToast, SkeletonCard } from './components/UIComponents';
+import { NavBtn, ToastProvider, useToast } from './components/UIComponents';
 import { OfflineIndicator } from './components/StatusComponents';
 import { PullToRefresh } from './components/PremiumUI';
 import AmbientFX from './components/AmbientFX';
@@ -31,6 +28,7 @@ import { useIsMobile } from './hooks/useIsMobile';
 import { useScrollIntoView } from './hooks/useScrollIntoView';
 import { SFX, Haptics } from './utils/audio';
 import { initKeyboardHandling } from './utils/keyboardSetup';
+import { initStore } from './services/playBillingService';
 import { ThemeProvider } from './context/ThemeContext';
 // ArenaProvider removed — Arena now uses useFitnessData leaderboard directly
 import { PremiumProvider } from './context/PremiumContext';
@@ -112,10 +110,17 @@ const MainContent = () => {
             return;
           }
         }
-      } catch {}
+      } catch (e) {
+        console.warn('Biometric auth failed, falling back to PIN:', e);
+      }
       setAuthGate('pin');
     })();
   }, [user, loading]);
+
+  // Initialize Play Billing store on mount (idempotent, no-op on web)
+  useEffect(() => {
+    initStore();
+  }, []);
 
   // Sync local activeTab to the Zustand store
   useEffect(() => {
