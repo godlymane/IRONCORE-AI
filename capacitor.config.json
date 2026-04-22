@@ -55,5 +55,15 @@
     "appendUserAgent": "IronCoreApp",
     "overScrollMode": "never",
     "webContentsDebuggingEnabled": false
+  },
+  "cordova": {
+    "accessOrigins": [
+      "https://ironcore-f68c2.firebaseapp.com",
+      "https://*.googleapis.com",
+      "https://*.cloudfunctions.net",
+      "https://*.run.app",
+      "https://api.razorpay.com",
+      "https://checkout.razorpay.com"
+    ]
   }
 }
