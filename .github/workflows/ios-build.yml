@@ -13,6 +13,9 @@ on:
           - device
           - testflight
 
+permissions:
+  contents: read
+
 jobs:
   build_ios:
     name: Build iOS App
@@ -20,10 +23,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: '20'
           cache: 'npm'
@@ -118,7 +121,7 @@ jobs:
 
       - name: Upload IPA artifact
         if: github.event.inputs.build_type == 'device' || github.event.inputs.build_type == 'testflight'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: ironcore-ios-ipa
           path: ios/App/build/ipa/*.ipa
@@ -126,7 +129,7 @@ jobs:
 
       - name: Upload Simulator Build
         if: github.event.inputs.build_type == 'simulator'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: ironcore-ios-simulator
           path: ios/App/build/Build/Products/Debug-iphonesimulator/

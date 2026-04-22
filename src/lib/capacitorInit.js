@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 
 let initialized = false;
+const listenerHandles = [];
 
 export async function initializeCapacitor() {
   if (!Capacitor.isNativePlatform() || initialized) return;
@@ -19,16 +20,34 @@ export async function initializeCapacitor() {
     await Keyboard.setAccessoryBarVisible({ isVisible: true });
     await Keyboard.setResizeMode({ mode: KeyboardResize.Body });
 
-    Keyboard.addListener('keyboardWillShow', (info) => {
-      document.documentElement.style.setProperty('--keyboard-height', `${info.keyboardHeight}px`);
-    });
+    listenerHandles.push(
+      await Keyboard.addListener('keyboardWillShow', (info) => {
+        document.documentElement.style.setProperty('--keyboard-height', `${info.keyboardHeight}px`);
+        document.body.classList.add('keyboard-open');
+      })
+    );
 
-    Keyboard.addListener('keyboardWillHide', () => {
-      document.documentElement.style.setProperty('--keyboard-height', '0px');
-    });
+    listenerHandles.push(
+      await Keyboard.addListener('keyboardWillHide', () => {
+        document.documentElement.style.setProperty('--keyboard-height', '0px');
+        document.body.classList.remove('keyboard-open');
+      })
+    );
   } catch (error) {
-    console.warn('Capacitor init failed:', error);
+    if (import.meta.env.DEV) console.warn('Capacitor init failed:', error);
   }
+}
+
+export async function teardownCapacitor() {
+  while (listenerHandles.length) {
+    const handle = listenerHandles.pop();
+    try { await handle?.remove?.(); } catch { /* noop */ }
+  }
+  initialized = false;
+}
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => { teardownCapacitor(); });
 }
 
 export function useScrollIntoView() {

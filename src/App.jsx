@@ -27,7 +27,7 @@ import { useStore } from './hooks/useStore';
 import { useIsMobile } from './hooks/useIsMobile';
 import { useScrollIntoView } from './hooks/useScrollIntoView';
 import { SFX, Haptics } from './utils/audio';
-import { initKeyboardHandling } from './utils/keyboardSetup';
+import { getPinHash, setPinHash } from './utils/securePin';
 import { initStore } from './services/playBillingService';
 import { ThemeProvider } from './context/ThemeContext';
 // ArenaProvider removed — Arena now uses useFitnessData leaderboard directly
@@ -46,6 +46,7 @@ const MainContent = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [authGate, setAuthGate] = useState('checking'); // checking | card | login | recovery | biometric | pin | pin_setup | passed
+  const [storedPinHash, setStoredPinHash] = useState(null);
   const authGateResolved = useRef(false);
   const isMobile = useIsMobile();
   const { addToast } = useToast();
@@ -89,16 +90,21 @@ const MainContent = () => {
 
     authGateResolved.current = true;
 
-    // Returning user — check for PIN/biometric gate
-    const storedPin = localStorage.getItem(`ironcore_pin_${user.uid}`);
-    if (!storedPin) {
-      // No PIN on this device — skip gate
-      setAuthGate('passed');
-      return;
-    }
-
-    // Try biometric first, fall back to PIN
+    // Returning user — check for PIN/biometric gate. PIN hash is held in
+    // platform secure storage (iOS Keychain / Android Keystore / tab-scoped
+    // sessionStorage on web) — never in localStorage. See src/utils/securePin.js.
     (async () => {
+      const hash = await getPinHash(user.uid);
+      if (!hash) {
+        setStoredPinHash(null);
+        setAuthGate('passed');
+        return;
+      }
+      setStoredPinHash(hash);
+
+      // Try biometric; if unavailable or user cancels, require PIN.
+      // Biometric failure does NOT silently leak the user past — it just
+      // routes to the explicit PIN prompt.
       try {
         const { isBiometricAvailable, authenticateWithBiometrics } = await import('./utils/biometrics');
         const available = await isBiometricAvailable();
@@ -111,7 +117,7 @@ const MainContent = () => {
           }
         }
       } catch (e) {
-        console.warn('Biometric auth failed, falling back to PIN:', e);
+        if (import.meta.env.DEV) console.warn('Biometric auth unavailable:', e);
       }
       setAuthGate('pin');
     })();
@@ -207,19 +213,8 @@ const MainContent = () => {
     };
   }, [activeTab, handleTabChange]);
 
-  // Configure status bar + keyboard on native platforms
-  useEffect(() => {
-    if (Capacitor.isNativePlatform()) {
-      import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
-        StatusBar.setStyle({ style: Style.Dark });
-        StatusBar.setBackgroundColor({ color: '#000000' });
-        StatusBar.setOverlaysWebView({ overlay: true });
-      }).catch(() => { });
-
-      // Initialize keyboard handling for native
-      initKeyboardHandling();
-    }
-  }, []);
+  // Native status-bar + keyboard lifecycle is owned by src/lib/capacitorInit.js
+  // which is invoked once from main.jsx — do not duplicate it here.
 
   // Prefetch likely next views after dashboard loads
   useEffect(() => {
@@ -300,12 +295,13 @@ const MainContent = () => {
   );
   if (authGate === 'recovery') return (
     <RecoveryView
-      onRecovered={() => {
+      onRecovered={async () => {
         // After recovery, set up PIN on this new device
         authGateResolved.current = true; // prevent auth gate effect from overriding
-        const uid = localStorage.getItem('ironcore_uid');
-        const hasPin = uid && localStorage.getItem(`ironcore_pin_${uid}`);
-        setAuthGate(hasPin ? 'passed' : 'pin_setup');
+        const uid = user?.uid || localStorage.getItem('ironcore_uid');
+        const hash = uid ? await getPinHash(uid) : null;
+        setStoredPinHash(hash);
+        setAuthGate(hash ? 'passed' : 'pin_setup');
       }}
       onBack={() => setAuthGate('card')}
     />
@@ -313,7 +309,7 @@ const MainContent = () => {
   if (authGate === 'pin') return (
     <PinEntryView
       mode="verify"
-      storedPinHash={localStorage.getItem(`ironcore_pin_${user?.uid || localStorage.getItem('ironcore_uid')}`)}
+      storedPinHash={storedPinHash}
       onComplete={() => { Haptics.success(); setAuthGate('passed'); }}
       onForgot={() => setAuthGate('recovery')}
     />
@@ -321,9 +317,10 @@ const MainContent = () => {
   if (authGate === 'pin_setup') return (
     <PinEntryView
       mode="setup"
-      onComplete={(hashedPin) => {
+      onComplete={async (hashedPin) => {
         const uid = user?.uid || localStorage.getItem('ironcore_uid');
-        if (uid) localStorage.setItem(`ironcore_pin_${uid}`, hashedPin);
+        if (uid) await setPinHash(uid, hashedPin);
+        setStoredPinHash(hashedPin);
         authGateResolved.current = true;
         Haptics.success();
         setAuthGate('passed');

@@ -2,8 +2,11 @@
 
 # Capacitor — keep the bridge and plugin classes
 -keep class com.getcapacitor.** { *; }
--keep class com.ironcore.ai.** { *; }
 -dontwarn com.getcapacitor.**
+
+# MainActivity is referenced from AndroidManifest.xml — keep the class itself
+# but allow R8 to rename everything else in our package.
+-keep class com.ironcore.ai.MainActivity { *; }
 
 # Capacitor plugin JS interface
 -keepclassmembers class * {
@@ -30,6 +33,7 @@
 # Facebook SDK — referenced by Firebase Auth plugin but not used (Google-only)
 -dontwarn com.facebook.**
 
-# Keep line numbers for crash reports
--keepattributes SourceFile,LineNumberTable
+# Keep line numbers so Sentry/Crashlytics can symbolicate via the uploaded mapping file,
+# but rename the SourceFile attribute so the shipped APK doesn't leak original filenames.
+-keepattributes LineNumberTable,SourceFile
 -renamesourcefileattribute SourceFile

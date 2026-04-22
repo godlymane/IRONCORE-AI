@@ -47,5 +47,21 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>IronCore uses the camera to analyze your exercise form in real time and to scan login QR codes.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>IronCore listens for voice commands during workouts ("start timer", "next set").</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>IronCore converts your voice commands to text on-device for hands-free workout control.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>IronCore reads and shares your progress photos and player cards from your photo library.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>IronCore saves your shareable player cards and progress photos to your photo library.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>IronCore uses Face ID to unlock your account without re-entering your PIN.</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>IronCore does not track you across other companies' apps or websites.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

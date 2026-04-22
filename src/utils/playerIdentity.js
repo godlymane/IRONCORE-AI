@@ -68,11 +68,14 @@ export function generatePhrase() {
 // ── Helpers ──────────────────────────────────────────────────────────
 const toHex = (buf) => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 
-const PBKDF2_ITERATIONS = 100000;
+// OWASP 2023 minimum for PBKDF2-HMAC-SHA256 is 600 000 iterations.
+// Keep this in sync with functions/index.js (loginWithPin) and the
+// matching constant in any native rewrite.
+const PBKDF2_ITERATIONS = 600000;
 
 /**
  * PBKDF2 key-stretch with random salt. Returns "v2:<salt>:<hash>".
- * 100 000 iterations of SHA-256 makes brute-force costly for short inputs (PINs).
+ * 600 000 iterations of SHA-256 makes brute-force costly for short inputs (PINs).
  */
 async function pbkdf2Hash(input, iterations = PBKDF2_ITERATIONS) {
   const enc = new TextEncoder();
@@ -100,17 +103,15 @@ function constantTimeEqual(a, b) {
 }
 
 /**
- * Verify an input against a stored hash (supports both v1 plain SHA-256 and v2 PBKDF2).
- * Uses constant-time comparison to prevent timing attacks.
+ * Verify an input against a stored v2 PBKDF2 hash.
+ *
+ * v1 (plain SHA-256 of the PIN) is NO LONGER accepted. The server-side
+ * loginWithPin upgrades stored hashes from v1 → v2 on successful login,
+ * and we also write v2 to Firestore on every new PIN set client-side.
+ * Rejecting v1 here eliminates the unsalted-hash attack surface.
  */
 async function pbkdf2Verify(input, storedHash) {
-  if (!storedHash.startsWith('v2:')) {
-    // Legacy v1 — plain SHA-256
-    const data = new TextEncoder().encode(input);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    return constantTimeEqual(toHex(hashBuffer), storedHash);
-  }
-  // v2 — PBKDF2
+  if (typeof storedHash !== 'string' || !storedHash.startsWith('v2:')) return false;
   const parts = storedHash.split(':');
   if (parts.length < 3 || !parts[1] || !parts[2]) return false;
   const [, saltHex, expectedHex] = parts;

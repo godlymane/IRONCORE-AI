@@ -111,7 +111,7 @@ export const showLocalNotification = async (title, options = {}) => {
             ...options,
         });
         return { success: true };
-    } catch (error) {
+    } catch {
         // Fallback to regular notification
         try {
             new Notification(title, options);
@@ -176,11 +176,19 @@ export const getWorkoutReminders = () => {
 // Reminder checker interval
 let reminderCheckInterval = null;
 let lastCheckedMinute = -1;
+let appStateHandle = null;
+let pagehideHandler = null;
 
 /**
- * Start checking for reminder times
+ * Start checking for reminder times.
+ *
+ * beforeunload does not fire when a Capacitor WebView is backgrounded or the
+ * app process is suspended — it only fires on browser tab close. To avoid
+ * leaking the interval on native we listen for Capacitor's appStateChange
+ * (pauses when backgrounded, resumes on foreground) and fall back to the
+ * browser's `pagehide` on web.
  */
-export const startReminderChecker = () => {
+export const startReminderChecker = async () => {
     if (reminderCheckInterval) return;
 
     reminderCheckInterval = setInterval(() => {
@@ -188,7 +196,6 @@ export const startReminderChecker = () => {
         const currentHour = now.getHours();
         const currentMinute = now.getMinutes();
 
-        // Only check once per minute
         if (currentMinute === lastCheckedMinute) return;
         lastCheckedMinute = currentMinute;
 
@@ -204,21 +211,41 @@ export const startReminderChecker = () => {
                 });
             }
         });
-    }, 30000); // Check every 30 seconds
+    }, 30000);
 
-    // Clean up the interval when the page unloads to prevent leaks
-    if (typeof window !== 'undefined') {
-        window.addEventListener('beforeunload', stopReminderChecker);
+    try {
+        const { Capacitor } = await import('@capacitor/core');
+        if (Capacitor.isNativePlatform()) {
+            const appPkg = '@capacitor/' + 'app';
+            const { App } = await import(/* @vite-ignore */ appPkg);
+            appStateHandle = await App.addListener('appStateChange', ({ isActive }) => {
+                if (!isActive) stopReminderChecker();
+            });
+            return;
+        }
+    } catch { /* web — fall through */ }
+
+    if (typeof window !== 'undefined' && !pagehideHandler) {
+        pagehideHandler = () => stopReminderChecker();
+        window.addEventListener('pagehide', pagehideHandler);
     }
 };
 
 /**
- * Stop reminder checker
+ * Stop reminder checker and release all lifecycle listeners.
  */
 export const stopReminderChecker = () => {
     if (reminderCheckInterval) {
         clearInterval(reminderCheckInterval);
         reminderCheckInterval = null;
+    }
+    if (appStateHandle?.remove) {
+        try { appStateHandle.remove(); } catch { /* noop */ }
+        appStateHandle = null;
+    }
+    if (pagehideHandler && typeof window !== 'undefined') {
+        window.removeEventListener('pagehide', pagehideHandler);
+        pagehideHandler = null;
     }
 };
 

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { LogIn, ChevronRight, Loader2, AlertCircle, KeyRound, QrCode, Camera, Upload, X, Delete } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { Haptics } from '../utils/audio';
+import { setPinHash } from '../utils/securePin';
 
 // ─── QR Scanner (lazy-loads html5-qrcode) ───────────────────────
 const QRScannerModal = ({ onDecoded, onClose }) => {
@@ -167,18 +168,19 @@ export const LoginScreen = ({ defaultUsername = '', onLoggedIn, onBack, onRecove
       const { auth } = await import('../firebase');
       await signInWithCustomToken(auth, token);
 
-      // Save to localStorage for returning-user flow
-      // TODO [native-rebuild]: Move to secure storage (Keychain on iOS, EncryptedSharedPreferences on Android)
+      // Username + uid are non-secret identifiers — localStorage is fine.
+      // PIN hash goes to platform secure storage via setPinHash (Keychain /
+      // Keystore on native, sessionStorage on web). Never localStorage.
       const localPinHash = await hashPin(pinValue);
       localStorage.setItem('ironcore_uid', auth.currentUser.uid);
       localStorage.setItem('ironcore_username', returnedUser);
-      localStorage.setItem(`ironcore_pin_${auth.currentUser.uid}`, localPinHash);
+      await setPinHash(auth.currentUser.uid, localPinHash);
 
       Haptics.success();
       setFailCount(0); // Reset fail count on successful login
       onLoggedIn({ username: returnedUser });
     } catch (e) {
-      console.error('Login error:', e?.code, e?.message, e?.details, JSON.stringify(e));
+      if (import.meta.env.DEV) console.error('Login error:', e?.code, e?.message);
       const newFails = failCount + 1;
       setFailCount(newFails);
 
@@ -232,14 +234,13 @@ export const LoginScreen = ({ defaultUsername = '', onLoggedIn, onBack, onRecove
       const { auth } = await import('../firebase');
       await signInWithCustomToken(auth, token);
 
-      // TODO [native-rebuild]: Move to secure storage (Keychain on iOS, EncryptedSharedPreferences on Android)
       localStorage.setItem('ironcore_uid', auth.currentUser.uid);
       localStorage.setItem('ironcore_username', recoveredUser);
 
       Haptics.success();
       onLoggedIn({ username: recoveredUser });
     } catch (e) {
-      console.error('QR recovery error:', e);
+      if (import.meta.env.DEV) console.error('QR recovery error:', e?.code, e?.message);
       const code = e?.code || '';
       if (code === 'functions/not-found') {
         setError('No account found for this QR code.');

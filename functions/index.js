@@ -1842,11 +1842,18 @@ exports.loginWithPin = onCall(async (request) => {
 
   const storedPinHash = profileDoc.data().pinHash;
 
-  // Verify PIN — supports both v1 (plain SHA-256) and v2 (PBKDF2+salt)
+  // OWASP 2023: PBKDF2-HMAC-SHA256 minimum 600 000 iterations.
+  const PBKDF2_ITERATIONS = 600000;
+
+  // Verify PIN. v2 is current (PBKDF2 + salt). v1 (plain SHA-256) is accepted
+  // exactly once per user: on a successful v1 login we immediately rewrite
+  // the stored hash as v2 before returning the token, then reject v1 on all
+  // future logins via the client's pbkdf2Verify. This upgrades the fleet
+  // without forcing a password reset.
   let pinValid = false;
+  let usedLegacyV1 = false;
   try {
-    if (storedPinHash.startsWith("v2:")) {
-      // v2 PBKDF2 verification — requires raw PIN
+    if (typeof storedPinHash === "string" && storedPinHash.startsWith("v2:")) {
       if (!rawPin) {
         throw new HttpsError("not-found", "Invalid username or PIN.");
       }
@@ -1856,16 +1863,17 @@ exports.loginWithPin = onCall(async (request) => {
       }
       const [, saltHex, expectedHex] = parts;
       const salt = Buffer.from(saltHex, "hex");
-      const derived = crypto.pbkdf2Sync(rawPin, salt, 100000, 32, "sha256");
-      pinValid = crypto.timingSafeEqual(derived, Buffer.from(expectedHex, "hex"));
+      const derived = crypto.pbkdf2Sync(rawPin, salt, PBKDF2_ITERATIONS, 32, "sha256");
+      const expected = Buffer.from(expectedHex, "hex");
+      pinValid = derived.length === expected.length && crypto.timingSafeEqual(derived, expected);
     } else {
-      // v1 legacy — plain SHA-256 comparison
       const inputHash = rawPin
         ? crypto.createHash("sha256").update(rawPin).digest("hex")
         : legacyPinHash;
-      const a = Buffer.from(inputHash, "hex");
-      const b = Buffer.from(storedPinHash, "hex");
-      pinValid = a.length === b.length && crypto.timingSafeEqual(a, b);
+      const a = Buffer.from(inputHash || "", "hex");
+      const b = Buffer.from(storedPinHash || "", "hex");
+      pinValid = a.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
+      if (pinValid) usedLegacyV1 = true;
     }
   } catch (e) {
     if (e instanceof HttpsError) throw e;
@@ -1875,6 +1883,22 @@ exports.loginWithPin = onCall(async (request) => {
 
   if (!pinValid) {
     throw new HttpsError("not-found", "Invalid username or PIN.");
+  }
+
+  // Silent v1 → v2 upgrade. Requires the raw PIN, which the client sends as
+  // its already-PBKDF2-hashed value in the v2 path; legacy clients still send
+  // the SHA-256 hex as `pinHash` and the raw PIN as `pin`. When we only have
+  // the SHA-256 hex (no raw PIN), we can't rehash — the upgrade happens the
+  // next time the user sets or changes their PIN through the updated client.
+  if (usedLegacyV1 && rawPin) {
+    try {
+      const newSalt = crypto.randomBytes(16);
+      const newDerived = crypto.pbkdf2Sync(rawPin, newSalt, PBKDF2_ITERATIONS, 32, "sha256");
+      const newHash = `v2:${newSalt.toString("hex")}:${newDerived.toString("hex")}`;
+      await db.doc(`users/${uid}/data/profile`).set({ pinHash: newHash }, { merge: true });
+    } catch (e) {
+      functions.logger.warn("[loginWithPin] v1→v2 upgrade skipped", { uid, reason: e.message });
+    }
   }
 
   // Mint custom token

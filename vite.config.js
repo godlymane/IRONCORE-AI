@@ -40,13 +40,14 @@ export default defineConfig({
   ],
   esbuild: {
     drop: ['debugger'],
-    pure: ['console.log', 'console.debug'],
+    // Strip every console method in production builds. Call-sites that genuinely
+    // need to log should guard with `if (import.meta.env.DEV)`.
+    pure: ['console.log', 'console.debug', 'console.info', 'console.warn', 'console.error', 'console.trace'],
   },
   build: {
     target: 'es2020',
     sourcemap: false,
     rollupOptions: {
-      external: ['@capacitor/local-notifications'],
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom'],

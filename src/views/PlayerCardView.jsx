@@ -6,6 +6,7 @@ import { Capacitor } from '@capacitor/core';
 import { generatePhrase, hashPhrase, validateUsername } from '../utils/playerIdentity';
 import { PinEntryView } from './PinEntryView';
 import { SFX, Haptics } from '../utils/audio';
+import { setPinHash as storePinHash } from '../utils/securePin';
 
 // Stoic quotes
 const QUOTES = [
@@ -507,12 +508,12 @@ export const PlayerCardView = ({ onComplete, onLogin }) => {
         throw new Error(`Profile write failed: ${profErr.code || profErr.message}`);
       }
 
-      // Save PIN to localStorage for returning-user gate
-      localStorage.setItem(`ironcore_pin_${user.uid}`, hash);
+      // PIN hash → platform secure storage (Keychain / Keystore / sessionStorage)
+      await storePinHash(user.uid, hash);
 
       setStep('reveal');
     } catch (e) {
-      console.error('Account creation error:', e);
+      if (import.meta.env.DEV) console.error('Account creation error:', e?.code, e?.message);
       setCreateError(e.message || String(e));
       setStep('username');
     }

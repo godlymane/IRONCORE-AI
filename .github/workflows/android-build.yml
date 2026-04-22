@@ -15,6 +15,9 @@ on:
           - debug
           - release
 
+permissions:
+  contents: read
+
 jobs:
   build_android:
     name: Build Android APK
@@ -22,16 +25,16 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: '20'
           cache: 'npm'
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@8df1039502a15bceb9433410b1a100fbe190c53b # v4.5.0
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -63,31 +66,26 @@ jobs:
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
 
+      # Release path: decode the keystore once on disk, then hand its path to
+      # Gradle via env vars consumed by android/app/build.gradle's signingConfigs.
+      # No post-hoc apksigner re-run — Gradle already signs assembleRelease.
+      - name: Decode Release Keystore
+        if: github.event.inputs.build_type == 'release'
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/ironcore.keystore"
+
       - name: Build Release APK
         if: github.event.inputs.build_type == 'release'
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon
         env:
-          KEYSTORE_FILE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-
-      - name: Sign Release APK
-        if: github.event.inputs.build_type == 'release'
-        run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > ironcore.keystore
-          $ANDROID_HOME/build-tools/*/apksigner sign \
-            --ks ironcore.keystore \
-            --ks-key-alias "${{ secrets.ANDROID_KEY_ALIAS }}" \
-            --ks-pass "pass:${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
-            --key-pass "pass:${{ secrets.ANDROID_KEY_PASSWORD }}" \
-            --out android/app/build/outputs/apk/release/ironcore-signed.apk \
-            android/app/build/outputs/apk/release/app-release-unsigned.apk
+          IRONCORE_KEYSTORE_PATH: ${{ runner.temp }}/ironcore.keystore
+          IRONCORE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          IRONCORE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          IRONCORE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
 
       - name: Upload Debug APK
         if: github.event.inputs.build_type != 'release'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: ironcore-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
@@ -95,8 +93,8 @@ jobs:
 
       - name: Upload Release APK
         if: github.event.inputs.build_type == 'release'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: ironcore-release-apk
-          path: android/app/build/outputs/apk/release/ironcore-signed.apk
+          path: android/app/build/outputs/apk/release/app-release.apk
           retention-days: 30
